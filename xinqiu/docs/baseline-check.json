@@ -1,0 +1,197 @@
+{
+  "projectDir": "C:\\Users\\cj\\Documents\\GitHub\\sanjiaogame\\xinqiu",
+  "errorCount": 5,
+  "warningCount": 2,
+  "items": [
+    {
+      "level": "error",
+      "check": "layout",
+      "message": "缺少必需目录: Assets/Scripts",
+      "path": "Assets/Scripts",
+      "hint": "",
+      "files": []
+    },
+    {
+      "level": "error",
+      "check": "layout",
+      "message": "缺少必需目录: Assets/Art",
+      "path": "Assets/Art",
+      "hint": "",
+      "files": []
+    },
+    {
+      "level": "error",
+      "check": "layout",
+      "message": "缺少必需目录: Assets/Audio",
+      "path": "Assets/Audio",
+      "hint": "",
+      "files": []
+    },
+    {
+      "level": "error",
+      "check": "layout",
+      "message": "缺少必需目录: Assets/Prefabs",
+      "path": "Assets/Prefabs",
+      "hint": "",
+      "files": []
+    },
+    {
+      "level": "warn",
+      "check": "projectVersion",
+      "message": "版本号格式不常见，请人工确认: 2022.3.62f3c1",
+      "path": "ProjectSettings/ProjectVersion.txt",
+      "hint": "",
+      "files": []
+    },
+    {
+      "level": "info",
+      "check": "manifest",
+      "message": "包依赖 41 项，格式合法",
+      "path": "Packages/manifest.json",
+      "hint": "",
+      "files": []
+    },
+    {
+      "level": "info",
+      "check": "metaPairing",
+      "message": "104 个文件与 25 个目录的元数据配对完整",
+      "path": "",
+      "hint": "",
+      "files": []
+    },
+    {
+      "level": "info",
+      "check": "guidUnique",
+      "message": "129 个 GUID 全部唯一",
+      "path": "",
+      "hint": "",
+      "files": []
+    },
+    {
+      "level": "error",
+      "check": "scenes",
+      "message": "有 1 个场景未写入构建列表（构建后不会被打包）: Assets/Planets of the Solar System 3D/Scenes/Overview.unity",
+      "path": "",
+      "hint": "在编辑器的构建设置里把场景加进 Scenes In Build",
+      "files": [
+        "Assets/Planets of the Solar System 3D/Scenes/Overview.unity"
+      ]
+    },
+    {
+      "level": "info",
+      "check": "buildSettings",
+      "message": "构建列表 2 个条目均有效且启用",
+      "path": "",
+      "hint": "",
+      "files": []
+    },
+    {
+      "level": "info",
+      "check": "csharp",
+      "message": "检查了 7 个 C# 脚本",
+      "path": "",
+      "hint": "",
+      "files": []
+    },
+    {
+      "level": "warn",
+      "check": "danglingGuids",
+      "message": "有 56 个 GUID（共 177 处引用）在 Assets 中找不到归属资源，疑似引用已删除资源或指向内置/包内资源。涉及文件示例: Assets/Planets of the Solar System 3D/Materials/Skybox.mat, Assets/Planets of the Solar System 3D/Materials/Sun FX.mat, Assets/Planets of the Solar System 3D/Materials/URP_Asteroid.mat, Assets/Planets of the Solar System 3D/Materials/URP_Earth_2k.mat, Assets/Planets of the Solar System 3D/Materials/URP_Earth_Lod.mat, Assets/Planets of the Solar System 3D/Materials/URP_Jupiter_2k.mat, Assets/Planets of the Solar System 3D/Materials/URP_Jupiter_Lod.mat, Assets/Planets of the Solar System 3D/Materials/URP_Mars_2k.mat",
+      "path": "",
+      "hint": "若确认是内置或包内资源，把它的 GUID 写入规格文件 builtinGuidAllowlist 即可消除噪音；否则说明有资源被误删，需要在编辑器里重新指派引用",
+      "files": [
+        "Assets/Planets of the Solar System 3D/Materials/Skybox.mat",
+        "Assets/Planets of the Solar System 3D/Materials/Sun FX.mat",
+        "Assets/Planets of the Solar System 3D/Materials/URP_Asteroid.mat",
+        "Assets/Planets of the Solar System 3D/Materials/URP_Earth_2k.mat",
+        "Assets/Planets of the Solar System 3D/Materials/URP_Earth_Lod.mat",
+        "Assets/Planets of the Solar System 3D/Materials/URP_Jupiter_2k.mat",
+        "Assets/Planets of the Solar System 3D/Materials/URP_Jupiter_Lod.mat",
+        "Assets/Planets of the Solar System 3D/Materials/URP_Mars_2k.mat",
+        "Assets/Planets of the Solar System 3D/Materials/URP_Mars_Lod.mat",
+        "Assets/Planets of the Solar System 3D/Materials/URP_Mercury_2k.mat",
+        "Assets/Planets of the Solar System 3D/Materials/URP_Mercury_Lod.mat",
+        "Assets/Planets of the Solar System 3D/Materials/URP_Moon_2k.mat",
+        "Assets/Planets of the Solar System 3D/Materials/URP_Moon_Lod.mat",
+        "Assets/Planets of the Solar System 3D/Materials/URP_Neptune_2k.mat",
+        "Assets/Planets of the Solar System 3D/Materials/URP_Neptune_Lod.mat",
+        "Assets/Planets of the Solar System 3D/Materials/URP_Pluto_2k.mat",
+        "Assets/Planets of the Solar System 3D/Materials/URP_Pluto_Lod.mat",
+        "Assets/Planets of the Solar System 3D/Materials/URP_Saturn_2k.mat",
+        "Assets/Planets of the Solar System 3D/Materials/URP_Saturn_Lod.mat",
+        "Assets/Planets of the Solar System 3D/Materials/URP_Saturn_Ring.mat",
+        "Assets/Planets of the Solar System 3D/Materials/URP_Sun Sphere.mat",
+        "Assets/Planets of the Solar System 3D/Materials/URP_Sun.mat",
+        "Assets/Planets of the Solar System 3D/Materials/URP_Sun_Smoke.mat",
+        "Assets/Planets of the Solar System 3D/Materials/URP_Uranus_2k.mat",
+        "Assets/Planets of the Solar System 3D/Materials/URP_Uranus_Lod.mat",
+        "Assets/Planets of the Solar System 3D/Materials/URP_Venus_2k.mat",
+        "Assets/Planets of the Solar System 3D/Materials/URP_Venus_Lod.mat",
+        "Assets/Planets of the Solar System 3D/Prefabs/Earth.prefab",
+        "Assets/Planets of the Solar System 3D/Prefabs/Jupiter.prefab",
+        "Assets/Planets of the Solar System 3D/Prefabs/Mars.prefab",
+        "Assets/Planets of the Solar System 3D/Prefabs/Mercury.prefab",
+        "Assets/Planets of the Solar System 3D/Prefabs/Moon.prefab",
+        "Assets/Planets of the Solar System 3D/Prefabs/Neptune.prefab",
+        "Assets/Planets of the Solar System 3D/Prefabs/Pluto.prefab",
+        "Assets/Planets of the Solar System 3D/Prefabs/Saturn.prefab",
+        "Assets/Planets of the Solar System 3D/Prefabs/Sun Sphere.prefab",
+        "Assets/Planets of the Solar System 3D/Prefabs/Sun.prefab",
+        "Assets/Planets of the Solar System 3D/Prefabs/Uranus.prefab",
+        "Assets/Planets of the Solar System 3D/Prefabs/Venus.prefab",
+        "Assets/Planets of the Solar System 3D/Scenes/Overview.unity",
+        "Assets/Planets of the Solar System 3D/Settings/POTSS_PostProcess_Profile.asset",
+        "Assets/Planets of the Solar System 3D/Settings/POTSS_UniversalRP.asset",
+        "Assets/Planets of the Solar System 3D/Settings/POTSS_UniversalRP_Renderer.asset",
+        "Assets/Scenes/SampleScene.unity",
+        "Assets/Settings/SampleSceneProfile.asset",
+        "Assets/Settings/URP-Balanced-Renderer.asset",
+        "Assets/Settings/URP-Balanced.asset",
+        "Assets/Settings/URP-HighFidelity-Renderer.asset",
+        "Assets/Settings/URP-HighFidelity.asset",
+        "Assets/Settings/URP-Performant-Renderer.asset",
+        "Assets/Settings/URP-Performant.asset",
+        "Assets/UniversalRenderPipelineGlobalSettings.asset",
+        "Assets/_Game/Materials/M_Hands_Whitebox.mat",
+        "Assets/_Game/Materials/M_Planet_Whitebox.mat",
+        "Assets/_Game/Materials/M_Player_Whitebox.mat",
+        "Assets/_Game/Materials/M_Trash_Whitebox.mat",
+        "Assets/_Game/Scenes/Whitebox.unity"
+      ]
+    },
+    {
+      "level": "info",
+      "check": "absolutePaths",
+      "message": "未发现机器绝对路径",
+      "path": "",
+      "hint": "",
+      "files": []
+    },
+    {
+      "level": "info",
+      "check": "traceability",
+      "message": "未提供设计冻结清单，跳过可追溯性检查（加 --freeze 启用）",
+      "path": "",
+      "hint": "",
+      "files": []
+    },
+    {
+      "level": "info",
+      "check": "compileLog",
+      "message": "未提供编译日志，跳过（加 --compile-log 可校验真实编译结果）",
+      "path": "",
+      "hint": "",
+      "files": []
+    },
+    {
+      "level": "info",
+      "check": "dotnetBuild",
+      "message": "未启用真实编译（加 --dotnet-build 启用，需要解决方案文件与 dotnet）",
+      "path": "",
+      "hint": "",
+      "files": []
+    }
+  ],
+  "scriptVersion": "1.1.0",
+  "ignored": {}
+}

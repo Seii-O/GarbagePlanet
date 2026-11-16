@@ -1,0 +1,124 @@
+{
+  "projectDir": "C:\\Users\\cj\\Documents\\GitHub\\sanjiaogame\\xinqiu",
+  "errorCount": 0,
+  "warningCount": 1,
+  "items": [
+    {
+      "level": "info",
+      "check": "spec",
+      "message": "已加载规格文件: project-spec.json",
+      "path": "",
+      "hint": "",
+      "files": []
+    },
+    {
+      "level": "info",
+      "check": "layout",
+      "message": "必需目录与文件齐全（20 个必需目录 / 5 个必需文件）",
+      "path": "",
+      "hint": "",
+      "files": []
+    },
+    {
+      "level": "info",
+      "check": "manifest",
+      "message": "包依赖 41 项，格式合法",
+      "path": "Packages/manifest.json",
+      "hint": "",
+      "files": []
+    },
+    {
+      "level": "info",
+      "check": "metaPairing",
+      "message": "146 个文件与 44 个目录的元数据配对完整",
+      "path": "",
+      "hint": "",
+      "files": []
+    },
+    {
+      "level": "info",
+      "check": "guidUnique",
+      "message": "190 个 GUID 全部唯一",
+      "path": "",
+      "hint": "",
+      "files": []
+    },
+    {
+      "level": "info",
+      "check": "scenes",
+      "message": "4 个场景均已写入构建列表（另有 1 条按规格抑制）",
+      "path": "",
+      "hint": "",
+      "files": []
+    },
+    {
+      "level": "info",
+      "check": "buildSettings",
+      "message": "构建列表 3 个条目均有效且启用",
+      "path": "",
+      "hint": "",
+      "files": []
+    },
+    {
+      "level": "info",
+      "check": "csharp",
+      "message": "检查了 26 个 C# 脚本",
+      "path": "",
+      "hint": "",
+      "files": []
+    },
+    {
+      "level": "info",
+      "check": "danglingGuids",
+      "message": "181 个被引用的 GUID 全部可在 Assets 中解析",
+      "path": "",
+      "hint": "",
+      "files": []
+    },
+    {
+      "level": "info",
+      "check": "absolutePaths",
+      "message": "未发现机器绝对路径",
+      "path": "",
+      "hint": "",
+      "files": []
+    },
+    {
+      "level": "warn",
+      "check": "traceability",
+      "message": "有 2 个已确认条目在工程中未被任何文件引用（覆盖缺口）: ART-006, NUM-011",
+      "path": "",
+      "hint": "在对应脚本或数据资产里加一行标记，如 // @trace MECH-001",
+      "files": []
+    },
+    {
+      "level": "info",
+      "check": "traceability",
+      "message": "冻结条目 32 个（已确认 32），工程引用覆盖率 30/32 = 94%",
+      "path": "C:\\Users\\cj\\Documents\\GitHub\\sanjiaogame\\xinqiu\\docs\\design-freeze.json",
+      "hint": "",
+      "files": []
+    },
+    {
+      "level": "info",
+      "check": "compileLog",
+      "message": "未在日志中发现编译错误（解析 unity-compile-final.log）",
+      "path": "",
+      "hint": "",
+      "files": []
+    },
+    {
+      "level": "info",
+      "check": "dotnetBuild",
+      "message": "未启用真实编译（加 --dotnet-build 启用，需要解决方案文件与 dotnet）",
+      "path": "",
+      "hint": "",
+      "files": []
+    }
+  ],
+  "scriptVersion": "1.1.0",
+  "ignored": {
+    "projectVersion": 1,
+    "scenes": 1
+  }
+}

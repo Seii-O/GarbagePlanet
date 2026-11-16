@@ -1,0 +1,29 @@
+垃圾星球 · 白膜雏形规格对照说明（工程内文本资产，供可追溯性检查读取）
+
+本文件是「策划案冻结条目 -> 工程落点」的对照记录。只登记本工程真实遵守或真实实现的条目；
+没做的（ART-006 的 27 件美术资产、NUM-011 的时长结论）不写标记，在交付文档里列为覆盖缺口。
+注意：追溯标记必须独占一行且只写编号，解释写在下一行。
+
+平台与工程口径
+- @trace PLAT-001
+  主平台 PC Windows：白膜只实现键鼠输入（旧版 Input Manager：WASD / Shift / M / ESC / 鼠标），不引入触屏与手柄分支。
+- @trace PLAT-003
+  手机端为移植批次：本工程不含触屏热区、竖屏适配与移动端包体配置；既有 PlayerCameraRig 里的触屏分支不在本轮实现范围。
+- @trace PLAT-004
+  比赛项目「同行」主题：由 CompanionDog 的位置与行为表达，不靠对话、好感度、外观阶段或常驻 UI。
+- @trace PLAT-005
+  Unity 2022.3 LTS + URP：ProjectSettings/ProjectVersion.txt 为 2022.3.62f3c1，Packages/manifest.json 使用 com.unity.render-pipelines.universal 14.0.12；
+  材质统一取 Universal Render Pipeline/Lit，轮廓用 Unlit。包版本以本机 Package Manager 实际解析为准。
+
+关卡与美术
+- @trace LEV-003
+  球面四区块与地标：WhiteboxBuilder.BuildSceneContents 在四个方向各放一个 env_landmark_*，中转站为北经区唯一建筑。
+- @trace ART-001
+  地平线弧不被遮挡：全部垃圾、地标、中转站、狗的高度都压在视线水平线以下，无远景假山、无雾墙。
+- ART-006（未登记）
+  白膜只有 7 类垃圾占位预制体，没有 27 件道具与 20 个变体，属于真实未实现。
+- NUM-011（未登记）
+  这是数值复算结论，不是工程模块，本轮没有重算，属于真实未实现。
+- @trace ART-012
+  狗固定外观：CompanionDog.Init 一次性写入 M_Dog_Whitebox.mat（#D8C3A0），EcoStage 只接触地表/水材质；
+  阶段切换不改狗的任何 Renderer，无 UpdateLook、无角色状态色板。
