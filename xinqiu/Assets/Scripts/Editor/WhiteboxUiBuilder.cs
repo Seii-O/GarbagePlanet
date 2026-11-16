@@ -612,16 +612,10 @@ namespace TrashPlanet.Whitebox.Editor
         // 小工具
         // ---------------------------------------------------------------
 
+        /// <summary>字体统一走 UiFont：Assets/Art/Fonts/ 里有中文字体就优先用。</summary>
         static Font LoadFont()
         {
-            try
-            {
-                Font f = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-                if (f != null) return f;
-            }
-            catch (Exception) { /* Unity 2022 之前没有 LegacyRuntime.ttf */ }
-            try { return Resources.GetBuiltinResource<Font>("Arial.ttf"); }
-            catch (Exception) { return null; }
+            return UiFont.Load();
         }
 
         static RectTransform Rect(Transform parent, string name, Vector2 anchor, Vector2 pivot,
