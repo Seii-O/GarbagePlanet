@@ -828,6 +828,56 @@ namespace TrashPlanet.Whitebox.Editor
                 new Color(1.0f, 0.98f, 0.92f), 0.40f, Quaternion.Euler(55f, 210f, 0f));
         }
 
+        /// <summary>
+        /// 把配置里的星球半径烘焙进当前场景（星球体积 + 水体/中转站/地标的位置）。
+        /// 运行期 WhiteboxGame 也会做同样的对齐，所以不跑这个菜单也能玩；
+        /// 只是跑了之后 Scene 视图里看到的才是真实尺寸。
+        /// </summary>
+        [MenuItem("Tools/垃圾星球白膜/⑧ 按配置重设星球半径（当前场景）", false, 15)]
+        public static void ApplyPlanetRadiusMenu()
+        {
+            Scene scene = EditorSceneManager.GetActiveScene();
+            if (scene.path != ScenePath)
+            {
+                Debug.LogWarning(LogTag + "请在已打开的 WhiteboxPrototype 场景里执行；当前场景="
+                                 + (string.IsNullOrEmpty(scene.path) ? "(未保存)" : scene.path));
+                return;
+            }
+            WhiteboxConfig cfg = CreateConfig();
+            bool changed = ApplyPlanetRadiusToScene(scene, cfg);
+            if (changed)
+            {
+                EditorSceneManager.MarkSceneDirty(scene);
+                EditorSceneManager.SaveScene(scene);
+                AssetDatabase.SaveAssets();
+            }
+            if (!Application.isBatchMode)
+                EditorUtility.DisplayDialog("星球半径",
+                    changed
+                        ? "已按配置把星球半径改为 " + cfg.PlanetRadius + " m，并同步挪动水体 / 中转站 / 地标。"
+                        : "场景半径已与配置一致（" + cfg.PlanetRadius + " m），无需改动。", "好");
+        }
+
+        /// <summary>返回 true 表示场景确实被改过。</summary>
+        public static bool ApplyPlanetRadiusToScene(Scene scene, WhiteboxConfig cfg)
+        {
+            if (cfg == null || !scene.IsValid()) return false;
+
+            Transform world = null;
+            PlayerController pc = null;
+            foreach (GameObject root in scene.GetRootGameObjects())
+            {
+                if (world == null && root.name == "WorldRoot") world = root.transform;
+                if (pc == null) pc = root.GetComponentInChildren<PlayerController>(true);
+            }
+            if (world == null) return false;
+
+            bool changed = PlanetLayout.Apply(world, cfg.PlanetRadius);
+            // 玩家控制器只是兜底值（运行时会按碰撞体重新量测），同步一下避免 Scene 视图里数值过期
+            if (pc != null) pc.PlanetRadius = cfg.PlanetRadius;
+            return changed;
+        }
+
         static void EnsureDirectionalLight(Transform parent, string name, Color color, float intensity, Quaternion rot)
         {
             if (parent != null)

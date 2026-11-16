@@ -143,8 +143,9 @@ namespace TrashPlanet.Whitebox
                     new Color(1f, 1f, 1f, FlashAlpha));
 
             // 背包 >80% 的边框呼吸（#E2603C）
+            int[] bagCaps = cfg.BackpackCapAt(s.bagLevel);
             int bagSum = 0, bagCap = 0;
-            for (int i = 0; i < 4; i++) { bagSum += s.bag[i]; bagCap += cfg.BackpackCap[i]; }
+            for (int i = 0; i < 4; i++) { bagSum += s.bag[i]; bagCap += bagCaps[i]; }
             if (bagCap > 0 && bagSum / (float)bagCap > 0.8f)
             {
                 float a = 0.35f + 0.25f * Mathf.Sin(Time.time * 6f);
@@ -200,11 +201,14 @@ namespace TrashPlanet.Whitebox
         {
             GUILayout.BeginArea(new Rect(16f, 44f, 320f, 250f), GUI.skin.box);
             GUILayout.Label("白膜调试信息（F1 隐藏）");
-            GUILayout.Label("背包 塑/金/有/电: " + s.bag[0] + "/" + s.bag[1] + "/" + s.bag[2] + "/" + s.bag[3]);
+            GUILayout.Label("背包 Lv." + s.bagLevel + " 总 " + s.BagTotal() + "/" + s.BagCapTotal(cfg)
+                            + "  塑/金/有/电: " + s.bag[0] + "/" + s.bag[1] + "/" + s.bag[2] + "/" + s.bag[3]);
             GUILayout.Label("材料 板/金/肥/芯: " + s.materials[0] + "/" + s.materials[1] + "/"
                             + s.materials[2] + "/" + s.materials[3]);
             GUILayout.Label("工具 Lv." + s.toolLevel + " · 拾取 " + cfg.PickRange[s.toolLevel - 1] + " m"
-                            + " · 地图 " + game.Spawner.Active.Count + "/" + cfg.MapTrashCap);
+                            + " · 地表 " + game.Spawner.Active.Count + "/" + cfg.MapTrashCap
+                            + " · 累计 " + s.totalSpawned + "/" + cfg.TotalTrashBudget
+                            + (s.TrashBudgetSpent(cfg) ? "（已停止）" : ""));
             GUILayout.Label("土地 " + (s.landProgress * 100f).ToString("0") + "% · 水源 "
                             + (s.waterProgress * 100f).ToString("0") + "% · 生态阶段 " + (game.Eco.Stage + 1) + "/3");
             GUILayout.Label("任务 " + (System.Math.Min(s.questStep + 1, 10)) + "/10 ： " + game.Quest.CurrentText);
@@ -215,21 +219,26 @@ namespace TrashPlanet.Whitebox
 
         void DrawStation(WhiteboxState s, WhiteboxConfig cfg)
         {
-            float w = 430f, h = 430f;
+            float w = 430f, h = 580f;
             Rect r = new Rect((Screen.width - w) * 0.5f, (Screen.height - h) * 0.5f, w, h);
             GUILayout.BeginArea(r, GUI.skin.box);
             GUILayout.Label("中转站 2D 经营  ·  M 或 ESC 关闭");
-            GUILayout.Label("已修复: " + (s.stationRepaired ? "是" : "否（先造 1 块再生建材板）"));
+            GUILayout.Label("已修复: " + (s.stationRepaired ? "是" : "否（先造 1 块再生建材板）")
+                            + "  ·  背包 Lv." + s.bagLevel + "（总 " + s.BagTotal() + "/" + s.BagCapTotal(cfg) + "）");
             if (GUILayout.Button("① 投放背包全部垃圾")) game.StationLogic.DepositAll();
 
             GUILayout.Label("待加工垃圾  塑/金/有/电: " + s.raw[0] + "/" + s.raw[1] + "/" + s.raw[2] + "/" + s.raw[3]);
             for (int i = 0; i < 4; i++)
             {
                 int cat = i;
+                // IMGUI 回退没有弹窗：主按钮做 1 批，旁边的「全部」一次做满（等价于 uGUI 弹窗的一键全部）
                 if (GUILayout.Button("② 加工" + StationSystem.CategoryNames[cat]
                                     + " ×" + cfg.MinProcessBatch[cat] + "  →  "
                                     + StationSystem.MaterialNames[cat]))
                     game.StationLogic.StartProcess(cat);
+                if (GUILayout.Button("　── 一键全部加工" + StationSystem.CategoryNames[cat]
+                                     + "（" + game.StationLogic.MaxProcessBatches(cat) + " 次）"))
+                    game.StationLogic.StartProcessAll(cat);
             }
             GUILayout.Label("材料  塑板/金件/有机/芯: " + s.materials[0] + "/" + s.materials[1] + "/"
                             + s.materials[2] + "/" + s.materials[3]);
@@ -239,9 +248,14 @@ namespace TrashPlanet.Whitebox
                 if (GUILayout.Button("③ 制造 " + StationSystem.RecipeNames[recipe]
                                     + "（" + game.StationLogic.CostText(recipe) + "）"))
                     game.StationLogic.StartCraft(recipe);
+                if (GUILayout.Button("　── 一键全部制造" + StationSystem.RecipeNames[recipe]
+                                     + "（" + game.StationLogic.MaxCraftCount(recipe) + " 次）"))
+                    game.StationLogic.StartCraftAll(recipe);
             }
             if (GUILayout.Button("④ 升级工具（Lv." + s.toolLevel + " → " + (s.toolLevel + 1) + "）"))
                 game.StationLogic.UpgradeTool();
+            if (GUILayout.Button("⑤ " + game.StationLogic.BagUpgradeText().Replace("⑤ ", "")))
+                game.StationLogic.UpgradeBackpack();
 
             if (game.StationLogic.HasJob) DrawBar(game.StationLogic.JobLabel, game.StationLogic.JobProgress, cfg.DurabilityColor);
             GUILayout.EndArea();

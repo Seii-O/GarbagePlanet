@@ -29,7 +29,9 @@ namespace TrashPlanet.Whitebox.Editor
     public static class WhiteboxUiBuilder
     {
         public const string RootName = "UI_Whitebox";
-        const string SessionKey = "TrashPlanet.Whitebox.Ui.AutoBuilt.v1";
+        // v2：新增「数量选择弹窗 + ⑤ 升级背包」区块。改版本号 = 让已存在的编辑器会话在脚本重载后
+        // 也重新走一次补齐（SessionState 跨域重载保持，不换 key 就永远不再补）。
+        const string SessionKey = "TrashPlanet.Whitebox.Ui.AutoBuilt.v2";
         const string Tag = "[WhiteboxUiBuilder] ";
 
         static readonly Color PanelBg = new Color(0.09f, 0.11f, 0.12f, 0.93f);
@@ -101,6 +103,20 @@ namespace TrashPlanet.Whitebox.Editor
             }
         }
 
+        /// <summary>
+        /// 批处理入口（-executeMethod），供 CI / 命令行把新增区块写进已存在的白膜场景。
+        /// 不弹任何对话框，成功与否只看日志与 docs 报告。
+        /// </summary>
+        public static void EnsureBatch()
+        {
+            Scene scene = EditorSceneManager.OpenScene(WhiteboxBuilder.ScenePath, OpenSceneMode.Single);
+            bool changed = EnsureUiInScene(scene);
+            EditorSceneManager.MarkSceneDirty(scene);
+            EditorSceneManager.SaveScene(scene);
+            AssetDatabase.SaveAssets();
+            Debug.Log(Tag + "batch 补齐完成，changed=" + changed);
+        }
+
         [MenuItem("Tools/垃圾星球白膜/④ 生成 / 补齐 Hierarchy UI", false, 13)]
         public static void MenuEnsure()
         {
@@ -138,15 +154,15 @@ namespace TrashPlanet.Whitebox.Editor
             if (EditorApplication.isPlayingOrWillChangePlaymode) return false;
 
             bool changed = false;
+            WhiteboxGame game = FindComponent<WhiteboxGame>(scene);
             GameObject ui = FindRoot(scene, RootName);
             bool created = ui == null;
-            if (created) { ui = CreateUiHierarchy(scene); changed = true; }
+            if (created) { ui = CreateUiHierarchy(scene, game); changed = true; }
 
             if (ui.GetComponent<WhiteboxCanvasHud>() == null) { ui.AddComponent<WhiteboxCanvasHud>(); changed = true; }
             if (ui.GetComponent<WhiteboxUiActions>() == null) { ui.AddComponent<WhiteboxUiActions>(); changed = true; }
             if (FindRoot(scene, "EventSystem") == null) { CreateEventSystem(scene); changed = true; }
 
-            WhiteboxGame game = FindComponent<WhiteboxGame>(scene);
             WhiteboxHud hud = game != null ? game.GetComponent<WhiteboxHud>() : null;
             WhiteboxCanvasHud view = ui.GetComponent<WhiteboxCanvasHud>();
             WhiteboxUiActions actions = ui.GetComponent<WhiteboxUiActions>();
@@ -167,6 +183,7 @@ namespace TrashPlanet.Whitebox.Editor
             }
 
             // 按名字补空引用；已绑定的非空引用保持不变
+            changed |= EnsureStationExtras(ui.transform, game);
             view.EditorResolve();
             changed |= EnsureButtonBindings(ui.transform, actions);
 
@@ -180,7 +197,7 @@ namespace TrashPlanet.Whitebox.Editor
         // 层级生成
         // ---------------------------------------------------------------
 
-        static GameObject CreateUiHierarchy(Scene scene)
+        static GameObject CreateUiHierarchy(Scene scene, WhiteboxGame game)
         {
             Font font = LoadFont();
             WhiteboxConfig cfg = AssetDatabase.LoadAssetAtPath<WhiteboxConfig>(WhiteboxBuilder.ConfigPath);
@@ -259,6 +276,7 @@ namespace TrashPlanet.Whitebox.Editor
                 TopButton(station.transform, "Btn_Craft_" + i, "③ 制造 " + StationSystem.RecipeNames[i],
                     334f + i * 38f, w, 34f, font);
             TopButton(station.transform, "Btn_Upgrade", "④ 升级工具（Lv.1 → 2）", 452f, w, 34f, font);
+            TopButton(station.transform, "Btn_BagUpgrade", "⑤ 升级背包（总 20 → 40，需 15 金属零件）", 636f, w, 34f, font);
             GameObject job = Panel(station.transform, "JobBar", new Vector2(w, 18f),
                 new Vector2(16f, -496f), TopLeft, TopLeft, BarBg);
             FilledBar(job.transform, "JobFill", durability);
@@ -267,6 +285,9 @@ namespace TrashPlanet.Whitebox.Editor
             TopButton(station.transform, "Btn_CloseStation", "关闭面板（M / ESC）", 558f, w, 34f, font);
             TopLabel(station.transform, "Txt_StationHint", "按钮 OnClick 已持久化绑定到 WhiteboxUiActions，可自行改绑",
                 604f, w, 13, new Color(0.62f, 0.68f, 0.68f, 1f), font);
+
+            // ⑥-b 中转站数量选择弹窗：叠在中转站面板之上，默认失活，显隐由 WhiteboxCanvasHud 每帧驱动
+            CreateQuantityDialog(r, font, game);
 
             // ⑦ 暂停面板
             GameObject pause = Panel(r, "Panel_Pause", new Vector2(360f, 230f),
@@ -324,6 +345,222 @@ namespace TrashPlanet.Whitebox.Editor
         }
 
         // ---------------------------------------------------------------
+        // 新增区块的幂等补齐（已存在的 UI 根只补缺失对象，不动用户摆好的布局）
+        // ---------------------------------------------------------------
+
+        /// <summary>
+        /// 补齐「⑤ 升级背包」按钮与「数量选择弹窗」。
+        /// 已存在的对象一律不重建、不改 RectTransform，只补缺的部分，因此用户对白膜 UI 的
+        /// 手改格式（颜色 / 字体 / 位置）不会被这次升级冲掉。
+        /// </summary>
+        static bool EnsureStationExtras(Transform uiRoot, WhiteboxGame game)
+        {
+            bool changed = false;
+            Font font = LoadFont();
+            WhiteboxConfig cfg = AssetDatabase.LoadAssetAtPath<WhiteboxConfig>(WhiteboxBuilder.ConfigPath);
+
+            Transform station = FindTransform(uiRoot, "Panel_Station");
+            if (station != null && FindTransform(station, "Btn_BagUpgrade") == null)
+            {
+                int baseCap = cfg != null ? cfg.BackpackTotalCap(1) : 20;
+                int maxCap = cfg != null ? cfg.BackpackTotalCap(2) : 40;
+                int cost = cfg != null ? cfg.BackpackUpgradeMetalCost : 15;
+                TopButton(station, "Btn_BagUpgrade",
+                    "⑤ 升级背包（总 " + baseCap + " → " + maxCap + "，需 " + cost + " 金属零件）",
+                    636f, 548f, 34f, font);
+                changed = true;
+                Debug.Log(Tag + "已补 ⑤ 升级背包按钮（中转站面板底部）");
+            }
+
+            if (FindTransform(uiRoot, "Panel_Quantity") == null)
+            {
+                CreateQuantityDialog(uiRoot, font, game);
+                changed = true;
+                Debug.Log(Tag + "已补数量选择弹窗 Panel_Quantity（滑块 + 输入框 + 一键全部）");
+            }
+            else
+            {
+                StationQuantityDialog dialog = FindTransform(uiRoot, "Panel_Quantity")
+                    .GetComponent<StationQuantityDialog>();
+                if (dialog != null && dialog.Game == null && game != null) { dialog.Game = game; changed = true; }
+            }
+            return changed;
+        }
+
+        /// <summary>
+        /// 生成中转站「数量选择」弹窗：标题 / 可执行范围 / 当前值 / 滑块 / 输入框 / −+ / 一键全部 / 确认 / 取消。
+        /// 显隐完全由 WhiteboxCanvasHud 驱动（Panel_Quantity 默认失活）。
+        /// </summary>
+        static GameObject CreateQuantityDialog(Transform parent, Font font, WhiteboxGame game)
+        {
+            WhiteboxConfig cfg = AssetDatabase.LoadAssetAtPath<WhiteboxConfig>(WhiteboxBuilder.ConfigPath);
+            Color accent = cfg != null ? cfg.HighlightColor : Accent;
+            Color bg = new Color(0.07f, 0.085f, 0.095f, 0.99f);
+            Color hint = new Color(0.62f, 0.68f, 0.68f, 1f);
+            const float w = 560f;
+            const float pad = 16f;
+            float inner = w - pad * 2f;
+
+            GameObject panel = Panel(parent, "Panel_Quantity", new Vector2(w, 296f),
+                Vector2.zero, Center, Center, bg);
+            Transform t = panel.transform;
+
+            TopLabel(t, "Txt_QtyTitle", "加工塑料 · 选择数量", 16f, inner, 20, accent, font);
+            TopLabel(t, "Txt_QtyInfo", "可执行 1 ~ 1 次  ·  预计 5 s", 50f, inner, 15, TextColor, font);
+            TopLabel(t, "Txt_QtyValue", "× 1", 76f, inner, 26, accent, font);
+
+            Slider sld = SliderBar(t, "Sld_Qty", 118f, pad, 380f, 26f, BarBg, accent, accent);
+            InputField inp = NumberInput(t, "Inp_Qty", 110f, 410f, inner - 394f, 32f, BtnBg, TextColor, font);
+
+            Button minus = RowButton(t, "Btn_QtyMinus", "−", pad, 158f, 40f, 34f, font);
+            Button plus = RowButton(t, "Btn_QtyPlus", "+", pad + 46f, 158f, 40f, 34f, font);
+            Button all = RowButton(t, "Btn_QtyAll", "一键全部（1）", pad + 96f, 158f, 186f, 34f, font);
+            Button confirm = RowButton(t, "Btn_QtyConfirm", "确认执行", 310f, 158f, 118f, 34f, font);
+            Button cancel = RowButton(t, "Btn_QtyCancel", "取消", 436f, 158f, 108f, 34f, font);
+
+            Text detail = TopLabel(t, "Txt_QtyDetail", "消耗 --  →  --", 202f, inner, 15, TextColor, font);
+            TopLabel(t, "Txt_QtyHint",
+                "拖动滑块 / 直接输入数字 / 点「一键全部」一次做满；确认后开始一次连续任务（耗时按次数叠加）",
+                232f, inner, 13, hint, font);
+
+            StationQuantityDialog d = panel.AddComponent<StationQuantityDialog>();
+            d.Game = game;
+            d.TxtTitle = FindText(t, "Txt_QtyTitle");
+            d.TxtInfo = FindText(t, "Txt_QtyInfo");
+            d.TxtValue = FindText(t, "Txt_QtyValue");
+            d.TxtDetail = detail;
+            d.TxtAll = all.GetComponentInChildren<Text>(true);
+            d.Sld = sld;
+            d.Inp = inp;
+            d.BtnConfirm = confirm;
+            d.BtnMinus = minus;
+            d.BtnPlus = plus;
+            d.BtnAll = all;
+            d.BtnCancel = cancel;
+            panel.SetActive(false);
+            return panel;
+        }
+
+        static Text FindText(Transform root, string name)
+        {
+            Transform t = FindTransform(root, name);
+            return t != null ? t.GetComponent<Text>() : null;
+        }
+
+        /// <summary>水平滑块：Background / Fill Area / Handle Slide Area 三段结构，符合 uGUI Slider 的驱动约定。</summary>
+        static Slider SliderBar(Transform parent, string name, float y, float x, float width, float height,
+            Color bgColor, Color fillColor, Color handleColor)
+        {
+            RectTransform rt = Rect(parent, name, TopLeft, TopLeft, new Vector2(width, height), new Vector2(x, -y));
+            Slider s = rt.gameObject.AddComponent<Slider>();
+
+            RectTransform bg = Stretch(rt, "Background");
+            bg.anchorMin = new Vector2(0f, 0.32f);
+            bg.anchorMax = new Vector2(1f, 0.68f);
+            bg.offsetMin = Vector2.zero;
+            bg.offsetMax = Vector2.zero;
+            AddImage(bg, bgColor, true); // 必须有 raycast 目标，否则拖不动滑块
+
+            RectTransform area = Stretch(rt, "Fill Area");
+            area.anchorMin = new Vector2(0f, 0.32f);
+            area.anchorMax = new Vector2(1f, 0.68f);
+            area.offsetMin = new Vector2(6f, 0f);
+            area.offsetMax = new Vector2(-6f, 0f);
+            RectTransform fill = Stretch(area, "Fill");
+            AddImage(fill, fillColor, false);
+
+            RectTransform handleArea = Stretch(rt, "Handle Slide Area");
+            handleArea.offsetMin = new Vector2(10f, 0f);
+            handleArea.offsetMax = new Vector2(-10f, 0f);
+            RectTransform handle = Rect(handleArea, "Handle", new Vector2(0f, 0f), Center,
+                new Vector2(18f, 0f), Vector2.zero);
+            handle.anchorMin = new Vector2(0f, 0f);
+            handle.anchorMax = new Vector2(0f, 1f);
+            handle.sizeDelta = new Vector2(18f, 0f);
+            Image handleImg = AddImage(handle, handleColor, true);
+
+            s.fillRect = fill;
+            s.handleRect = handle;
+            s.targetGraphic = handleImg;
+            s.direction = Slider.Direction.LeftToRight;
+            s.wholeNumbers = true;
+            s.minValue = 1f;
+            s.maxValue = 10f;
+            s.value = 1f;
+            return s;
+        }
+
+        /// <summary>整数输入框（内容类型限定为 IntegerNumber，最长 5 位）。</summary>
+        static InputField NumberInput(Transform parent, string name, float y, float x, float width, float height,
+            Color bgColor, Color textColor, Font font)
+        {
+            RectTransform rt = Rect(parent, name, TopLeft, TopLeft, new Vector2(width, height), new Vector2(x, -y));
+            Image bgImg = AddImage(rt, bgColor, true);
+            InputField field = rt.gameObject.AddComponent<InputField>();
+
+            RectTransform phRt = Stretch(rt, "Placeholder");
+            phRt.offsetMin = new Vector2(8f, 2f);
+            phRt.offsetMax = new Vector2(-8f, -2f);
+            Text ph = phRt.gameObject.AddComponent<Text>();
+            ph.font = font;
+            ph.fontSize = 15;
+            ph.color = new Color(textColor.r, textColor.g, textColor.b, 0.40f);
+            ph.alignment = TextAnchor.MiddleCenter;
+            ph.raycastTarget = false;
+            ph.text = "1";
+
+            RectTransform txRt = Stretch(rt, "Text");
+            txRt.offsetMin = new Vector2(8f, 2f);
+            txRt.offsetMax = new Vector2(-8f, -2f);
+            Text tx = txRt.gameObject.AddComponent<Text>();
+            tx.font = font;
+            tx.fontSize = 16;
+            tx.color = textColor;
+            tx.alignment = TextAnchor.MiddleCenter;
+            tx.horizontalOverflow = HorizontalWrapMode.Overflow;
+            tx.verticalOverflow = VerticalWrapMode.Overflow;
+            tx.raycastTarget = false;
+            tx.text = "1";
+
+            field.targetGraphic = bgImg;
+            field.textComponent = tx;
+            field.placeholder = ph;
+            field.lineType = InputField.LineType.SingleLine;
+            field.contentType = InputField.ContentType.IntegerNumber;
+            field.characterLimit = 5;
+            return field;
+        }
+
+        static Button RowButton(Transform parent, string name, string caption, float x, float y,
+            float width, float height, Font font)
+        {
+            RectTransform rt = Rect(parent, name, TopLeft, TopLeft, new Vector2(width, height), new Vector2(x, -y));
+            AddImage(rt, BtnBg, true);
+            Button b = rt.gameObject.AddComponent<Button>();
+            ColorBlock cb = b.colors;
+            cb.normalColor = Color.white;
+            cb.highlightedColor = new Color(1.18f, 1.18f, 1.18f, 1f);
+            cb.pressedColor = new Color(0.76f, 0.76f, 0.76f, 1f);
+            cb.selectedColor = Color.white;
+            cb.fadeDuration = 0.08f;
+            b.colors = cb;
+
+            RectTransform label = Stretch(rt, "Label");
+            label.offsetMin = new Vector2(8f, 2f);
+            label.offsetMax = new Vector2(-8f, -2f);
+            Text t = label.gameObject.AddComponent<Text>();
+            t.font = font;
+            t.fontSize = 15;
+            t.color = TextColor;
+            t.alignment = TextAnchor.MiddleCenter;
+            t.horizontalOverflow = HorizontalWrapMode.Wrap;
+            t.verticalOverflow = VerticalWrapMode.Overflow;
+            t.raycastTarget = false;
+            t.text = caption;
+            return b;
+        }
+
+        // ---------------------------------------------------------------
         // 按钮持久化绑定（Inspector 里可见；只补空绑定，不覆盖用户自定义）
         // ---------------------------------------------------------------
 
@@ -337,6 +574,7 @@ namespace TrashPlanet.Whitebox.Editor
             for (int i = 0; i < 3; i++)
                 changed |= BindIntButton(root, "Btn_Craft_" + i, new UnityAction<int>(a.Craft), i);
             changed |= BindButton(root, "Btn_Upgrade", new UnityAction(a.UpgradeTool));
+            changed |= BindButton(root, "Btn_BagUpgrade", new UnityAction(a.UpgradeBackpack));
             changed |= BindButton(root, "Btn_CloseStation", new UnityAction(a.CloseStation));
             changed |= BindButton(root, "Btn_Resume", new UnityAction(a.Resume));
             changed |= BindButton(root, "Btn_Restart", new UnityAction(a.Restart));

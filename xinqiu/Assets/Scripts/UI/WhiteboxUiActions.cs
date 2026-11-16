@@ -22,17 +22,28 @@ namespace TrashPlanet.Whitebox
 
         public void Process(int category)
         {
-            if (Game != null && Game.StationLogic != null) Game.StationLogic.StartProcess(category);
+            if (Game == null || Game.StationLogic == null) return;
+            // 有弹窗：先进入待确认，由 Panel_Quantity 让玩家选次数（默认拉满）
+            // 没弹窗（旧场景还没补齐 UI）：退化为「一键全部」，功能不丢
+            if (Game.HasQuantityDialog) Game.StationLogic.BeginProcess(category);
+            else Game.StationLogic.StartProcessAll(category);
         }
 
         public void Craft(int recipe)
         {
-            if (Game != null && Game.StationLogic != null) Game.StationLogic.StartCraft(recipe);
+            if (Game == null || Game.StationLogic == null) return;
+            if (Game.HasQuantityDialog) Game.StationLogic.BeginCraft(recipe);
+            else Game.StationLogic.StartCraftAll(recipe);
         }
 
         public void UpgradeTool()
         {
             if (Game != null && Game.StationLogic != null) Game.StationLogic.UpgradeTool();
+        }
+
+        public void UpgradeBackpack()
+        {
+            if (Game != null && Game.StationLogic != null) Game.StationLogic.UpgradeBackpack();
         }
 
         public void CloseStation()

@@ -64,6 +64,13 @@ namespace TrashPlanet.Whitebox
         public bool StationOpen => stationOpen;
         public bool IsUiBlocking => paused || stationOpen || (state != null && state.finished);
 
+        /// <summary>
+        /// 场景里是否已生成「数量选择弹窗」。旧场景（UI 尚未补齐）时为 false，
+        /// 此时加工/制造按钮退化为「一键全部」，保证批量功能不会因为缺 UI 而丢失。
+        /// </summary>
+        public bool HasQuantityDialog =>
+            hud != null && hud.CanvasView != null && hud.CanvasView.QuantityDialog != null;
+
         // 供 Editor 构建脚本注入引用
         public void Wire(WhiteboxConfig cfg, Transform center, Transform playerT, Camera cam,
             Renderer groundR, Renderer waterR, Light sunL, Transform stationT,
@@ -80,9 +87,31 @@ namespace TrashPlanet.Whitebox
         {
             state = WhiteboxState.Load();
             if (state.finished) state = new WhiteboxState(); // 已结算的存档不自动续上，避免验证时一进 Play 就是结算面板
+            ApplyPlanetSize();
             if (player != null) playerMovement = player.GetComponent<PlayerController>();
             if (player != null) lastPlayerPos = player.position;
             Time.timeScale = 1f;
+        }
+
+        /// <summary>
+        /// 星球半径以配置为唯一真值：场景里烘焙的体积若与配置不一致，
+        /// 就在这里按配置重设星球与地表道具，避免垃圾/玩家按新半径刷在旧球里外。
+        /// 必须在所有 Start 之前完成 —— PlayerController 会在 Start 里量测真实半径。
+        /// </summary>
+        void ApplyPlanetSize()
+        {
+            if (config == null || planetCenter == null) return;
+            float target = config.PlanetRadius;
+            if (!PlanetLayout.Apply(planetCenter, target)) return;
+
+            PlayerController pc = player != null ? player.GetComponent<PlayerController>() : null;
+            if (pc != null)
+            {
+                pc.PlanetRadius = target;               // 兜底值同步（量测失败时才会用到）
+                if (pc.PlanetCenter != null) pc.ResolvePlanetGeometry(); // 立刻按新体积重量测，避免 Start 之前的帧用旧壳距
+            }
+            Debug.Log("[WhiteboxGame] 星球半径按配置重设为 " + target
+                      + " m（地表道具已同步换位）");
         }
 
         void Start()
@@ -170,7 +199,11 @@ namespace TrashPlanet.Whitebox
                 stationOpen = true;
                 Notice("中转站已打开；后台加工/制造计时继续走");
             }
-            else stationOpen = false; // 再按一次 M / ESC / 关闭按钮只关闭，不会重复打开
+            else
+            {
+                stationOpen = false; // 再按一次 M / ESC / 关闭按钮只关闭，不会重复打开
+                if (stationSystem != null) stationSystem.ClearPending(); // 关面板即放弃待确认的批量操作
+            }
             ApplyUiState();
             quest.Evaluate();
         }
@@ -179,7 +212,11 @@ namespace TrashPlanet.Whitebox
         {
             if (state != null && state.finished) return;
             paused = value;
-            if (paused) stationOpen = false;
+            if (paused)
+            {
+                stationOpen = false;
+                if (stationSystem != null) stationSystem.ClearPending();
+            }
             ApplyUiState();
         }
 

@@ -57,9 +57,14 @@ namespace TrashPlanet.Whitebox
         public Text[] ProcessLabels;
         public Text[] CraftLabels;
         public Text TxtUpgrade;
+        public Text TxtBagUpgrade;
         public GameObject JobGroup;
         public Image JobFill;
         public Text TxtJob;
+
+        [Header("中转站数量选择弹窗")]
+        [Tooltip("点加工/制造按钮后弹出，用滑块 / 输入框 / 一键全部决定连续做几次")]
+        public StationQuantityDialog QuantityDialog;
 
         [Header("暂停 / 结算")]
         public GameObject PausePanel;
@@ -94,7 +99,8 @@ namespace TrashPlanet.Whitebox
         public bool HasRequiredRefs =>
             Game != null && Proxy != null && Crosshair != null && DebugPanel != null &&
             StationPanel != null && PausePanel != null && SettlementPanel != null &&
-            FloatsRoot != null && FloatTemplate != null && DurabilityFill != null;
+            FloatsRoot != null && FloatTemplate != null && DurabilityFill != null &&
+            QuantityDialog != null;
 
         public float FlashAlpha
         {
@@ -235,6 +241,8 @@ namespace TrashPlanet.Whitebox
             ProcessLabels = FillArray(ProcessLabels, root, "Btn_Process_", 4);
             CraftLabels = FillArray(CraftLabels, root, "Btn_Craft_", 3);
             TxtUpgrade = Fill(TxtUpgrade, ButtonText(root, "Btn_Upgrade"));
+            TxtBagUpgrade = Fill(TxtBagUpgrade, ButtonText(root, "Btn_BagUpgrade"));
+            QuantityDialog = Fill(QuantityDialog, Find<StationQuantityDialog>(root, "Panel_Quantity"));
         }
 
         static T Fill<T>(T current, T found) where T : Object => current != null ? current : found;
@@ -389,20 +397,25 @@ namespace TrashPlanet.Whitebox
             bool block = Game.IsUiBlocking;
 
             bool debugOn = Proxy == null || Proxy.DebugVisible;
+            bool stationVisible = Game.StationOpen && !Game.IsPaused && !s.finished;
             SetActive(DebugPanel, debugOn && !block);
-            SetActive(StationPanel, Game.StationOpen && !Game.IsPaused && !s.finished);
+            SetActive(StationPanel, stationVisible);
             SetActive(PausePanel, Game.IsPaused && !settlement);
             SetActive(SettlementPanel, settlement);
             SetActive(TxtHint == null ? null : TxtHint.gameObject, hintLeft > 0f && !block);
             SetActive(TxtNotice == null ? null : TxtNotice.gameObject, noticeLeft > 0f);
             SetActive(TxtDeposit == null ? null : TxtDeposit.gameObject, depositLeft > 0f);
 
+            // 数量选择弹窗：显隐完全跟着「中转站可见 + 有待确认操作」，自己不做判断
+            if (QuantityDialog != null) QuantityDialog.Sync(Game, stationVisible);
+
             if (TxtNotice != null) TxtNotice.text = notice;
             if (TxtDeposit != null) TxtDeposit.text = "垃圾入站：漏斗下沉中…";
 
-            // 背包 >80% 呼吸边框
+            // 背包 >80% 呼吸边框（容量按当前背包等级算）
+            int[] bagCaps = cfg.BackpackCapAt(s.bagLevel);
             int bagSum = 0, bagCap = 0;
-            for (int i = 0; i < 4; i++) { bagSum += s.bag[i]; bagCap += cfg.BackpackCap[i]; }
+            for (int i = 0; i < 4; i++) { bagSum += s.bag[i]; bagCap += bagCaps[i]; }
             bool warn = bagCap > 0 && bagSum / (float)bagCap > 0.8f;
             SetActive(BagWarning == null ? null : BagWarning.gameObject, warn && !block);
             if (BagWarning != null && warn)
@@ -425,16 +438,19 @@ namespace TrashPlanet.Whitebox
 
         void RefreshDebug(WhiteboxState s, WhiteboxConfig cfg)
         {
-            SetText(TxtBag, "背包 塑/金/有/电: " + s.bag[0] + "/" + s.bag[1] + "/" + s.bag[2] + "/" + s.bag[3]);
+            SetText(TxtBag, "背包 Lv." + s.bagLevel + "  总 " + s.BagTotal() + "/" + s.BagCapTotal(cfg)
+                            + "  塑/金/有/电: " + s.bag[0] + "/" + s.bag[1] + "/" + s.bag[2] + "/" + s.bag[3]);
             SetText(TxtMaterials, "材料 板/金/肥/芯: " + s.materials[0] + "/" + s.materials[1] + "/"
                                   + s.materials[2] + "/" + s.materials[3]);
             int lv = Mathf.Clamp(s.toolLevel, 1, 3);
             SetText(TxtTool, "工具 Lv." + s.toolLevel + " · 拾取 " + cfg.PickRange[lv - 1] + " m"
-                             + " · 地图 " + (Game.Spawner != null ? Game.Spawner.Active.Count : 0)
+                             + " · 地表 " + (Game.Spawner != null ? Game.Spawner.Active.Count : 0)
                              + "/" + cfg.MapTrashCap);
+            // 累计生成量放在进度行（与「阶段」同一行），避免工具行过长被 Text 换行裁掉
             SetText(TxtProgress, "土地 " + (s.landProgress * 100f).ToString("0") + "% · 水源 "
-                                 + (s.waterProgress * 100f).ToString("0") + "% · 生态阶段 "
-                                 + ((Game.Eco != null ? Game.Eco.Stage : 0) + 1) + "/3");
+                                 + (s.waterProgress * 100f).ToString("0") + "% · 阶段 "
+                                 + ((Game.Eco != null ? Game.Eco.Stage : 0) + 1) + "/3"
+                                 + " · 累计 " + s.totalSpawned + "/" + cfg.TotalTrashBudget);
             SetText(TxtQuest, "任务 " + System.Math.Min(s.questStep + 1, 10) + "/10 ： "
                               + (Game.Quest != null ? Game.Quest.CurrentText : ""));
             SetText(TxtStats, "清理 " + s.collected + " · 加工 " + s.processed + " · 制造 "
@@ -443,20 +459,26 @@ namespace TrashPlanet.Whitebox
 
         void RefreshStation(WhiteboxState s, WhiteboxConfig cfg)
         {
-            SetText(TxtRepaired, "已修复: " + (s.stationRepaired ? "是" : "否（先造 1 块再生建材板）"));
+            SetText(TxtRepaired, "已修复: " + (s.stationRepaired ? "是" : "否（先造 1 块再生建材板）")
+                                 + "  ·  背包 Lv." + s.bagLevel + "/" + WhiteboxConfig.BagMaxLevel
+                                 + "（总 " + s.BagTotal() + "/" + s.BagCapTotal(cfg) + "）");
             SetText(TxtRaw, "待加工垃圾  塑/金/有/电: " + s.raw[0] + "/" + s.raw[1] + "/"
                             + s.raw[2] + "/" + s.raw[3]);
             SetText(TxtStationMaterials, "材料  塑板/金件/有机/芯: " + s.materials[0] + "/"
                                          + s.materials[1] + "/" + s.materials[2] + "/" + s.materials[3]);
+            // 按钮文案带「可N次」：点开弹窗之前就能看到这次能做多少
             for (int i = 0; i < 4; i++)
                 if (ProcessLabels != null && i < ProcessLabels.Length)
                     SetText(ProcessLabels[i], "② 加工" + StationSystem.CategoryNames[i]
-                        + " ×" + cfg.MinProcessBatch[i] + "  →  " + StationSystem.MaterialNames[i]);
+                        + " ×" + cfg.MinProcessBatch[i] + "→" + StationSystem.MaterialNames[i]
+                        + "  可" + Game.StationLogic.MaxProcessBatches(i) + "次");
             for (int i = 0; i < 3; i++)
                 if (CraftLabels != null && i < CraftLabels.Length)
-                    SetText(CraftLabels[i], "③ 制造 " + StationSystem.RecipeNames[i]
-                        + "（" + Game.StationLogic.CostText(i) + "）");
+                    SetText(CraftLabels[i], "③ " + StationSystem.RecipeNames[i]
+                        + "（" + Game.StationLogic.CostText(i) + "）可"
+                        + Game.StationLogic.MaxCraftCount(i) + "次");
             SetText(TxtUpgrade, "④ 升级工具（Lv." + s.toolLevel + " → " + (s.toolLevel + 1) + "）");
+            SetText(TxtBagUpgrade, Game.StationLogic.BagUpgradeText());
 
             bool hasJob = Game.StationLogic != null && Game.StationLogic.HasJob;
             SetActive(JobGroup, hasJob);

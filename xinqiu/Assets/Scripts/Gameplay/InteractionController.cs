@@ -7,11 +7,13 @@ namespace TrashPlanet.Whitebox
     /// 准星交互：相机中心射线 → 唯一目标 → 描边高亮 → 左键拾取/拆解。
     /// [待拍板 C5] 描边阈值与拾取距离冲突：白膜取 min(pickRange, highlightRange)，
     /// 拾取范围仍用 pickRange[工具等级]，两者都可配置，未写成既定结论。
+    /// 本次按需求把两者一起 ×2：拾取 4/6/8 m，描边 6 m（Lv.2 起两者同值）。
     /// 优先级：距离小者优先，距离相同取 instanceID 小者（策划案 §6.3）。
     /// </summary>
     public sealed class InteractionController : MonoBehaviour
     {
-        readonly RaycastHit[] hits = new RaycastHit[32];
+        // 拾取距离翻倍（4/6/8 m）后一次射线会覆盖更多垃圾，命中缓存同步放大，避免近处密集垃圾把目标挤掉
+        readonly RaycastHit[] hits = new RaycastHit[64];
         WhiteboxGame game;
         TrashItem current;
         int barLeft = -1, barMax = -1; // 黄条上次写入值，用于幂等，避免每帧无谓刷新

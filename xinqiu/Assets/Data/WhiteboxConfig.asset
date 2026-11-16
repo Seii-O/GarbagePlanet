@@ -12,33 +12,37 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 756992210eb543dd91e532fc061d21fc, type: 3}
   m_Name: WhiteboxConfig
   m_EditorClassIdentifier: 
-  planetRadius: 24
+  planetRadius: 8
   stageOneThreshold: 0.3
   stageTwoThreshold: 0.7
   mvpProgressTarget: 0.3
-  mapTrashCap: 120
+  mapTrashCap: 1000
+  totalTrashBudget: 1500
   initialTrashCount: 18
   spawnInterval:
-  - 15
-  - 12
   - 10
-  whiteboxSpawnTimeScale: 0.25
-  spawnBatchSize: 4
-  pileCenterCount: 4
-  pileRadius: 2.2
-  pileMaxHeight: 0.85
-  spawnPopSeconds: 0.35
-  spawnSinkDepth: 0.4
-  spawnPopStagger: 0.05
-  backpackCap: 0a000000080000000800000004000000
+  - 10
+  - 10
+  whiteboxSpawnTimeScale: 1
+  spawnBatchSize: 15
+  scatterMinSpacing: 0.4
+  scatterPlayerClearance: 3.5
+  scatterTiltDegrees: 5
+  spawnPopSeconds: 0.45
+  spawnSinkDepth: 0.55
+  spawnPopStagger: 0.06
+  spawnStartScale: 0.55
+  backpackCap: 05000000050000000500000005000000
+  backpackCapMax: 0a0000000a0000000a0000000a000000
+  backpackUpgradeMetalCost: 15
   pickRange:
-  - 2
-  - 3
   - 4
+  - 6
+  - 8
   dismantleDamage: 010000000100000002000000
   largeDurability: 05000000080000000a000000
   largeYield: 2
-  highlightRange: 3
+  highlightRange: 6
   conversionRate:
   - 0.5
   - 0.5
@@ -51,6 +55,7 @@ MonoBehaviour:
   - 5
   - 12
   repairPerItem: 0.1
+  batchFixedDuration: 1
   upgradeMetalCost: 050000000a000000
   upgradeElectronicCost: 060000000c000000
   dogFetchRadius:

@@ -61,6 +61,14 @@ namespace TrashPlanet.Whitebox.Editor
 
             WhiteboxConfig cfg = AssetDatabase.LoadAssetAtPath<WhiteboxConfig>(WhiteboxBuilder.ConfigPath);
             Check(cfg != null, "配置资产存在", errors, checks);
+            if (cfg != null)
+            {
+                Check(cfg.TotalTrashBudget >= cfg.MapTrashCap,
+                    "全局垃圾总量 ≥ 地表并发上限（" + cfg.TotalTrashBudget + " ≥ " + cfg.MapTrashCap + "）",
+                    errors, checks);
+                Check(cfg.PlanetRadius > 1f && cfg.PlanetRadius < 60f,
+                    "星球半径在可玩区间（" + cfg.PlanetRadius + " m）", errors, checks);
+            }
 
             for (int i = 0; i < TrashPrefabNames.Length; i++)
             {
@@ -157,6 +165,15 @@ namespace TrashPlanet.Whitebox.Editor
                         "核心系统组件齐全", errors, checks);
                     Check(game.Hud != null && game.Hud.CanvasView != null,
                         "IMGUI 代理已绑定 Hierarchy uGUI 视图", errors, checks);
+
+                    // 星球体积是烘焙值，配置才是真值：不一致时由 WhiteboxGame.Awake 的 PlanetLayout 运行期对齐，
+                    // 这里只做信息记录，不作为失败项（否则每次改半径都得重跑①重建场景）。
+                    if (game.PlanetCenter != null && cfg != null)
+                    {
+                        float measured = PlanetLayout.MeasureRadius(game.PlanetCenter);
+                        checks.Add("INFO 星球场景半径 " + measured.ToString("0.##") + " m，配置 "
+                                   + cfg.PlanetRadius + " m（不一致时运行期自动对齐）");
+                    }
                 }
 
                 ValidateHierarchyUi(uiRoot, eventSystem, errors, checks);
@@ -187,6 +204,19 @@ namespace TrashPlanet.Whitebox.Editor
                 for (int i = 0; i < panels.Length; i++)
                     Check(uiRoot.transform.Find(panels[i]) != null,
                         "面板在 Hierarchy 中可见 " + panels[i], errors, checks);
+
+                // 本次新增：数量选择弹窗（滑块 + 数字输入框）与中转站「⑤ 升级背包」按钮
+                GameObject qtyPanel = uiRoot.transform.Find("Panel_Quantity")?.gameObject;
+                Check(qtyPanel != null, "数量选择弹窗 Panel_Quantity 存在", errors, checks);
+                Check(qtyPanel != null && qtyPanel.GetComponent<StationQuantityDialog>() != null,
+                    "弹窗挂载 StationQuantityDialog 控制器", errors, checks);
+                Check(qtyPanel != null && qtyPanel.GetComponentInChildren<Slider>(true) != null,
+                    "弹窗含数量滑块 Slider", errors, checks);
+                Check(qtyPanel != null && qtyPanel.GetComponentInChildren<InputField>(true) != null,
+                    "弹窗含数字输入框 InputField", errors, checks);
+                GameObject stationPanel = uiRoot.transform.Find("Panel_Station")?.gameObject;
+                Check(stationPanel != null && stationPanel.transform.Find("Btn_BagUpgrade") != null,
+                    "中转站含 ⑤ 升级背包按钮", errors, checks);
                 Button[] buttons = uiRoot.GetComponentsInChildren<Button>(true);
                 int bound = 0;
                 for (int i = 0; i < buttons.Length; i++)
