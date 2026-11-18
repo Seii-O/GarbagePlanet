@@ -1,0 +1,102 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 756992210eb543dd91e532fc061d21fc, type: 3}
+  m_Name: WhiteboxConfig
+  m_EditorClassIdentifier: 
+  planetRadius: 8
+  stageOneThreshold: 0.3
+  stageTwoThreshold: 0.7
+  mvpProgressTarget: 0.3
+  mapTrashCap: 1000
+  totalTrashBudget: 1500
+  initialTrashCount: 500
+  spawnInterval:
+  - 10
+  - 10
+  - 10
+  whiteboxSpawnTimeScale: 1
+  spawnBatchSize: 15
+  scatterMinSpacing: 0.4
+  scatterPlayerClearance: 3.5
+  scatterTiltDegrees: 5
+  spawnPopSeconds: 0.45
+  spawnSinkDepth: 0.55
+  spawnPopStagger: 0.06
+  spawnStartScale: 0.55
+  backpackCap: 05000000050000000500000005000000
+  backpackCapMax: 0a0000000a0000000a0000000a000000
+  backpackUpgradeMetalCost: 15
+  pickRange:
+  - 4
+  - 6
+  - 8
+  dismantleDamage: 010000000100000002000000
+  largeDurability: 05000000080000000a000000
+  largeYield: 2
+  highlightRange: 6
+  conversionRate:
+  - 0.5
+  - 0.5
+  - 1
+  - 0.5
+  minProcessBatch: 02000000020000000100000002000000
+  processSeconds: 2.5
+  craftSeconds:
+  - 2
+  - 1.25
+  - 3
+  repairPerItem: 0.1
+  batchFixedDuration: 1
+  upgradeMetalCost: 050000000a000000
+  upgradeElectronicCost: 060000000c000000
+  dogFetchRadius:
+  - 1.5
+  - 2.5
+  - 3.5
+  dogFetchCooldown:
+  - 4
+  - 3
+  - 2
+  dogFollowDistance: 1.8
+  dogHeight: 0.55
+  dogColorHex: '#D8C3A0'
+  highlightHex: '#FFFFFF'
+  bagWarningHex: '#E2603C'
+  durabilityHex: '#F2C14E'
+  groundHex:
+  - '#6E6053'
+  - '#7C7A50'
+  - '#5FA233'
+  waterHex:
+  - '#3A4A4E'
+  - '#4E7A6E'
+  - '#4FB3C4'
+  skyHex:
+  - '#9A9083'
+  - '#A8B5A0'
+  - '#8FD3DE'
+  fogHex:
+  - '#8C8375'
+  - '#9AA694'
+  - '#B8DDE4'
+  fogDistance:
+  - 40
+  - 60
+  - 100
+  lightAngle:
+  - 25
+  - 45
+  - 60
+  stageFadeSeconds: 3
+  stageFlashSeconds: 2.5
+  pickupFloatSeconds: 0.25
+  depositSeconds: 0.4
