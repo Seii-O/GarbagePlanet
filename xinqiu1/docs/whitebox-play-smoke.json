@@ -1,10 +1,10 @@
 {
   "unityVersion": "2022.3.62f3c1",
   "scene": "Assets/Scenes/WhiteboxPrototype.unity",
-  "frames": 58,
+  "frames": 164,
   "pass": true,
   "runtimeErrorCount": 0,
-  "note": "自动 Play 约 3 秒的冒烟测试；只覆盖启动与若干帧 Update，不替代人工走完整任务链录屏",
+  "note": "手动菜单⑤触发的 Play 冒烟测试（约 3 秒）；静态校验 48 项由 WhiteboxValidator 独立承担",
   "runtimeErrors": [
   ]
 }

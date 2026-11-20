@@ -1,13 +1,15 @@
 {
-  "projectDir": "C:\\Users\\cj\\Documents\\GitHub\\sanjiaogame\\xinqiu",
-  "errorCount": 0,
+  "projectDir": "C:\\Users\\cj\\Documents\\GitHub\\GarbagePlanet\\xinqiu1",
+  "generatedAt": "2026-11-20 19:40:29",
+  "generator": "Tools/check_project.py",
+  "errorCount": 1,
   "warningCount": 1,
   "items": [
     {
       "level": "info",
       "check": "spec",
       "message": "已加载规格文件: project-spec.json",
-      "path": "",
+      "path": "docs/project-spec.json",
       "hint": "",
       "files": []
     },
@@ -21,8 +23,24 @@
     },
     {
       "level": "info",
+      "check": "layout",
+      "message": "推荐目录齐全（4 个）",
+      "path": "",
+      "hint": "",
+      "files": []
+    },
+    {
+      "level": "info",
+      "check": "projectVersion",
+      "message": "（按规格抑制）版本号格式非通用 20xx.x.xxf1：2022.3.62f3c1",
+      "path": "ProjectSettings/ProjectVersion.txt",
+      "hint": "spec.ignore: ProjectSettings/ProjectVersion.txt",
+      "files": []
+    },
+    {
+      "level": "info",
       "check": "manifest",
-      "message": "包依赖 41 项，格式合法",
+      "message": "包依赖 42 项，格式合法",
       "path": "Packages/manifest.json",
       "hint": "",
       "files": []
@@ -30,7 +48,7 @@
     {
       "level": "info",
       "check": "metaPairing",
-      "message": "146 个文件与 44 个目录的元数据配对完整",
+      "message": "524 个文件与 98 个目录的元数据配对完整",
       "path": "",
       "hint": "",
       "files": []
@@ -38,87 +56,111 @@
     {
       "level": "info",
       "check": "guidUnique",
-      "message": "190 个 GUID 全部唯一",
+      "message": "622 个 GUID 全部唯一",
       "path": "",
       "hint": "",
       "files": []
     },
     {
       "level": "info",
+      "check": "packageGuid",
+      "message": "包内 GUID 12774 个（扫描 17333 个 .meta）",
+      "path": "",
+      "hint": "",
+      "files": []
+    },
+    {
+      "level": "error",
       "check": "scenes",
-      "message": "4 个场景均已写入构建列表（另有 1 条按规格抑制）",
-      "path": "",
+      "message": "28 个场景未写入构建列表",
+      "path": "ProjectSettings/EditorBuildSettings.asset",
       "hint": "",
-      "files": []
-    },
-    {
-      "level": "info",
-      "check": "buildSettings",
-      "message": "构建列表 3 个条目均有效且启用",
-      "path": "",
-      "hint": "",
-      "files": []
+      "files": [
+        "Assets/TextMesh Pro/Examples & Extras/Scenes/01-  Single Line TextMesh Pro.unity",
+        "Assets/TextMesh Pro/Examples & Extras/Scenes/02 - Multi-line TextMesh Pro.unity",
+        "Assets/TextMesh Pro/Examples & Extras/Scenes/03 - Line Justification.unity",
+        "Assets/TextMesh Pro/Examples & Extras/Scenes/04 - Word Wrapping.unity",
+        "Assets/TextMesh Pro/Examples & Extras/Scenes/05 - Style Tags.unity",
+        "Assets/TextMesh Pro/Examples & Extras/Scenes/06 - Extra Rich Text Examples.unity",
+        "Assets/TextMesh Pro/Examples & Extras/Scenes/07 - Superscript & Subscript Example.unity",
+        "Assets/TextMesh Pro/Examples & Extras/Scenes/08 - Improved Text Alignment.unity",
+        "Assets/TextMesh Pro/Examples & Extras/Scenes/09 - Margin Tag Example.unity",
+        "Assets/TextMesh Pro/Examples & Extras/Scenes/10 - Bullets & Numbered List Example.unity",
+        "Assets/TextMesh Pro/Examples & Extras/Scenes/11 - The Style Tag.unity",
+        "Assets/TextMesh Pro/Examples & Extras/Scenes/12 - Link Example.unity",
+        "Assets/TextMesh Pro/Examples & Extras/Scenes/12a - Text Interactions.unity",
+        "Assets/TextMesh Pro/Examples & Extras/Scenes/13 - Soft Hyphenation.unity",
+        "Assets/TextMesh Pro/Examples & Extras/Scenes/14 - Multi Font & Sprites.unity",
+        "Assets/TextMesh Pro/Examples & Extras/Scenes/15 - Inline Graphics & Sprites.unity",
+        "Assets/TextMesh Pro/Examples & Extras/Scenes/16 - Linked text overflow mode example.unity",
+        "Assets/TextMesh Pro/Examples & Extras/Scenes/17 - Old Computer Terminal.unity",
+        "Assets/TextMesh Pro/Examples & Extras/Scenes/18 - ScrollRect & Masking & Layout.unity",
+        "Assets/TextMesh Pro/Examples & Extras/Scenes/19 - Masking Texture & Soft Mask.unity",
+        "Assets/TextMesh Pro/Examples & Extras/Scenes/20 - Input Field with Scrollbar.unity",
+        "Assets/TextMesh Pro/Examples & Extras/Scenes/21 - Script Example.unity",
+        "Assets/TextMesh Pro/Examples & Extras/Scenes/22 - Basic Scripting Example.unity",
+        "Assets/TextMesh Pro/Examples & Extras/Scenes/23 - Animating Vertex Attributes.unity",
+        "Assets/TextMesh Pro/Examples & Extras/Scenes/24 - Surface Shader Example.unity",
+        "Assets/TextMesh Pro/Examples & Extras/Scenes/25 - Sunny Days Example.unity",
+        "Assets/TextMesh Pro/Examples & Extras/Scenes/26 - Dropdown Placeholder Example.unity",
+        "Assets/TextMesh Pro/Examples & Extras/Scenes/Benchmark (Floating Text).unity"
+      ]
     },
     {
       "level": "info",
       "check": "csharp",
-      "message": "检查了 26 个 C# 脚本",
-      "path": "",
-      "hint": "",
-      "files": []
-    },
-    {
-      "level": "info",
-      "check": "danglingGuids",
-      "message": "181 个被引用的 GUID 全部可在 Assets 中解析",
-      "path": "",
-      "hint": "",
-      "files": []
-    },
-    {
-      "level": "info",
-      "check": "absolutePaths",
-      "message": "未发现机器绝对路径",
+      "message": "94 个 C# 文件括号与字面量配平",
       "path": "",
       "hint": "",
       "files": []
     },
     {
       "level": "warn",
-      "check": "traceability",
-      "message": "有 2 个已确认条目在工程中未被任何文件引用（覆盖缺口）: ART-006, NUM-011",
+      "check": "danglingGuid",
+      "message": "17/315 个被引用 GUID 无法解析（扫描 152 个资源文件）",
       "path": "",
-      "hint": "在对应脚本或数据资产里加一行标记，如 // @trace MECH-001",
-      "files": []
+      "hint": "",
+      "files": [
+        "8b8c8a10edf94ddc8cc4cc4fcd5696a9 <- Assets/TextMesh Pro/Examples & Extras/Materials/Ground - Logo Scene.mat, Assets/TextMesh Pro/Examples & Extras/Resources/Fonts & Materials/Bangers SDF Logo.mat",
+        "c45cd05946364f32aba704f0853a975b <- Assets/TextMesh Pro/Examples & Extras/Materials/Ground - Surface Shader Scene.mat",
+        "f5f67c52d1564df4a8936ccd202a3bd8 <- Assets/TextMesh Pro/Examples & Extras/Prefabs/Text Popup.prefab, Assets/TextMesh Pro/Examples & Extras/Prefabs/Text Popup.prefab, Assets/TextMesh Pro/Examples & Extras/Prefabs/Text Popup.prefab",
+        "316f956b856b45c448987b5018ec3ef4 <- Assets/TextMesh Pro/Examples & Extras/Prefabs/Text Popup.prefab, Assets/TextMesh Pro/Examples & Extras/Scenes/18 - ScrollRect & Masking & Layout.unity, Assets/TextMesh Pro/Examples & Extras/Scenes/18 - ScrollRect & Masking & Layout.unity",
+        "f8caea216d5e7af42872b30cd96a235f <- Assets/TextMesh Pro/Examples & Extras/Resources/Fonts & Materials/Bangers SDF Logo.mat",
+        "5cb611ed8508d904ebba194afcee9c98 <- Assets/TextMesh Pro/Examples & Extras/Scenes/01-  Single Line TextMesh Pro.unity",
+        "2bf015e748557a84c8fa6bfc44e4d685 <- Assets/TextMesh Pro/Examples & Extras/Scenes/02 - Multi-line TextMesh Pro.unity",
+        "56510bd4b3627c840a063bd270324c89 <- Assets/TextMesh Pro/Examples & Extras/Scenes/03 - Line Justification.unity",
+        "088d960ecbf7a1d4a8f94993c066a0ff <- Assets/TextMesh Pro/Examples & Extras/Scenes/04 - Word Wrapping.unity",
+        "6a9165d4abc743c469f4e1f2ee39605c <- Assets/TextMesh Pro/Examples & Extras/Scenes/05 - Style Tags.unity, Assets/TextMesh Pro/Examples & Extras/Scenes/05 - Style Tags.unity, Assets/TextMesh Pro/Examples & Extras/Scenes/06 - Extra Rich Text Examples.unity",
+        "955cc2a4737565a4293837beb489fb59 <- Assets/TextMesh Pro/Examples & Extras/Scenes/07 - Superscript & Subscript Example.unity",
+        "500878462c972a14d87cb770d2b59923 <- Assets/TextMesh Pro/Examples & Extras/Scenes/12a - Text Interactions.unity",
+        "6b9a46634d3f3f0498640b1a019d5853 <- Assets/TextMesh Pro/Examples & Extras/Scenes/14 - Multi Font & Sprites.unity",
+        "a9df86876be30af4e9b5f5975d8ee7d8 <- Assets/TextMesh Pro/Examples & Extras/Scenes/15 - Inline Graphics & Sprites.unity",
+        "0b4bdfba56924184bbe7c948f934fb70 <- Assets/TextMesh Pro/Examples & Extras/Scenes/17 - Old Computer Terminal.unity"
+      ]
     },
     {
       "level": "info",
-      "check": "traceability",
-      "message": "冻结条目 32 个（已确认 32），工程引用覆盖率 30/32 = 94%",
-      "path": "C:\\Users\\cj\\Documents\\GitHub\\sanjiaogame\\xinqiu\\docs\\design-freeze.json",
+      "check": "absolutePath",
+      "message": "未发现机器绝对路径",
+      "path": "",
       "hint": "",
+      "files": []
+    },
+    {
+      "level": "warning",
+      "check": "trace",
+      "message": "可追溯覆盖率 53/55 = 96%",
+      "path": "",
+      "hint": "未覆盖：PLAT-003, PLAT-004",
       "files": []
     },
     {
       "level": "info",
       "check": "compileLog",
-      "message": "未在日志中发现编译错误（解析 unity-compile-final.log）",
-      "path": "",
-      "hint": "",
-      "files": []
-    },
-    {
-      "level": "info",
-      "check": "dotnetBuild",
-      "message": "未启用真实编译（加 --dotnet-build 启用，需要解决方案文件与 dotnet）",
+      "message": "未提供编译日志，跳过",
       "path": "",
       "hint": "",
       "files": []
     }
-  ],
-  "scriptVersion": "1.1.0",
-  "ignored": {
-    "projectVersion": 1,
-    "scenes": 1
-  }
+  ]
 }

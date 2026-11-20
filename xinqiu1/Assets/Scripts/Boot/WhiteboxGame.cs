@@ -1,4 +1,4 @@
-// @trace MECH-001, PLAT-001, PLAT-005
+// @trace MECH-001, PLAT-001, PLAT-005, TOOL-001, BAG-001, COIN-001, UI-004, SAVE-001, SAVE-002, ART-013
 using PlanetCleaner;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -36,6 +36,11 @@ namespace TrashPlanet.Whitebox
         [SerializeField] EcoStage eco;
         [SerializeField] WhiteboxHud hud;
         [SerializeField] GachaSystem gacha; // 新增玩法：转盘（由 GachaBuilder 写入）
+        [SerializeField] ToolSystem tool;   // 工具系统（运行时自动补建，无需改场景 YAML）
+        [SerializeField] ToolBagSystem bag;       // 独立工具/技能书背包（I 键，运行时补建）
+        [SerializeField] CoinTradeSystem coinTrade;// 独立金币交易（B 键，运行时补建）
+        [SerializeField] InGameSaveView inGameSave;  // 局内存档面板（F6，运行时补建）
+        [SerializeField] SceneryDecorSystem scenery; // 场景装饰生态联动（ART-013，由 Builder 写入）
 
         [Header("中转站交互半径")]
         [Tooltip("仅用于非星球场景（无 planetCenter）的兼容判定；星球场景内 M 键可在任意位置打开中转站。")]
@@ -65,9 +70,16 @@ namespace TrashPlanet.Whitebox
         public EcoStage Eco => eco;
         public WhiteboxHud Hud => hud;
         public GachaSystem Gacha => gacha;
+        public ToolSystem Tool => tool;
+        public ToolBagSystem Bag => bag;
+        public CoinTradeSystem CoinTrade => coinTrade;
+        public InGameSaveView InGameSave => inGameSave;
+        public SceneryDecorSystem Scenery => scenery;
         public bool IsPaused => paused;
         public bool StationOpen => stationOpen;
         public bool IsUiBlocking => paused || stationOpen || (gacha != null && gacha.IsOpen)
+                                    || (bag != null && bag.IsOpen) || (coinTrade != null && coinTrade.IsOpen)
+                                    || (inGameSave != null && inGameSave.IsOpen)
                                     || (state != null && state.finished);
 
         /// <summary>
@@ -92,6 +104,21 @@ namespace TrashPlanet.Whitebox
         /// <summary>单独注入转盘系统（GachaBuilder 生成后调用，不改上面 Wire 的签名）。</summary>
         public void WireGacha(GachaSystem g) { gacha = g; }
 
+        /// <summary>单独注入工具系统（ToolBuilder / GachaBuilder 生成后调用）。</summary>
+        public void WireTool(ToolSystem t) { tool = t; }
+
+        /// <summary>单独注入独立背包（InventoryBuilder 生成后调用）。</summary>
+        public void WireBag(ToolBagSystem b) { bag = b; }
+
+        /// <summary>单独注入金币交易（InventoryBuilder 生成后调用）。</summary>
+        public void WireCoinTrade(CoinTradeSystem c) { coinTrade = c; }
+
+        /// <summary>单独注入局内存档面板（SaveSlotBuilder 生成后调用）。</summary>
+        public void WireInGameSave(InGameSaveView v) { inGameSave = v; }
+
+        /// <summary>单独注入场景装饰联动系统（SceneryDecorBuilder 生成后调用）。</summary>
+        public void WireScenery(SceneryDecorSystem s) { scenery = s; }
+
         void Awake()
         {
             state = WhiteboxState.Load();
@@ -99,7 +126,58 @@ namespace TrashPlanet.Whitebox
             ApplyPlanetSize();
             if (player != null) playerMovement = player.GetComponent<PlayerController>();
             if (player != null) lastPlayerPos = player.position;
+
+            // 多槽存档：注册"保存前写位置/视角"回调；进场景后还原上次存档的玩家位置。
+            SaveSlotSystem.CapturePoseHook = CapturePose;
+            RestorePose();
+
             Time.timeScale = 1f;
+        }
+
+        /// <summary>把当前玩家位置与相机旋转写进 state，随下一次 Save 一起落盘。</summary>
+        void CapturePose(WhiteboxState s)
+        {
+            if (s == null || player == null) return;
+            s.playerPosX = player.position.x;
+            s.playerPosY = player.position.y;
+            s.playerPosZ = player.position.z;
+            s.playerRotX = player.rotation.x;
+            s.playerRotY = player.rotation.y;
+            s.playerRotZ = player.rotation.z;
+            s.playerRotW = player.rotation.w;
+            if (viewCamera != null)
+            {
+                Quaternion c = viewCamera.transform.rotation;
+                s.camRotX = c.x; s.camRotY = c.y; s.camRotZ = c.z; s.camRotW = c.w;
+            }
+            s.hasPlayerPose = true;
+        }
+
+        static bool IsValidRotation(Quaternion q)
+        {
+            return Mathf.Abs(q.x) + Mathf.Abs(q.y) + Mathf.Abs(q.z) + Mathf.Abs(q.w) > 0.0001f;
+        }
+
+        /// <summary>还原位置：投影回球面后交给 PlayerController / CameraRig 各自对齐。</summary>
+        void RestorePose()
+        {
+            if (state == null || !state.hasPlayerPose || player == null) return;
+            Vector3 saved = new Vector3(state.playerPosX, state.playerPosY, state.playerPosZ);
+            if (saved.sqrMagnitude < 0.0001f) return;
+            player.position = saved;
+            Quaternion pr = new Quaternion(state.playerRotX, state.playerRotY, state.playerRotZ, state.playerRotW);
+            if (IsValidRotation(pr)) player.rotation = pr;
+            if (viewCamera != null)
+            {
+                Quaternion cr = new Quaternion(state.camRotX, state.camRotY, state.camRotZ, state.camRotW);
+                if (IsValidRotation(cr)) viewCamera.transform.rotation = cr;
+            }
+            // 位置/旋转已就位；PlayerController.Start 的 AlignToShell 会把位置投影回球壳、
+            // 并按当前半径重建 player.rotation（保留 forward 方向）。不要在 Awake 调 SnapToSurface，
+            // 它会用固定的 Vector3.forward 覆盖我们刚还原的朝向。
+            if (playerMovement is PlayerController pc) pc.ResolvePlanetGeometry();
+            lastPlayerPos = player.position;
+            Debug.Log("[WhiteboxGame] 已从存档还原玩家位置 " + player.position);
         }
 
         /// <summary>
@@ -132,8 +210,18 @@ namespace TrashPlanet.Whitebox
                 return;
             }
 
-            // 固定初始化顺序：状态 → 表现 → 系统 → 视图 → 任务
+            // 固定初始化顺序：状态 → 工具 → 背包 → 金币交易 → 表现 → 系统 → 视图 → 任务
+            // ToolSystem 必须在 interaction / stationSystem / eco / gacha 之前可用；
+            // 背包在工具之后（读 ToolConfig），金币交易在背包之后（拿 IToolBag 引用）。
+            if (tool == null) tool = gameObject.AddComponent<ToolSystem>();
+            tool.Init(this);
+            if (bag == null) bag = gameObject.AddComponent<ToolBagSystem>();
+            bag.Init(this);
+            if (coinTrade == null) coinTrade = gameObject.AddComponent<CoinTradeSystem>();
+            coinTrade.Init(this);
             eco.Init(this);
+            if (scenery == null) scenery = gameObject.AddComponent<SceneryDecorSystem>(); // 旧场景无 Builder 引用时补建
+            scenery.Init(this); // 装饰联动：只读 eco.Stage 驱动视觉反馈，不写任何玩法/生态数值
             hud.Init(this);
             spawner.Init(this);
             interaction.Init(this);
@@ -158,30 +246,55 @@ namespace TrashPlanet.Whitebox
             if (config == null || state == null) return;
 
             if (Input.GetKeyDown(KeyCode.F1)) hud.DebugVisible = !hud.DebugVisible;
-            if (Input.GetKeyDown(KeyCode.F9)) WhiteboxState.Save(state);
             // 重开优先且独占本帧：命中后不再处理任何面板输入，避免场景卸载前又开/关一次面板。
             if (Input.GetKeyDown(KeyCode.F5)) { Restart(); return; }
+            // F9：打开局内存档面板（可选任意槽）；没有面板时退回"保存到当前激活槽"。
+            if (Input.GetKeyDown(KeyCode.F9))
+            {
+                if (inGameSave != null) ToggleInGameSave();
+                else { WhiteboxState.Save(state); Notice(SaveSlotSystem.ActiveSlot > 0 ? "已存档" : "未选择存档槽"); }
+            }
 
-            // 策划案 §6.4：同一帧只取一个输入，优先级 Gacha(R) > OpenStation(M) > Pause(ESC)。
-            // 原来 M 与 ESC 是两段独立 if，同帧按下会「开→关」互相抵消，属于输入冲突。
+            // 策划案 §6.4 / UI-004：同一帧只取一个输入，互斥优先级
+            // 背包(I) > 交易(B) > 转盘(R) > 中转站(M) > 暂停(ESC) > 专精(Q)。
+            // 两套新面板各有独立快捷键与独立视图，开其中一个必关其他，杜绝功能混用与面板叠加。
+            bool bagKey = Input.GetKeyDown(KeyCode.I);
+            bool tradeKey = Input.GetKeyDown(KeyCode.B);
             bool gachaKey = Input.GetKeyDown(KeyCode.R);
-            bool openStationKey = Input.GetKeyDown(KeyCode.M);
+            bool stationKey = Input.GetKeyDown(KeyCode.M);
             bool pauseKey = Input.GetKeyDown(KeyCode.Escape);
-            if (gachaKey)
+            bool specKey = Input.GetKeyDown(KeyCode.Q);
+            if (bagKey)
+            {
+                if (!state.finished && !paused && bag != null) ToggleBag();
+            }
+            else if (tradeKey)
+            {
+                if (!state.finished && !paused && coinTrade != null) ToggleCoinTrade();
+            }
+            else if (gachaKey)
             {
                 // 结算态 R 不响应；否则转盘打开时 R 关闭、关闭时 R 打开，同一帧只走一个
-                if (!state.finished && gacha != null) gacha.Toggle();
+                if (!state.finished && gacha != null) ToggleGacha();
             }
-            else if (openStationKey)
+            else if (stationKey)
             {
-                if (gacha != null && gacha.IsOpen) gacha.Close();
+                ClosePanelsExcept(null);
                 ToggleStation();
             }
             else if (pauseKey)
             {
-                if (gacha != null && gacha.IsOpen) gacha.Close();
+                // ESC 逐层退出：先关最上层面板，都关完才暂停
+                if (bag != null && bag.IsOpen) bag.Close();
+                else if (coinTrade != null && coinTrade.IsOpen) coinTrade.Close();
+                else if (gacha != null && gacha.IsOpen) gacha.Close();
+                else if (inGameSave != null && inGameSave.IsOpen) inGameSave.Close();
                 else if (stationOpen) ToggleStation();
                 else SetPaused(!paused);
+            }
+            else if (specKey)
+            {
+                if (!state.finished && !IsUiBlocking && tool != null) tool.CycleActive();
             }
 
             float dt = Time.deltaTime;
@@ -197,6 +310,60 @@ namespace TrashPlanet.Whitebox
                 if (saveTimer > 15f) { saveTimer = 0f; WhiteboxState.Save(state); }
                 quest.Evaluate();
             }
+        }
+
+        // ------------------------------------------------------------------
+        // 面板互斥开合（UI-004）：背包 / 金币交易 / 转盘 / 中转站
+        // ------------------------------------------------------------------
+
+        /// <summary>除 keep 外的所有面板都关闭。keep=null 表示全关，用于打开中转站/暂停前清场。</summary>
+        void ClosePanelsExcept(string keep)
+        {
+            if (keep != "bag" && bag != null && bag.IsOpen) bag.Close();
+            if (keep != "trade" && coinTrade != null && coinTrade.IsOpen) coinTrade.Close();
+            if (keep != "gacha" && gacha != null && gacha.IsOpen) gacha.Close();
+            if (keep != "save" && inGameSave != null && inGameSave.IsOpen) inGameSave.Close();
+            if (keep != "station" && stationOpen) { stationOpen = false; if (stationSystem != null) stationSystem.ClearPending(); }
+        }
+
+        /// <summary>F9：局内存档面板开关。打开时先关其他面板；结算态不允许打开。</summary>
+        public void ToggleInGameSave()
+        {
+            if (inGameSave == null || state == null || state.finished) return;
+            bool opening = !inGameSave.IsOpen;
+            ClosePanelsExcept(opening ? "save" : null);
+            if (opening) inGameSave.Open();
+            else inGameSave.Close();
+            ApplyUiState();
+        }
+
+        void ToggleGacha()
+        {
+            bool opening = gacha == null || !gacha.IsOpen;
+            ClosePanelsExcept("gacha");
+            if (opening && !stationOpen && !paused) gacha.Toggle();
+            else if (gacha != null && gacha.IsOpen) gacha.Close();
+            ApplyUiState();
+        }
+
+        /// <summary>I 键：背包独立开关。打开时关掉交易/转盘/中转站，保证一次只有一个面板。</summary>
+        public void ToggleBag()
+        {
+            if (state == null || state.finished || paused || bag == null) return;
+            bool opening = !bag.IsOpen;
+            ClosePanelsExcept("bag");
+            if (opening) bag.Open();
+            ApplyUiState();
+        }
+
+        /// <summary>B 键：金币交易独立开关。与背包完全分离，打开时关掉背包/转盘/中转站。</summary>
+        public void ToggleCoinTrade()
+        {
+            if (state == null || state.finished || paused || coinTrade == null) return;
+            bool opening = !coinTrade.IsOpen;
+            ClosePanelsExcept("trade");
+            if (opening) coinTrade.Open();
+            ApplyUiState();
         }
 
         // 提供给 Hierarchy UI 按钮直接绑定的入口（WhiteboxUiActions.CloseStation）
@@ -281,6 +448,8 @@ namespace TrashPlanet.Whitebox
             Time.timeScale = 1f;
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
+            if (ReferenceEquals(SaveSlotSystem.CapturePoseHook, (System.Action<WhiteboxState>)CapturePose))
+                SaveSlotSystem.CapturePoseHook = null;
         }
     }
 }

@@ -1,4 +1,4 @@
-// @trace ART-003, ART-004, ART-005, ART-008, NUM-007, PLAT-005
+// @trace ART-003, ART-004, ART-005, ART-008, NUM-007, PLAT-005, NUM-012, NUM-013
 using System;
 using System.Globalization;
 using UnityEngine;
@@ -69,6 +69,25 @@ namespace TrashPlanet.Whitebox
         [SerializeField] int largeYield = 2;
         [SerializeField, Tooltip("描边亮起（含大型垃圾耐久条）的距离判定，随拾取距离一起 ×2")]
         float highlightRange = 6f;                    // [待拍板 C5]
+
+        [Header("工具系统 TOOL-001~006 / NUM-012~013")]
+        [SerializeField, Tooltip("T-02/03/04/05 专精 Lv.1 解锁所需累计加工次数（塑料/金属/有机/电子）")]
+        int[] specUnlockProcessCount = { 6, 6, 4, 6 };
+        [SerializeField, Tooltip("专精 Lv.2 升级消耗的该类材料件数")]
+        int specUpgradeMaterialCost = 6;
+        [SerializeField, Tooltip("专精 Lv.2 升级消耗的额外金属零件")]
+        int specUpgradeMetalCost = 3;
+        [SerializeField] float specRangeBonus = 0.5f;   // T-03 金属拾取 +0.5 m
+        [SerializeField] int specYieldBonus = 1;        // T-02 Lv.2 塑料大型产出 +1
+        [SerializeField] int specDamageBonus = 1;       // T-03 Lv.2 金属拆解 +1
+        [SerializeField, Range(0.5f, 1f)] float specProcessMult = 0.9f;
+        [SerializeField, Range(0.5f, 1f)] float specCraftMult = 0.9f;
+        [SerializeField] float pickRangeCap = 9f;
+        [SerializeField] int dismantleDamageCap = 3;
+        [SerializeField, Range(0.5f, 1f)] float efficiencyFloor = 0.8f;
+        [SerializeField] float gripperRangeBonus = 1f;  // T-06
+        [SerializeField] int magnetFirstHitBonus = 1;    // T-07
+        [SerializeField] int purifierChargesMax = 2;     // T-08
 
         [Header("加工 / 制造 [待拍板 C2 C3 C7]")]
         [SerializeField] float[] conversionRate = { 0.5f, 0.5f, 1f, 0.5f };
@@ -151,6 +170,21 @@ namespace TrashPlanet.Whitebox
         public int[] LargeDurability => largeDurability;
         public int LargeYield => Mathf.Max(1, largeYield);
         public float HighlightRange => highlightRange;
+
+        public int[] SpecUnlockProcessCount => specUnlockProcessCount;
+        public int SpecUpgradeMaterialCost => Mathf.Max(1, specUpgradeMaterialCost);
+        public int SpecUpgradeMetalCost => Mathf.Max(0, specUpgradeMetalCost);
+        public float SpecRangeBonus => Mathf.Max(0f, specRangeBonus);
+        public int SpecYieldBonus => Mathf.Max(0, specYieldBonus);
+        public int SpecDamageBonus => Mathf.Max(0, specDamageBonus);
+        public float SpecProcessMult => Mathf.Clamp(specProcessMult, 0.5f, 1f);
+        public float SpecCraftMult => Mathf.Clamp(specCraftMult, 0.5f, 1f);
+        public float PickRangeCap => Mathf.Max(1f, pickRangeCap);
+        public int DismantleDamageCap => Mathf.Max(1, dismantleDamageCap);
+        public float EfficiencyFloor => Mathf.Clamp(efficiencyFloor, 0.5f, 1f);
+        public float GripperRangeBonus => Mathf.Max(0f, gripperRangeBonus);
+        public int MagnetFirstHitBonus => Mathf.Max(0, magnetFirstHitBonus);
+        public int PurifierChargesMax => Mathf.Clamp(purifierChargesMax, 0, 3);
         public float[] ConversionRate => conversionRate;
         public int[] MinProcessBatch => minProcessBatch;
         public float ProcessSeconds => processSeconds;
@@ -234,6 +268,21 @@ namespace TrashPlanet.Whitebox
             Ensure(ref lightAngle, 3, 25f);
             Ensure(ref upgradeMetalCost, 2, 5);
             Ensure(ref upgradeElectronicCost, 2, 6);
+            Ensure(ref specUnlockProcessCount, 4, 6);
+            specUnlockProcessCount[2] = Mathf.Max(1, Mathf.Min(specUnlockProcessCount[2], 6));
+            specUpgradeMaterialCost = Mathf.Max(1, specUpgradeMaterialCost);
+            specUpgradeMetalCost = Mathf.Max(0, specUpgradeMetalCost);
+            specRangeBonus = Mathf.Max(0f, specRangeBonus);
+            specYieldBonus = Mathf.Max(0, specYieldBonus);
+            specDamageBonus = Mathf.Max(0, specDamageBonus);
+            specProcessMult = Mathf.Clamp(specProcessMult, 0.5f, 1f);
+            specCraftMult = Mathf.Clamp(specCraftMult, 0.5f, 1f);
+            pickRangeCap = Mathf.Max(1f, pickRangeCap);
+            dismantleDamageCap = Mathf.Max(1, dismantleDamageCap);
+            efficiencyFloor = Mathf.Clamp(efficiencyFloor, 0.5f, 1f);
+            gripperRangeBonus = Mathf.Max(0f, gripperRangeBonus);
+            magnetFirstHitBonus = Mathf.Max(0, magnetFirstHitBonus);
+            purifierChargesMax = Mathf.Clamp(purifierChargesMax, 0, 3);
 
             for (int i = 0; i < 4; i++)
             {

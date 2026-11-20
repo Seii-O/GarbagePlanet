@@ -20,6 +20,8 @@ namespace TrashPlanet.Whitebox.Editor
     {
         public const string SkinFolder = "Assets/Art/UI/中转站皮肤";
         public const string LibraryFolder = "Assets/Art/UI/垃圾星球_UI资源库";
+        /// <summary>结束画面（游戏结束 / 结算）用的整图背景与封面，全图 Sprite、不切九宫格。</summary>
+        public const string GameOverFolder = "Assets/Art/UI/结束画面";
         const string Tag = "[UiArtImportSettings] ";
 
         /// <summary>需要 9 宫格拉伸的拆件：名字 → 四边边距（px）。表里没有的一律按普通 Sprite 处理。</summary>
@@ -62,6 +64,7 @@ namespace TrashPlanet.Whitebox.Editor
             int changed = 0;
             changed += ApplyFolder(SkinFolder);
             changed += ApplyFolder(LibraryFolder);
+            changed += ApplyFolder(GameOverFolder);
             if (changed > 0) AssetDatabase.SaveAssets();
             Debug.Log(Tag + "导入设置更新 " + changed + " 张");
             return changed;

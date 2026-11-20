@@ -1,4 +1,4 @@
-// @trace MECH-007, MECH-009, MECH-012, MECH-001, NUM-004, NUM-007
+// @trace MECH-007, MECH-009, MECH-012, MECH-001, NUM-004, NUM-007, TOOL-002
 using System;
 using UnityEngine;
 
@@ -92,11 +92,17 @@ namespace TrashPlanet.Whitebox
         void StartJob(string label, float seconds, Action done)
         {
             if (HasJob) { game.Notice("同一时间只允许 1 个制造/加工任务"); return; }
+            bool free = false;
+            if (game.Tool != null && game.Tool.TryConsumeFreeCharge())
+            {
+                seconds = 0f;
+                free = true;
+            }
             jobLabel = label;
             jobTotal = Mathf.Max(0.1f, seconds);
             jobLeft = jobTotal;
             onDone = done;
-            game.Notice("开始：" + label + "（" + jobTotal.ToString("0.#") + " s）");
+            game.Notice("开始：" + label + (free ? "（净化器：零耗时）" : "（" + jobTotal.ToString("0.#") + " s）"));
         }
 
         // ---------------- ① 投放 ----------------
@@ -172,13 +178,16 @@ namespace TrashPlanet.Whitebox
             int output = Mathf.Max(1, Mathf.FloorToInt(batch * cfg.ConversionRate[cat])) * n;
             // 批量耗时：配置 batchFixedDuration 打开时固定为「一批的时长」，数量只影响消耗与产出
             float seconds = cfg.BatchFixedDuration ? cfg.ProcessSeconds : cfg.ProcessSeconds * n;
+            if (game.Tool != null) seconds *= game.Tool.ProcessMultiplier(cat);
 
             s.raw[cat] -= consumed;
             StartJob("加工" + CategoryNames[cat] + (n > 1 ? " ×" + n : ""), seconds, () =>
             {
                 s.materials[cat] += output;
                 s.processed += consumed;
+                s.processedByCat[Mathf.Clamp(cat, 0, 3)] += n; // 专精解锁按本次批次次数累计
                 s.processedMask |= 1 << cat;
+                if (game.Tool != null) game.Tool.UnlockCheck();
                 game.Notice("加工完成：+" + output + " " + MaterialNames[cat]
                             + (n > 1 ? "（" + n + " 批）" : ""));
             });
@@ -262,6 +271,7 @@ namespace TrashPlanet.Whitebox
 
             // 批量耗时：与数量无关，做多少件都只用一件的时长（batchFixedDuration = false 时才线性叠加）
             float craftSeconds = cfg.BatchFixedDuration ? cfg.CraftSeconds[recipe] : cfg.CraftSeconds[recipe] * n;
+            if (game.Tool != null) craftSeconds *= game.Tool.CraftMultiplier(recipe);
             StartJob("制造" + RecipeNames[recipe] + (n > 1 ? " ×" + n : ""), craftSeconds, () =>
             {
                 s.crafted += n;
@@ -342,6 +352,61 @@ namespace TrashPlanet.Whitebox
             game.Notice("工具升级到 Lv." + s.toolLevel + "，拾取范围 " + cfg.PickRange[s.toolLevel - 1] + " m");
             game.OnWorldEvent();
             return true;
+        }
+
+        /// <summary>T-02~T-05 专精 Lv.1→Lv.2：6 件该类材料 + 3 金属零件；金属专精合计 9 金属。</summary>
+        public bool UpgradeSpecTool(int cat)
+        {
+            WhiteboxConfig cfg = game.Config;
+            WhiteboxState s = game.State;
+            cat = Mathf.Clamp(cat, 0, 3);
+            if (!s.stationRepaired) { game.Notice("中转站尚未修复"); return false; }
+            if (s.toolLevels[cat] <= 0)
+            {
+                game.Notice("专精尚未解锁：累计加工该类别 " + cfg.SpecUnlockProcessCount[cat] + " 次");
+                return false;
+            }
+            if (s.toolLevels[cat] >= 2)
+            {
+                game.Notice((game.Tool != null ? game.Tool.SpecToolName(cat) : "专精") + " 已满级 Lv.2");
+                return false;
+            }
+            int materialCost = cfg.SpecUpgradeMaterialCost;
+            int metalCost = cfg.SpecUpgradeMetalCost;
+            int needMetal = cat == 1 ? materialCost + metalCost : metalCost;
+            int needCat = cat == 1 ? 0 : materialCost;
+            if (s.materials[1] < needMetal || s.materials[cat] < needCat)
+            {
+                game.Notice("升级需要 " + (cat == 1 ? needMetal + " 金属零件"
+                                                  : materialCost + " " + MaterialNames[cat] + " + " + metalCost + " 金属零件"));
+                return false;
+            }
+            s.materials[1] -= needMetal;
+            if (cat != 1) s.materials[cat] -= materialCost;
+            s.toolLevels[cat] = 2;
+            string name = game.Tool != null ? game.Tool.SpecToolName(cat) : CategoryNames[cat] + "专精";
+            game.Notice(name + " 升级到 Lv.2");
+            WhiteboxState.Save(s);
+            game.OnWorldEvent();
+            return true;
+        }
+
+        /// <summary>中转站专精按钮文案：未解锁 / 可升级 / 已满级。</summary>
+        public string SpecToolUpgradeText(int cat)
+        {
+            WhiteboxConfig cfg = game.Config;
+            WhiteboxState s = game.State;
+            cat = Mathf.Clamp(cat, 0, 3);
+            string name = game.Tool != null ? game.Tool.SpecToolName(cat) : CategoryNames[cat] + "专精";
+            if (s.toolLevels[cat] <= 0)
+                return "⑥ " + name + "（加工 " + s.processedByCat[cat] + "/" + cfg.SpecUnlockProcessCount[cat] + " 解锁）";
+            if (s.toolLevels[cat] >= 2) return "⑥ " + name + " 已满级 Lv.2";
+            int materialCost = cfg.SpecUpgradeMaterialCost;
+            int metalCost = cfg.SpecUpgradeMetalCost;
+            string cost = cat == 1
+                ? (materialCost + metalCost) + " 金属零件"
+                : materialCost + " " + MaterialNames[cat] + " + " + metalCost + " 金属零件";
+            return "⑥ 升级" + name + "（需 " + cost + "）";
         }
 
         /// <summary>背包升级：Lv.1（总 20）→ Lv.2（总 40），消耗 15 金属零件，满级后不再可升。</summary>
@@ -437,10 +502,21 @@ namespace TrashPlanet.Whitebox
             if (game == null || !HasPending) return 0f;
             WhiteboxConfig cfg = game.Config;
             int n = PendingCount;
+            float seconds;
             if (pending == StationAction.Process)
-                return cfg.BatchFixedDuration ? cfg.ProcessSeconds : cfg.ProcessSeconds * n;
-            float one = cfg.CraftSeconds[Mathf.Clamp(pendingIndex, 0, 2)];
-            return cfg.BatchFixedDuration ? one : one * n;
+            {
+                int cat = Mathf.Clamp(pendingIndex, 0, 3);
+                seconds = cfg.BatchFixedDuration ? cfg.ProcessSeconds : cfg.ProcessSeconds * n;
+                if (game.Tool != null) seconds *= game.Tool.ProcessMultiplier(cat);
+            }
+            else
+            {
+                int recipe = Mathf.Clamp(pendingIndex, 0, 2);
+                float one = cfg.CraftSeconds[recipe];
+                if (game.Tool != null) one *= game.Tool.CraftMultiplier(recipe);
+                seconds = cfg.BatchFixedDuration ? one : one * n;
+            }
+            return Mathf.Max(0.1f, seconds);
         }
 
         /// <summary>耗时是否与数量无关（弹窗据此决定要不要写「与数量无关」）。</summary>

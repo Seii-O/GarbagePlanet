@@ -6,6 +6,9 @@ EditorBuildSettings:
   serializedVersion: 2
   m_Scenes:
   - enabled: 1
+    path: Assets/Scenes/Title.unity
+    guid: 481fe6f2684b595449e44ead66ab24b5
+  - enabled: 1
     path: Assets/Scenes/WhiteboxPrototype.unity
     guid: 1efc8a6d17d1af741bb941f287a67b81
   m_configObjects: {}

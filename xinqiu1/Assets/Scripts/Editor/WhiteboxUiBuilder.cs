@@ -314,7 +314,7 @@ namespace TrashPlanet.Whitebox.Editor
 
             // ⑨ 常驻提示文字
             Txt(r, "Txt_Hint",
-                "WASD 移动 · 鼠标看视角 · 左键拾取/拆解 · M 中转站 · F1 调试信息 · F5 新局 · F9 存档 · ESC 暂停",
+                "WASD 移动 · 鼠标看视角 · 左键拾取/拆解 · M 中转站 · R 转盘 · I 背包 · B 交易 · Q 切专精 · F1 调试 · F5 新局 · F9 存档 · ESC 暂停",
                 new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(1500f, 30f),
                 new Vector2(0f, -14f), 15, TextColor, TextAnchor.MiddleCenter, font);
             Txt(r, "Txt_Notice", "", BottomLeft, BottomLeft, new Vector2(1000f, 30f),

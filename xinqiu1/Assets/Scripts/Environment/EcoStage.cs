@@ -1,4 +1,4 @@
-// @trace ART-002, ART-003, ART-005, ART-008, ART-012
+// @trace ART-002, ART-003, ART-005, ART-008, ART-012, TOOL-004
 using UnityEngine;
 
 namespace TrashPlanet.Whitebox
@@ -60,6 +60,8 @@ namespace TrashPlanet.Whitebox
             {
                 flash = cfg.StageFlashSeconds;
                 game.Notice("生态阶段升级 → " + (stage + 1) + "/3");
+                // T-08：跨阶段 +1 次零耗时；只写 freeJobCharges，绝不写 progress（防递归/碰阈值）
+                if (game.Tool != null) game.Tool.OnStageAdvanced();
             }
         }
 

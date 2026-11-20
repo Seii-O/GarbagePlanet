@@ -1,7 +1,7 @@
 {
-  "version": 13,
+  "version": 19,
   "status": "frozen",
-  "frozenAt": "2026-11-17",
+  "frozenAt": "2026-11-20",
   "project": "垃圾星球",
   "items": [
     {
@@ -195,9 +195,147 @@
       "type": "art",
       "name": "狗固定外观：不随生态/进度变化",
       "confirmed": true
+    },
+    {
+      "id": "TOOL-001",
+      "type": "mechanic",
+      "name": "工具三层分类：主工具/专精/辅助共10件",
+      "confirmed": true
+    },
+    {
+      "id": "TOOL-002",
+      "type": "mechanic",
+      "name": "工具获取与使用：加工解锁/中转站升级/Q轮换/辅助被动",
+      "confirmed": true
+    },
+    {
+      "id": "TOOL-003",
+      "type": "mechanic",
+      "name": "工具加成查询：属性加法区与效率乘法区钳制",
+      "confirmed": true
+    },
+    {
+      "id": "TOOL-004",
+      "type": "mechanic",
+      "name": "工具特殊效果：磁铁手套首击/净化器零耗时/生态专家信息",
+      "confirmed": true
+    },
+    {
+      "id": "TOOL-005",
+      "type": "mechanic",
+      "name": "抽取条件与史诗档修复门槛（C21）",
+      "confirmed": true
+    },
+    {
+      "id": "TOOL-006",
+      "type": "mechanic",
+      "name": "库存与持有状态：五态派生、单一真值、旧档归一",
+      "confirmed": true
+    },
+    {
+      "id": "NUM-012",
+      "type": "numeric",
+      "name": "工具属性封顶：拾取9m/伤害3/产出3/效率下限0.8",
+      "confirmed": true
+    },
+    {
+      "id": "NUM-013",
+      "type": "numeric",
+      "name": "工具升级消耗与平衡验算（全局占比9.2%）",
+      "confirmed": true
+    },
+    {
+      "id": "TOOL-014",
+      "type": "mechanic",
+      "name": "四本技能书：抽奖专属、可叠层、满层折材料",
+      "confirmed": true
+    },
+    {
+      "id": "TOOL-015",
+      "type": "mechanic",
+      "name": "奖池两阶段切换：工具集齐后仅普通物品+技能书",
+      "confirmed": true
+    },
+    {
+      "id": "NUM-016",
+      "type": "numeric",
+      "name": "技能书概率与叠层：精英同权5、书乘区独立、0.8下限",
+      "confirmed": true
+    },
+    {
+      "id": "NUM-017",
+      "type": "numeric",
+      "name": "商城扩展接口与定价：金币不上线、T-10定价180（C22/C23）",
+      "confirmed": true
+    },
+    {
+      "id": "BAG-001",
+      "type": "mechanic",
+      "name": "独立工具与技能书背包：格子容量、添加、移除、查看",
+      "confirmed": true
+    },
+    {
+      "id": "BAG-002",
+      "type": "mechanic",
+      "name": "背包与垃圾背包/金币交易分离：独立状态、独立操作面",
+      "confirmed": true
+    },
+    {
+      "id": "COIN-001",
+      "type": "mechanic",
+      "name": "独立金币交易：余额、购买、出售、交易记录",
+      "confirmed": true
+    },
+    {
+      "id": "COIN-002",
+      "type": "mechanic",
+      "name": "交易与背包解耦：只经入库/出库接口交互，不共享格子",
+      "confirmed": true
+    },
+    {
+      "id": "UI-004",
+      "type": "ui",
+      "name": "背包与金币交易独立界面、独立快捷键 I/B、互斥开合",
+      "confirmed": true
+    },
+    {
+      "id": "NUM-018",
+      "type": "numeric",
+      "name": "背包默认12格与金币出售价/交易费率的平衡口径",
+      "confirmed": true
+    },
+    {
+      "id": "UI-005",
+      "type": "ui",
+      "name": "标题界面按钮接线：开始新游戏删档跳转、继续游戏保留存档跳转、退出游戏、音效/音乐音量滑块",
+      "confirmed": true
+    },
+    {
+      "id": "SAVE-001",
+      "type": "system",
+      "name": "5 槽 JSON 多存档系统：独立槽文件、保存时间元数据、原子写入、旧单文件档迁移、当前激活槽",
+      "confirmed": true
+    },
+    {
+      "id": "SAVE-002",
+      "type": "system",
+      "name": "存档含玩家位置与视角：保存前回调写入 state，读档后还原位置并贴回球面",
+      "confirmed": true
+    },
+    {
+      "id": "SAVE-003",
+      "type": "ui",
+      "name": "多存档界面：主菜单选槽按钮（有档亮+时间/无档灰+空字）与局内 F9 保存到任意槽面板",
+      "confirmed": true
+    },
+    {
+      "id": "ART-013",
+      "type": "art",
+      "name": "场景装饰生态联动：枯树/广告牌/水塘/垃圾山随阶段复绿，垃圾山纯装饰",
+      "confirmed": true
     }
   ],
-  "scopeNote": "v4: 依据用户第二次拍板 D6（不允许狗的外观变化），作废 ART-010、新增 ART-012（固定外观）；items 只收录已确认需求，作为阶段二开发范围。v5: 应用户要求将三种环保产品制造耗时统一减半（8/5/12s → 4/2.5/6s），仅调整 craftSeconds 数值，不改变材料成本、产出数量、成功率或任何需求条目；MECH-009 内容不变，策划案 v1.2 相应示例数值同步更新。v6: 应用户要求在减半基础上再次减半（4/2.5/6s → 2/1.25/3s），仍仅调整 craftSeconds 数值，成本/产出/成功率/需求条目均不变；本次 xinqiu1 工程内策划案文件已不存在，故无策划案示例数值可同步。v7: 应用户要求将材料加工耗时减半（processSeconds 5s → 2.5s），同步 UI 占位文本（预计 5s→2.5s、15s→7.5s）与策划案 MECH-008/单局循环加工数值；成本/产出/成功率/需求条目均不变，制造耗时与 craftSeconds 不在本次范围。v8: 应用户要求将垃圾初始量统一设为 500 件（initialTrashCount 18 → 500，.cs 默认值与 .asset 序列化值同步；遗留 WhiteboxSceneBuilder 的 TrashCount 18 → 500 一并统一）。已核对上限链：InitialTrashCount=Clamp(500,0,MapTrashCap=1000) 不截断，TotalTrashBudget=1500 充足，SpawnInitial 的 TryScatter 有兜底必生成满 500，故无需调整上限；地图上限 50 件为策划案原文历史值，非当前实现上限。成本/产出/成功率/需求条目均不变。v9: 应用户要求移除开始界面、恢复打开程序直接进入第一关（WhiteboxPrototype）。删除 StartScreen 三脚本与 StartScreen.unity 场景（已备份），还原 WhiteboxState.HasSave() 只读查询，Build Settings 仅 WhiteboxPrototype 启用置顶（旧废案 Whitebox/SampleScene 保留但禁用）。关卡流程核验为单场景十步任务链闭环（入口→拾取/加工/制造→三生态阶段→10 步任务链→结算→重开），WhiteboxGame.Restart() 改为加载固定 GameSceneName 常量避免误重载废案场景。玩法数值/成本/产出/成功率/十步任务内容均不变。v10: 应用户要求按保守方案清理冗余场景关卡：删除旧废案场景 _Game/Scenes/Whitebox.unity 与第三方资源包示例场景 Planets of the Solar System 3D/Scenes/Overview.unity（各含 .meta，均已备份），Build Settings 移除这两条原本禁用的条目及早已不存在的 SampleScene 悬空条目，仅保留唯一正式场景 WhiteboxPrototype.unity。经 guid 核对：两删除场景均未被正式场景引用，第三方包 85 个资源 guid 零引用；_Game/Scripts 下 PlayerController/PlayerCameraRig/FirstPersonHands/PlanetDragRotator 为活跃玩家脚本（正式场景引用），完整保留。玩法数值/成本/产出/成功率/十步任务内容均不变。v11: 新增「垃圾堆隐藏款 + 转盘奖励」玩法（本次需求，尚未拍板编号，暂不纳入 items）。新增独立配置 GachaConfig（发现概率/稀有度权重/软硬保底/奖励池）、GachaSystem（发现判定→券→抽奖→入库）、GachaPanelView（独立转盘界面）、GachaBuilder（Editor 一键生成配置资产与界面，菜单⑨）；WhiteboxState 扩展 gacha* 字段与奖励入库（version 保持 1，读档补默认值兼容旧档）；WhiteboxGame 加 R 键仲裁与 IsUiBlocking；InteractionController 在拾取成功后加隐藏款发现钩子。既有玩法数值、成本/产出/成功率、十步任务、存档格式均未改。需用户在 Unity 跑菜单⑨生成 GachaConfig.asset 与 Panel_Gacha 后方可运行。v12: 应用户要求把转盘界面改为参考图圆形平面转盘风格（UI 视觉改版，未拍板编号，暂不纳入 items）。新增纯 uGUI 网格绘制组件 WheelGraphics（WheelSectorGraphic 扇区/灯泡/中心圆钮 + WheelNeedleGraphic 黑三角指针，zero 纹理依赖）；GachaBuilder 重建 Panel_Gacha 为 10 扇区圆盘（7 普通含 2 个「再接再厉」空奖文案 / 2 精英 / 1 史诗）+ 红黄交替灯泡外环 + 中心圆形开始按钮，新增菜单⑩强制重建，菜单⑨对旧方形界面自动重建；GachaConfig 新增 WheelLayout 共享扇区布局（生成器与旋转落点共用）；GachaPanelView 旋转落点改为在结果档位对应扇区内随机取值，显示文案「稀有」统一为「精英」。空奖扇区仅作视觉填充，抽奖权重/保底/奖励入库逻辑与既有玩法数值均未改。v13: 圆形盘面运行期崩溃与视觉修复（UI 修复，未拍板编号，暂不纳入 items）。根因：自定义 MaskableGraphic 子类不会像 Image/Text 那样自动带 CanvasRenderer，场景里扇区/指针/灯泡/中心按钮节点全缺该组件，编辑态不访问故不报错，Play 时中心 Button(Selectable) 读 Graphic.color 抛 MissingComponentException；且旧 Configure 把同一颜色同时写入顶点色与 Graphic.color 造成「颜色自乘」变暗（深色底板近乎全黑，是截图看不到扇区的主因）。修复：WheelSectorGraphic/WheelNeedleGraphic 加 [RequireComponent(CanvasRenderer)] + Awake 运行时自愈兜底；颜色改只写顶点色、Graphic.color 恒白；新增独立 fillColor/edgeColor 字段。视觉：扇区配色重排为普通暖色/精英蓝紫/史诗正红金边/空奖蓝灰弱化，相邻色相拉开；中央指针改亮金描边+深棕主体+中轴高光的三层箭头并加大(34x132)，中心按钮改金边橙红。抽奖权重/保底/奖励入库/旋转落点逻辑与既有玩法数值均未改。需用户重跑菜单⑩重建盘面使新配色与 CanvasRenderer 落入场景。",
+  "scopeNote": "v18: 应用户需求实现 5 槽 JSON 多存档系统。新增 SAVE-001/002/003。核心 SaveSlotSystem 管理 5 个独立槽文件（trash_planet_save_slot_N.json），写保存时间、原子写入、旧单文件档自动迁移到槽 1。WhiteboxState 增加玩家位置/视角字段并抽出 NormalizeLoaded 统一归一口径；所有既有 Save(s) 调用改为写当前激活槽，新增 Save(s,slot) 写指定槽。WhiteboxGame 进场景注册 CapturePoseHook 保存前写位置、Awake 还原位置并 ResolvePlanetGeometry，F9 打开局内存档面板（ToggleInGameSave，并入 IsUiBlocking 与 ESC 链）。TitleController 开始新游戏=ActiveSlot=0 不删槽，继续游戏=打开 ContinueGameUI 选槽面板；SaveSlotMenuView 列出 5 槽（有档亮+时间/无档灰+空字），点有档按钮设 ActiveSlot 并进游戏。InGameSaveView（F9）5 按钮保存/覆盖任意槽。Editor SaveSlotBuilder（菜单⑮）用 Editor API 生成面板并接线，不手写场景 YAML。",
   "deferredNote": "deferred 为待拍板项（策划案 v1.2 第16章 C1-C13），保持 confirmed:false，工程以可配置默认值实现但不视为定稿；新增 ART-013 对应 C13。拍板后须递增 version 并把条目移回 items 且置 confirmed:true。",
   "deferred": [
     {

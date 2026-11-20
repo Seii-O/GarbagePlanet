@@ -10,9 +10,15 @@ using UnityEngine.SceneManagement;
 namespace TrashPlanet.Whitebox.Editor
 {
     /// <summary>
-    /// 一次性 Play 冒烟测试：首次导入后自动打开白膜场景、进 Play 约 3 秒、收集运行时错误、退出 Play。
-    /// 只跑一次（SessionState 跨域重载保持），当前场景有未保存改动时跳过，不弹保存对话框。
-    /// 结果落盘 docs/whitebox-play-smoke.json；退出 Play 后场景仍停在白膜场景，方便用户直接按 Play。
+    /// 手动 Play 冒烟测试（菜单⑤ 重跑 Play 冒烟测试）。
+    ///
+    /// 修复记录（2026-11-20）：旧版用 [InitializeOnLoad] + delayCall 自动进 Play，
+    /// 报告文件缺失时每次域重载都会重跑；若用户已在 Play 模式，OpenScene 会抛
+    /// "This cannot be used during play mode"，且残留的 RunningKey 会在约 3 秒后
+    /// 强制 isPlaying=false，导致手动按 Play 也被退出（表现为"闪退"）。
+    /// 现改为：①不再自动进 Play，只保留菜单⑤手动触发；②OpenScene 前后校验播放状态并 try/catch；
+    /// ③用 SmokeOwnsPlay 标记确保只有本工具发起的 Play 才会被自动退出；④构造时清理残留标记。
+    /// 静态校验（48 项）由 WhiteboxValidator 独立承担，不依赖本工具。
     /// </summary>
     [InitializeOnLoad]
     public static class WhiteboxPlaySmoke
@@ -20,6 +26,7 @@ namespace TrashPlanet.Whitebox.Editor
         const string DoneKey = "TrashPlanet.Whitebox.SmokeDone.v1";
         const string RunningKey = "TrashPlanet.Whitebox.SmokeRunning";
         const string StartKey = "TrashPlanet.Whitebox.SmokeStart";
+        const string OwnsPlayKey = "TrashPlanet.Whitebox.SmokeOwnsPlay";
         const double Seconds = 3.0;
 
         static string ReportPath =>
@@ -32,10 +39,16 @@ namespace TrashPlanet.Whitebox.Editor
         {
             Application.logMessageReceived += OnLog;
             EditorApplication.update += OnUpdate;
-            EditorApplication.delayCall += TryStart;
+            // 域重载时清理上次异常中断残留的标记，避免干扰用户手动按 Play。
+            // 仅在非 Play（且不在切换中）时清，避免误清本工具自己发起的冒烟。
+            if (!Application.isBatchMode && !EditorApplication.isPlayingOrWillChangePlaymode)
+            {
+                SessionState.SetBool(RunningKey, false);
+                SessionState.SetBool(OwnsPlayKey, false);
+            }
         }
 
-        /// <summary>菜单 / 自动复验入口：删掉旧报告，重新进 Play 跑一次。</summary>
+        /// <summary>菜单 / 手动复验入口：删旧报告，手动跑一次。不在 Play 时才受理。</summary>
         [MenuItem("Tools/垃圾星球白膜/⑤ 重跑 Play 冒烟测试", false, 14)]
         public static void RunNowMenu() { RequestRun(); }
 
@@ -46,28 +59,54 @@ namespace TrashPlanet.Whitebox.Editor
                 Debug.LogWarning("[WhiteboxPlaySmoke] 请先在非 Play 状态下重跑");
                 return;
             }
+            // 手动入口先清残留，确保本次是干净的冒烟
+            SessionState.SetBool(RunningKey, false);
+            SessionState.SetBool(OwnsPlayKey, false);
             EditorApplication.delayCall += DoRun;
         }
 
         static void DoRun()
         {
-            if (Application.isBatchMode || EditorApplication.isPlayingOrWillChangePlaymode) return;
+            // 延迟回调真正执行时可能已进入/正在切换 Play，必须二次校验。
+            if (Application.isBatchMode || EditorApplication.isPlayingOrWillChangePlaymode)
+            {
+                Debug.LogWarning("[WhiteboxPlaySmoke] 检测到已进入 Play，取消本次冒烟（避免在播放期调用 OpenScene）");
+                SessionState.SetBool(RunningKey, false);
+                SessionState.SetBool(OwnsPlayKey, false);
+                return;
+            }
             try { if (File.Exists(ReportPath)) File.Delete(ReportPath); }
             catch (Exception e) { Debug.LogWarning("[WhiteboxPlaySmoke] 旧报告删除失败：" + e.Message); }
 
-            // 当前场景就是白膜场景时才自动跑；有未保存改动先落盘，避免弹保存对话框
             Scene active = EditorSceneManager.GetActiveScene();
-            if (!active.IsValid() || active.path != WhiteboxBuilder.ScenePath) return;
+            if (!active.IsValid() || active.path != WhiteboxBuilder.ScenePath)
+            {
+                Debug.LogWarning("[WhiteboxPlaySmoke] 当前场景不是白膜场景，取消冒烟");
+                return;
+            }
             if (active.isDirty) EditorSceneManager.SaveScene(active);
 
-            SessionState.SetBool(DoneKey, true); // 阻止首次导入逻辑再插一脚
+            // 打开场景只在确认非 Play 后执行，并加 try/catch 兜底
+            try
+            {
+                EditorSceneManager.OpenScene(WhiteboxBuilder.ScenePath, OpenSceneMode.Single);
+            }
+            catch (Exception e)
+            {
+                SessionState.SetBool(RunningKey, false);
+                SessionState.SetBool(OwnsPlayKey, false);
+                Debug.LogError("[WhiteboxPlaySmoke] 打开白膜场景失败：" + e.Message);
+                return;
+            }
+
+            SessionState.SetBool(DoneKey, true);
             SessionState.SetBool(RunningKey, true);
+            SessionState.SetBool(OwnsPlayKey, true); // 仅本工具发起的 Play 才打这个标记
             SessionState.SetFloat(StartKey, (float)EditorApplication.timeSinceStartup);
             runtimeErrors.Clear();
             frames = 0;
 
-            EditorSceneManager.OpenScene(WhiteboxBuilder.ScenePath, OpenSceneMode.Single);
-            Debug.Log("[WhiteboxPlaySmoke] 重新进入 Play 冒烟测试（UI 改造后复验），约 3 秒后自动退出");
+            Debug.Log("[WhiteboxPlaySmoke] 重新进入 Play 冒烟测试，约 " + Seconds + " 秒后自动退出");
             EditorApplication.isPlaying = true;
         }
 
@@ -80,45 +119,28 @@ namespace TrashPlanet.Whitebox.Editor
             runtimeErrors.Add(type + ": " + oneLine);
         }
 
-        static void TryStart()
-        {
-            if (Application.isBatchMode || EditorApplication.isPlaying) return;
-            if (SessionState.GetBool(DoneKey, false)) return;
-            // 报告存在说明已跑过：避免每次启动编辑器都自动进 Play
-            if (File.Exists(ReportPath)) return;
-            if (EditorApplication.isCompiling || EditorApplication.isUpdating)
-            {
-                EditorApplication.delayCall += TryStart;
-                return;
-            }
-            if (AssetDatabase.LoadAssetAtPath<SceneAsset>(WhiteboxBuilder.ScenePath) == null) return;
-
-            if (EditorSceneManager.GetActiveScene().isDirty)
-            {
-                SessionState.SetBool(DoneKey, true);
-                Debug.LogWarning("[WhiteboxPlaySmoke] 当前场景有未保存改动，跳过自动冒烟测试；请手动按 Play 验证");
-                return;
-            }
-
-            SessionState.SetBool(DoneKey, true);
-            SessionState.SetBool(RunningKey, true);
-            SessionState.SetFloat(StartKey, (float)EditorApplication.timeSinceStartup);
-            runtimeErrors.Clear();
-            frames = 0;
-
-            EditorSceneManager.OpenScene(WhiteboxBuilder.ScenePath, OpenSceneMode.Single);
-            Debug.Log("[WhiteboxPlaySmoke] 进入 Play 冒烟测试，约 3 秒后自动退出");
-            EditorApplication.isPlaying = true;
-        }
-
         static void OnUpdate()
         {
-            if (!EditorApplication.isPlaying || !SessionState.GetBool(RunningKey, false)) return;
+            // 未在 Play：清掉标记，防止上次中断的残留影响下一次手动 Play
+            if (!EditorApplication.isPlaying)
+            {
+                if (SessionState.GetBool(OwnsPlayKey, false) || SessionState.GetBool(RunningKey, false))
+                {
+                    SessionState.SetBool(OwnsPlayKey, false);
+                    SessionState.SetBool(RunningKey, false);
+                }
+                return;
+            }
+            // 关键守卫：不是本工具发起的 Play（用户手动按的），完全不干预，不会强制退出
+            if (!SessionState.GetBool(OwnsPlayKey, false)) return;
+            if (!SessionState.GetBool(RunningKey, false)) return;
+
             frames++;
             double started = SessionState.GetFloat(StartKey, 0f);
             if (EditorApplication.timeSinceStartup - started < Seconds && frames < 240) return;
 
             SessionState.SetBool(RunningKey, false);
+            SessionState.SetBool(OwnsPlayKey, false);
             WriteReport();
             Debug.Log("[WhiteboxPlaySmoke] 结束：运行帧数=" + frames
                       + "，捕获运行时错误 " + runtimeErrors.Count + " 条");
@@ -138,7 +160,7 @@ namespace TrashPlanet.Whitebox.Editor
                 sb.AppendLine("  \"frames\": " + frames + ",");
                 sb.AppendLine("  \"pass\": " + (runtimeErrors.Count == 0 ? "true" : "false") + ",");
                 sb.AppendLine("  \"runtimeErrorCount\": " + runtimeErrors.Count + ",");
-                sb.AppendLine("  \"note\": \"自动 Play 约 3 秒的冒烟测试；只覆盖启动与若干帧 Update，不替代人工走完整任务链录屏\",");
+                sb.AppendLine("  \"note\": \"手动菜单⑤触发的 Play 冒烟测试（约 3 秒）；静态校验 48 项由 WhiteboxValidator 独立承担\",");
                 sb.AppendLine("  \"runtimeErrors\": [");
                 for (int i = 0; i < runtimeErrors.Count; i++)
                     sb.Append("    \"" + Escape(runtimeErrors[i]) + "\""

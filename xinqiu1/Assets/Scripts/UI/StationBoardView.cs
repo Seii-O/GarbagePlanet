@@ -1,4 +1,4 @@
-// @trace ART-004, ART-008, MECH-013
+// @trace ART-004, ART-008, MECH-013, TOOL-002
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -26,9 +26,14 @@ namespace TrashPlanet.Whitebox
         [Header("材料 4 格")]
         public Text[] MaterialCounts = new Text[4];
 
+        [Header("专精 4 行（按钮文案：解锁进度 / 等级 / 消耗）")]
+        public Text[] SpecLabels = new Text[4];
+
         readonly int[] lastBag = new int[4];
         readonly int[] lastCap = new int[4];
         readonly int[] lastMat = new int[4];
+        readonly int[] lastToolLevels = new int[4];
+        readonly int[] lastProcessed = new int[4];
         bool resolved;
         int lastLevel = -1;
 
@@ -54,6 +59,9 @@ namespace TrashPlanet.Whitebox
                 BagFills[i] = BagFills[i] != null ? BagFills[i] : FindImage("Img_BagBarFill_" + i);
                 if (MaterialCounts == null || MaterialCounts.Length < 4) MaterialCounts = new Text[4];
                 MaterialCounts[i] = MaterialCounts[i] != null ? MaterialCounts[i] : FindText("Txt_MatVal_" + i);
+                if (SpecLabels == null || SpecLabels.Length < 4) SpecLabels = new Text[4];
+                SpecLabels[i] = SpecLabels[i] != null ? SpecLabels[i]
+                    : (FindButtonText("Btn_SpecTool_" + i));
             }
         }
 
@@ -65,11 +73,14 @@ namespace TrashPlanet.Whitebox
 
             // 数值没变就不重建字符串（面板开着时每帧调，避免无谓的 GC）
             if (s.bagLevel == lastLevel && Same(s.bag, lastBag) && Same(caps, lastCap)
-                && Same(s.materials, lastMat)) return;
+                && Same(s.materials, lastMat) && Same(s.toolLevels, lastToolLevels)
+                && Same(s.processedByCat, lastProcessed)) return;
             lastLevel = s.bagLevel;
             Copy(s.bag, lastBag);
             Copy(caps, lastCap);
             Copy(s.materials, lastMat);
+            Copy(s.toolLevels, lastToolLevels);
+            Copy(s.processedByCat, lastProcessed);
 
             int sum = 0, capSum = 0;
             for (int i = 0; i < 4; i++)
@@ -86,6 +97,9 @@ namespace TrashPlanet.Whitebox
                     ? s.materials[i].ToString() : "0");
             }
             if (BagSum != null) SetText(BagSum, sum + " / " + capSum);
+            if (Game.StationLogic != null)
+                for (int i = 0; i < 4; i++)
+                    Set(SpecLabels, i, Game.StationLogic.SpecToolUpgradeText(i));
         }
 
         static bool Same(int[] a, int[] b)
@@ -112,6 +126,12 @@ namespace TrashPlanet.Whitebox
         static void SetText(Text t, string value)
         {
             if (t != null && t.text != value) t.text = value;
+        }
+
+        Text FindButtonText(string name)
+        {
+            Transform t = Find(name, typeof(Button));
+            return t != null ? t.GetComponentInChildren<Text>(true) : null;
         }
 
         Text FindText(string name)

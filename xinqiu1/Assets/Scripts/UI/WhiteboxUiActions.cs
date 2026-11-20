@@ -1,5 +1,6 @@
-// @trace MECH-013, PLAT-005
+// @trace MECH-013, PLAT-005, TOOL-002, UI-005
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 namespace TrashPlanet.Whitebox
 {
@@ -41,6 +42,11 @@ namespace TrashPlanet.Whitebox
             if (Game != null && Game.StationLogic != null) Game.StationLogic.UpgradeTool();
         }
 
+        public void UpgradeSpecTool(int category)
+        {
+            if (Game != null && Game.StationLogic != null) Game.StationLogic.UpgradeSpecTool(category);
+        }
+
         public void UpgradeBackpack()
         {
             if (Game != null && Game.StationLogic != null) Game.StationLogic.UpgradeBackpack();
@@ -61,12 +67,18 @@ namespace TrashPlanet.Whitebox
             if (Game != null) Game.Restart();
         }
 
+        /// <summary>
+        /// 局内「退出」：先存档再回到标题主界面（Title.unity），由标题页的「退出游戏」真正退进程。
+        /// 暂停页与结算页的退出按钮都绑到这里；不再直接 Application.Quit，
+        /// 否则编辑器里只会打一行日志、看起来像"点了没反应"。
+        /// </summary>
         public void Quit()
         {
-#if UNITY_EDITOR
-            Debug.Log("[WhiteboxUI] 编辑器下退出按钮不会关闭 Unity；停止 Play 或按 ESC 即可");
-#endif
-            Application.Quit();
+            // 回标题前落盘当前进度，标题页「继续游戏」才能接着玩；无 Game/无 state 时安全跳过。
+            if (Game != null && Game.State != null) WhiteboxState.Save(Game.State);
+            Time.timeScale = 1f; // 暂停时是 0，不还原会让标题与下次进关卡都卡在时间静止
+            Debug.Log("[WhiteboxUI] 局内退出：存档 → 返回标题 " + TitleController.TitleSceneName);
+            SceneManager.LoadScene(TitleController.TitleSceneName);
         }
     }
 }

@@ -350,6 +350,18 @@ namespace TrashPlanet.Whitebox.Editor
                 if (label != null) label.rectTransform.offsetMin = new Vector2(44f, 2f);
             }
 
+            // ⑥ 专精升级 2×2：Q 轮换的单件生效对象，解锁/升级都走 StationSystem
+            string[] specNames = { "压缩钳·塑料", "磁吸爪·金属", "堆肥铲·有机", "解码钳·电子" };
+            for (int i = 0; i < 4; i++)
+            {
+                Button sb = Btn(craft, "Btn_SpecTool_" + i, "⑥ " + specNames[i],
+                    18f + (i % 2) * 258f, 372f + (i / 2) * 52f, 250f, 44f,
+                    Skin("bt_幽灵按钮"), TextSoft, 14, TextAnchor.MiddleLeft, false);
+                if (sb == null) continue;
+                Image si = sb.GetComponent<Image>();
+                if (si != null) si.type = Image.Type.Sliced;
+            }
+
             // Btn_BagUpgrade 必须是 Panel_Station 的直接子物体（WhiteboxValidator 用 transform.Find 检查），
             // 视觉位置仍落在「④ 工具与背包」区块里，绝对坐标与卡片内部一致。
             Button bagUp = Btn(panel.transform, "Btn_BagUpgrade",
@@ -596,6 +608,8 @@ namespace TrashPlanet.Whitebox.Editor
                 BindInt(panel, "Btn_Craft_" + i, new UnityAction<int>(a.Craft), i);
             Bind(panel, "Btn_Upgrade", new UnityAction(a.UpgradeTool));
             Bind(panel, "Btn_BagUpgrade", new UnityAction(a.UpgradeBackpack));
+            for (int i = 0; i < 4; i++)
+                BindInt(panel, "Btn_SpecTool_" + i, new UnityAction<int>(a.UpgradeSpecTool), i);
             Bind(panel, "Btn_CloseStation", new UnityAction(a.CloseStation));
         }
 

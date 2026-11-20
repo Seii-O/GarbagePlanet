@@ -125,7 +125,7 @@ namespace TrashPlanet.Whitebox
             if (FloatTemplate != null) FloatTemplate.gameObject.SetActive(false);
         }
 
-        // @trace MECH-006, ART-004
+        // @trace ART-004（耐久条表现，大型拆解机制仍属 deferred，不作为已冻结引用）
         // Unity 的 Image 在 sprite == null 时走基类绘制实心矩形，Image.Type.Filled 与
         // fillAmount 会被完全忽略 —— 进度条看起来永远满格，耐久扣了却「不减少」。
         // WhiteboxUiBuilder.FilledBar 只设了 color/type/fillAmount，没有设 sprite，
@@ -444,6 +444,7 @@ namespace TrashPlanet.Whitebox
                                   + s.materials[2] + "/" + s.materials[3]);
             int lv = Mathf.Clamp(s.toolLevel, 1, 3);
             SetText(TxtTool, "工具 Lv." + s.toolLevel + " · 拾取 " + cfg.PickRange[lv - 1] + " m"
+                             + (Game.Tool != null ? "｜" + Game.Tool.ActiveSpecText() : "")
                              + " · 地表 " + (Game.Spawner != null ? Game.Spawner.Active.Count : 0)
                              + "/" + cfg.MapTrashCap);
             // 累计生成量放在进度行（与「阶段」同一行），避免工具行过长被 Text 换行裁掉
@@ -477,7 +478,8 @@ namespace TrashPlanet.Whitebox
                     SetText(CraftLabels[i], "③ " + StationSystem.RecipeNames[i]
                         + "（" + Game.StationLogic.CostText(i) + "）可"
                         + Game.StationLogic.MaxCraftCount(i) + "次");
-            SetText(TxtUpgrade, "④ 升级工具（Lv." + s.toolLevel + " → " + (s.toolLevel + 1) + "）");
+            SetText(TxtUpgrade, "④ 升级工具（Lv." + s.toolLevel + " → " + (s.toolLevel + 1) + "）"
+                                + (Game.Tool != null ? " · " + Game.Tool.ActiveSpecText() : ""));
             SetText(TxtBagUpgrade, Game.StationLogic.BagUpgradeText());
 
             bool hasJob = Game.StationLogic != null && Game.StationLogic.HasJob;

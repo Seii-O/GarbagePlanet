@@ -100,3 +100,31 @@ MonoBehaviour:
     weight: 2
     description: "\u4E00\u773C\u5C31\u80FD\u770B\u51FA\u54EA\u5757\u5730\u6700\u9700\u8981\u4FEE\u590D\u3002"
     colorHex: '#E2B84E'
+  - id: book_sorting
+    displayName: "\u5FEB\u5206\u62E3"
+    rarity: 1
+    kind: 3
+    weight: 5
+    description: "\u52A0\u5DE5\u8017\u65F6 \u00D70.99/\u5C42\uFF0C\u6700\u591A 5 \u5C42\u3002"
+    colorHex: '#5E9BE8'
+  - id: book_handwork
+    displayName: "\u719F\u624B\u5DE5"
+    rarity: 1
+    kind: 3
+    weight: 5
+    description: "\u5236\u9020\u8017\u65F6 \u00D70.99/\u5C42\uFF0C\u6700\u591A 5 \u5C42\u3002"
+    colorHex: '#5E9BE8'
+  - id: book_flow
+    displayName: "\u4E00\u6C14\u54E6\u6210"
+    rarity: 2
+    kind: 3
+    weight: 2
+    description: "\u5236\u9020\u8017\u65F6 \u00D70.98/\u5C42\uFF0C\u6700\u591A 3 \u5C42\u3002"
+    colorHex: '#E2B84E'
+  - id: book_tireless
+    displayName: "\u4E0D\u77E5\u75B2\u5026"
+    rarity: 2
+    kind: 3
+    weight: 2
+    description: "\u6EE1 4 \u5C42\uFF1A\u96F6\u8017\u65F6\u4EFB\u52A1 +1 \u6B21\u3002"
+    colorHex: '#E2B84E'

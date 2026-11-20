@@ -102,22 +102,23 @@ namespace TrashPlanet.Whitebox
         }
 
         public void Refresh(int tickets, int draws, int pity, int hardPity,
-            GachaDrawResult result, WhiteboxState state)
+            GachaDrawResult result, WhiteboxState state, bool epicPitySuspended = false)
         {
             if (!Bind()) return;
-            RefreshTexts(tickets, draws, pity, hardPity, result, state, true);
+            RefreshTexts(tickets, draws, pity, hardPity, result, state, true, epicPitySuspended);
         }
 
         void RefreshTexts(int tickets, int draws, int pity, int hardPity,
-            GachaDrawResult result, WhiteboxState state, bool fromSystem)
+            GachaDrawResult result, WhiteboxState state, bool fromSystem, bool epicPitySuspended = false)
         {
             if (txtTickets != null) txtTickets.text = "转盘券  ×" + tickets;
             if (txtDraws != null) txtDraws.text = "已抽  " + draws + " 次";
             if (txtPity != null)
             {
-                string p = hardPity > 0
-                    ? "距史诗保底  " + Mathf.Max(0, hardPity - pity) + " 抽"
-                    : "距史诗保底  未启用";
+                string p = epicPitySuspended
+                    ? "史诗保底：修复中转站后开启"
+                    : (hardPity > 0 ? "距史诗保底  " + Mathf.Max(0, hardPity - pity) + " 抽"
+                                    : "距史诗保底  未启用");
                 txtPity.text = p + "　（连续未出 " + pity + "）";
             }
             if (txtResult != null)
@@ -127,9 +128,18 @@ namespace TrashPlanet.Whitebox
                     // 优先用抽奖时记录的入库后数量；旧结果/外部结果再回退查 state
                     int owned = result.ownedCount > 0 ? result.ownedCount
                                 : (state != null ? state.RewardCount(result.reward.id) : 1);
-                    txtResult.text = "【" + result.RarityName + "】" + result.KindName + "：" + result.reward.displayName
+                    string extra = "";
+                    if (result.isBook)
+                        extra = result.maxed ? " · 已满层" : " · " + Mathf.Max(1, result.stacks) + " 层";
+                    if (result.refundTickets > 0) extra += " · 重复返 +1 券";
+                    if (result.overflowMaterial > 0) extra += " · +1 材料";
+                    string ownedLine = result.isBook
+                        ? "层数 " + Mathf.Max(1, result.stacks)
+                        : (result.isNew ? "★ 新获得！" : "已有 ×" + owned);
+                    if (!string.IsNullOrEmpty(result.message)) ownedLine += "　" + result.message;
+                    txtResult.text = "【" + result.RarityName + "】" + result.KindName + "：" + result.reward.displayName + extra
                                      + "\n" + result.reward.description
-                                     + "\n" + (result.isNew ? "★ 新获得！" : "已有 ×" + owned);
+                                     + "\n" + ownedLine;
                     txtResult.color = Hex(result.Color);
                 }
                 else if (result != null)

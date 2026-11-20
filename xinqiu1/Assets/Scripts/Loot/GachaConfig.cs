@@ -69,8 +69,8 @@ namespace TrashPlanet.Whitebox
         }
     }
 
-    /// <summary>奖励类别：小物件 / 收垃圾武器 / 技能。仅用于 UI 文案与图鉴分组，不改玩法数值。</summary>
-    public enum GachaKind { Trinket = 0, Weapon = 1, Skill = 2 }
+    /// <summary>奖励类别：小物件 / 收垃圾武器 / 技能 / 技能书（抽奖专属，可叠层）。</summary>
+    public enum GachaKind { Trinket = 0, Weapon = 1, Skill = 2, SkillBook = 3 }
 
     /// <summary>单个奖励条目。权重越大越容易在同稀有度内被抽到。</summary>
     [Serializable]
@@ -94,6 +94,14 @@ namespace TrashPlanet.Whitebox
         public bool isNew;
         public int ownedCount; // 入库后的持有数量，供 UI 展示
 
+        // 工具系统接入后的扩展字段（旧调用方不读则完全兼容）
+        public bool isBook;
+        public int stacks;      // 技能书层数 / 工具持有数
+        public bool maxed;      // 技能书满层
+        public int refundTickets; // 重复工具返券
+        public int overflowMaterial; // 满层后折算的材料件数
+        public string message;
+
         public string RarityName
         {
             get
@@ -111,6 +119,7 @@ namespace TrashPlanet.Whitebox
                 if (reward == null) return "";
                 if (reward.kind == GachaKind.Weapon) return "武器";
                 if (reward.kind == GachaKind.Skill) return "技能";
+                if (reward.kind == GachaKind.SkillBook) return "技能书";
                 return "小物件";
             }
         }
@@ -233,7 +242,13 @@ namespace TrashPlanet.Whitebox
 
                 // 史诗：高阶武器 / 技能（低出现率，靠保底兜住）
                 R("weapon_purifier", "星球净化器", GachaRarity.Epic, GachaKind.Weapon, 2, "#E2B84E", "传说中能把整颗星球洗干净的神器。"),
-                R("skill_ecomaster", "生态专家", GachaRarity.Epic, GachaKind.Skill, 2, "#E2B84E", "一眼就能看出哪块地最需要修复。")
+                R("skill_ecomaster", "生态专家", GachaRarity.Epic, GachaKind.Skill, 2, "#E2B84E", "一眼就能看出哪块地最需要修复。"),
+
+                // 技能书：抽奖专属、数值弱、可叠层；精英书权重 5 与 weapon_magnet / skill_quickdismantle 同值
+                R("book_sorting", "快分拣", GachaRarity.Rare, GachaKind.SkillBook, 5, "#5E9BE8", "加工耗时 ×0.99/层，最多 5 层。"),
+                R("book_handwork", "熟手工", GachaRarity.Rare, GachaKind.SkillBook, 5, "#5E9BE8", "制造耗时 ×0.99/层，最多 5 层。"),
+                R("book_flow", "一气呵成", GachaRarity.Epic, GachaKind.SkillBook, 2, "#E2B84E", "制造耗时 ×0.98/层，最多 3 层。"),
+                R("book_tireless", "不知疲倦", GachaRarity.Epic, GachaKind.SkillBook, 2, "#E2B84E", "满 4 层：零耗时任务 +1 次。")
             };
         }
 

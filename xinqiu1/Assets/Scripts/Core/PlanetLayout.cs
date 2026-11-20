@@ -17,14 +17,14 @@ namespace TrashPlanet.Whitebox
     {
         static readonly string[] SurfacePropPrefixes =
         {
-            "env_west_water", "env_station", "env_landmark"
+            "env_west_water", "env_station", "env_landmark", "env_decor_"
         };
 
         // 贴地「平面装饰」（水体圆盘等）必须跟着半径一起缩，否则半径减半后 3.2 m 的圆盘
         // 会横跨半个星球并把边缘埋进球体；建筑 / 地标是实体道具，只搬位置、不缩体积。
         static readonly string[] ScaleWithRadiusPrefixes =
         {
-            "env_west_water"
+            "env_west_water", "env_decor_pool"
         };
 
         /// <summary>量测星球当前的真实世界半径：优先星球本体上的 SphereCollider，其次渲染包围盒。</summary>

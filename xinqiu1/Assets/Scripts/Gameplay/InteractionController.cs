@@ -1,4 +1,4 @@
-// @trace MECH-005, MECH-007, MECH-016, ART-004
+// @trace MECH-005, MECH-007, MECH-016, ART-004, TOOL-003
 using UnityEngine;
 
 namespace TrashPlanet.Whitebox
@@ -36,8 +36,10 @@ namespace TrashPlanet.Whitebox
 
             WhiteboxConfig cfg = game.Config;
             WhiteboxState state = game.State;
+            ToolSystem tool = game.Tool;
             float range = cfg.PickRange[Mathf.Clamp(state.toolLevel - 1, 0, 2)];
-            float highlight = Mathf.Min(range, cfg.HighlightRange);
+            if (tool != null) range = tool.MaxRaycastRange(); // 拾取距离 4/6/8 + 夹/专精，钳 9 m
+            float highlight = Mathf.Min(range, cfg.HighlightRange); // C5 口径不变：描边恒 ≤6 m
 
             Transform cam = game.ViewCamera.transform;
             Ray ray = new Ray(cam.position, cam.forward);
@@ -59,6 +61,9 @@ namespace TrashPlanet.Whitebox
                     if (h.distance < blockerDist) blockerDist = h.distance;
                     continue;
                 }
+
+                // 工具加成按类别生效：金属专精的 +0.5 m 只让金属垃圾进入候选，不改其他类别
+                if (tool != null && h.distance > tool.EffectiveRange(item.Category)) continue;
 
                 bool closer = h.distance < candidateDist - 0.0001f;
                 bool tie = Mathf.Abs(h.distance - candidateDist) <= 0.0001f
@@ -85,7 +90,10 @@ namespace TrashPlanet.Whitebox
                 current.SetHighlight(CurrentDistance <= highlight);
             }
 
-            if (current != null && CurrentDistance <= range && Input.GetMouseButtonDown(0))
+            // 修复：current 为准星未命中垃圾时为 null，必须先判空再取 Category。
+            // 工具加成只在「有目标」时才有意义，无目标时用基础 range 即可（后续 click 也要求 current != null）。
+            float clickRange = (current != null && tool != null) ? tool.EffectiveRange(current.Category) : range;
+            if (current != null && CurrentDistance <= clickRange && Input.GetMouseButtonDown(0))
                 ResolveClick();
 
             // 黄条与白边同源：每帧按当前准星目标同步，准星离开 / 超出高亮范围立即隐藏。
@@ -96,10 +104,13 @@ namespace TrashPlanet.Whitebox
 
         void ResolveClick()
         {
+            int cat = (int)current.Category;
             WhiteboxConfig cfg = game.Config;
             WhiteboxState state = game.State;
-            int cat = (int)current.Category;
+            ToolSystem tool = game.Tool;
             int damage = cfg.DismantleDamage[Mathf.Clamp(state.toolLevel - 1, 0, 2)];
+            bool firstHit = current.Large && current.Durability >= current.BaseDurability;
+            if (tool != null) damage = tool.EffectiveDamage(current.Category, firstHit);
             TrashItem target = current;
 
             if (!target.Large)
@@ -121,7 +132,9 @@ namespace TrashPlanet.Whitebox
             // 不再手动写黄条：Update 末尾的 SyncDurabilityBar 会读 target.Durability 同帧刷新。
             if (left > 0) return;
 
-            int gain = state.Collect(cfg, cat, target.YieldAmount);
+            int yieldAmount = target.YieldAmount;
+            if (tool != null) yieldAmount = tool.EffectiveYield(current.Category);
+            int gain = state.Collect(cfg, cat, yieldAmount);
             if (gain <= 0) { game.Notice("背包已满，无法拆解"); return; }
             state.dismantled += 1;
             game.Spawner.Despawn(target);

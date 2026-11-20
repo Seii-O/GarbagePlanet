@@ -1,3 +1,4 @@
+// @trace TOOL-005, TOOL-014, TOOL-015, NUM-016
 // 新增玩法：垃圾堆隐藏款 + 转盘奖励（本次需求，尚未纳入 design-freeze 编号）
 using UnityEngine;
 
@@ -14,6 +15,7 @@ namespace TrashPlanet.Whitebox
         [SerializeField] GachaPanelView panel;
 
         WhiteboxGame game;
+        ToolSystem tools;
         GachaDrawResult lastResult;
 
         public GachaConfig Config => config;
@@ -32,11 +34,51 @@ namespace TrashPlanet.Whitebox
         {
             game = g;
             if (config == null) config = GachaConfig.CreateDefault();
+            tools = g != null ? g.Tool : null; // 由 WhiteboxGame 在 gacha.Init 之前完成 ToolSystem.Init
             lastResult = null;
             if (panel != null) panel.Init(this);
             Debug.Log("[Gacha] 初始化完成：隐藏款概率=" + (config.HiddenFindChance * 100f).ToString("0.0")
-                      + "%，奖励池=" + (config.Rewards != null ? config.Rewards.Length : 0)
-                      + "，硬保底=" + config.HardPityAt + " 抽");
+                      + "%，奖励池=" + ActivePool().Length
+                      + "，硬保底=" + (EpicUnlocked() ? config.HardPityAt.ToString() : "挂起")
+                      + " 抽");
+        }
+
+        /// <summary>C21：史诗档需修复中转站后才开启；修复前权重 70/30/0，硬保底挂起不清零。</summary>
+        bool EpicUnlocked()
+        {
+            return game != null && game.State != null && game.State.stationRepaired;
+        }
+
+        /// <summary>
+        /// 活动池：一次性过滤（工具集齐后移出全部工具；修复前移除需门槛的史诗工具/书；
+        /// 史诗书在阶段 A 不入池）。不逐件剔除，未集齐时重复件仍在池中走返券。
+        /// </summary>
+        GachaReward[] ActivePool()
+        {
+            if (config == null || config.Rewards == null) return new GachaReward[0];
+            GachaReward[] all = config.Rewards;
+            bool toolsDone = tools != null && tools.AllToolsOwned();
+            bool repaired = EpicUnlocked();
+            GachaReward[] result = new GachaReward[all.Length];
+            int n = 0;
+            for (int i = 0; i < all.Length; i++)
+            {
+                GachaReward r = all[i];
+                if (r == null) continue;
+                ToolDef td = tools != null && tools.Config != null ? tools.Config.FindByReward(r.id) : null;
+                if (td != null && td.gachaEligible)
+                {
+                    if (toolsDone) continue;                    // 阶段 B：工具全部移出
+                    if (td.epicRequiresRepair && !repaired) continue; // C21：修复前史诗工具不入池
+                }
+                SkillBookDef sb = tools != null && tools.Config != null ? tools.Config.FindBook(r.id) : null;
+                if (sb != null && !sb.activeInPhaseA && !toolsDone) continue; // 史诗书只在阶段 B
+                result[n++] = r;
+            }
+            if (n == result.Length) return result;
+            GachaReward[] trimmed = new GachaReward[n];
+            System.Array.Copy(result, trimmed, n);
+            return trimmed;
         }
 
         // ------------------------------------------------------------------
@@ -97,8 +139,8 @@ namespace TrashPlanet.Whitebox
         {
             if (panel == null || game == null || game.State == null) return;
             panel.Refresh(game.State.gachaTickets, game.State.gachaDraws,
-                game.State.gachaPity, config != null ? config.HardPityAt : 0,
-                lastResult, game.State);
+                game.State.gachaPity, EpicUnlocked() ? config.HardPityAt : 0,
+                lastResult, game.State, !EpicUnlocked());
         }
 
         // ------------------------------------------------------------------
@@ -132,16 +174,23 @@ namespace TrashPlanet.Whitebox
             bool isEpic = rarity == GachaRarity.Epic;
             state.gachaPity = isEpic ? 0 : pityBefore + 1; // 出史诗清零，否则累加（硬保底判定用）
 
-            int ownedBefore = reward != null ? state.RewardCount(reward.id) : 0;
-            if (reward != null) state.AddReward(reward.id);
+            // 统一发放入口：工具 / 技能书 / 普通物件都经 ToolSystem.Grant
+            ToolGrantResult grant = tools != null ? tools.Grant(reward != null ? reward.id : "", GrantSource.Gacha)
+                                                 : FallbackGrant(reward != null ? reward.id : "");
             int ownedAfter = reward != null ? state.RewardCount(reward.id) : 0;
 
             lastResult = new GachaDrawResult
             {
                 reward = reward,
                 rarity = rarity,
-                isNew = ownedBefore <= 0,
-                ownedCount = ownedAfter
+                isNew = grant.isNew,
+                ownedCount = ownedAfter,
+                isBook = grant.isBook,
+                stacks = grant.stacks,
+                maxed = grant.maxed,
+                refundTickets = grant.refundTickets,
+                overflowMaterial = grant.overflowMaterial,
+                message = grant.message
             };
 
             WhiteboxState.Save(state);
@@ -150,10 +199,28 @@ namespace TrashPlanet.Whitebox
             string name = reward != null ? reward.displayName : "（奖励池为空）";
             Debug.Log("[Gacha] 第 " + state.gachaDraws + " 抽 → " + lastResult.RarityName
                       + "・" + name + "｜新获得=" + lastResult.isNew
+                      + "，返券=" + lastResult.refundTickets
                       + "，连续未出史诗=" + state.gachaPity + "，剩余券=" + state.gachaTickets);
 
             if (panel != null) panel.PlaySpin(lastResult);
             return lastResult;
+        }
+
+        /// <summary>ToolSystem 未装配时的兜底入库（仅在旧场景未重跑builder时触发，不处理工具扩展）。</summary>
+        ToolGrantResult FallbackGrant(string id)
+        {
+            ToolGrantResult r = new ToolGrantResult
+            {
+                ok = !string.IsNullOrEmpty(id), id = id, isNew = true, stacks = 1,
+                message = "", maxStacks = 1
+            };
+            if (!r.ok) return r;
+            WhiteboxState s = game.State;
+            int before = s.RewardCount(id);
+            s.AddReward(id);
+            r.isNew = before <= 0;
+            r.stacks = before + 1;
+            return r;
         }
 
         /// <summary>
@@ -163,18 +230,24 @@ namespace TrashPlanet.Whitebox
         GachaRarity RollRarity(int pityBefore)
         {
             int nextPity = pityBefore + 1;
-            if (config.HardPityAt > 0 && nextPity >= config.HardPityAt)
+            bool epicOpen = EpicUnlocked();
+            // C21：未修复中转站时硬保底挂起（pity 继续累计），修复后第一抽若已达阈值立即兑现
+            if (epicOpen && config.HardPityAt > 0 && nextPity >= config.HardPityAt)
                 return GachaRarity.Epic;
 
             float w0 = Mathf.Max(0f, config.RarityWeight(GachaRarity.Common));
             float w1 = Mathf.Max(0f, config.RarityWeight(GachaRarity.Rare));
             float w2 = Mathf.Max(0f, config.RarityWeight(GachaRarity.Epic));
 
+            // 未修复：5% 并入精英档（70/30/0），不制造"抽到史诗却给精英"的空档降级
+            if (!epicOpen) { w1 += w2; w2 = 0f; }
+
             if (pityBefore >= config.SoftPityStart)
             {
                 int step = pityBefore - config.SoftPityStart + 1;
                 w1 += step * config.SoftPityRareStep;
                 w2 += step * config.SoftPityEpicStep;
+                if (!epicOpen) { w1 += w2; w2 = 0f; }
             }
 
             float total = w0 + w1 + w2;
@@ -188,7 +261,7 @@ namespace TrashPlanet.Whitebox
         /// <summary>在目标稀有度的条目中按 weight 加权选一个；该档无条目时退化为全池等权。</summary>
         GachaReward RollReward(GachaRarity rarity)
         {
-            GachaReward[] pool = config.Rewards;
+            GachaReward[] pool = ActivePool();
             if (pool == null || pool.Length == 0) return null;
 
             int matchCount = 0;

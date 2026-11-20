@@ -43,6 +43,20 @@ MonoBehaviour:
   largeDurability: 05000000080000000a000000
   largeYield: 2
   highlightRange: 6
+  specUnlockProcessCount: 06000000060000000400000006000000
+  specUpgradeMaterialCost: 6
+  specUpgradeMetalCost: 3
+  specRangeBonus: 0.5
+  specYieldBonus: 1
+  specDamageBonus: 1
+  specProcessMult: 0.9
+  specCraftMult: 0.9
+  pickRangeCap: 9
+  dismantleDamageCap: 3
+  efficiencyFloor: 0.8
+  gripperRangeBonus: 1
+  magnetFirstHitBonus: 1
+  purifierChargesMax: 2
   conversionRate:
   - 0.5
   - 0.5

@@ -1,0 +1,321 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a1000000000000000000000000000001, type: 3}
+  m_Name: ToolConfig
+  m_EditorClassIdentifier: 
+  tools:
+  - toolId: T-01
+    rewardId: 
+    displayName: "\u62FE\u53D6\u5668 MK-I/II/III"
+    layer: 0
+    cat: -1
+    gachaEligible: 0
+    poolId: scrap
+    codexOnly: 0
+    epicRequiresRepair: 0
+    rarity: 1
+    rangeBonus: 0
+    damageBonus: 0
+    yieldBonus: 0
+    processMult: 1
+    craftMult: 1
+    freeChargesMax: 0
+    purchase:
+      enabled: 0
+      currency: 0
+      price: 0
+      limit: 1
+      limitValue: 1
+      entry: 1
+      requiresGachaUnlock: 0
+      minQuestStep: -1
+  - toolId: T-02
+    rewardId: 
+    displayName: "\u538B\u7F29\u94B3"
+    layer: 1
+    cat: 0
+    gachaEligible: 0
+    poolId: scrap
+    codexOnly: 0
+    epicRequiresRepair: 0
+    rarity: 1
+    rangeBonus: 0
+    damageBonus: 0
+    yieldBonus: 0
+    processMult: 1
+    craftMult: 1
+    freeChargesMax: 0
+    purchase:
+      enabled: 0
+      currency: 0
+      price: 0
+      limit: 1
+      limitValue: 1
+      entry: 1
+      requiresGachaUnlock: 0
+      minQuestStep: -1
+  - toolId: T-03
+    rewardId: 
+    displayName: "\u78C1\u5438\u722A"
+    layer: 1
+    cat: 1
+    gachaEligible: 0
+    poolId: scrap
+    codexOnly: 0
+    epicRequiresRepair: 0
+    rarity: 1
+    rangeBonus: 0
+    damageBonus: 0
+    yieldBonus: 0
+    processMult: 1
+    craftMult: 1
+    freeChargesMax: 0
+    purchase:
+      enabled: 0
+      currency: 0
+      price: 0
+      limit: 1
+      limitValue: 1
+      entry: 1
+      requiresGachaUnlock: 0
+      minQuestStep: -1
+  - toolId: T-04
+    rewardId: 
+    displayName: "\u5806\u80A5\u94F2"
+    layer: 1
+    cat: 2
+    gachaEligible: 0
+    poolId: scrap
+    codexOnly: 0
+    epicRequiresRepair: 0
+    rarity: 1
+    rangeBonus: 0
+    damageBonus: 0
+    yieldBonus: 0
+    processMult: 1
+    craftMult: 1
+    freeChargesMax: 0
+    purchase:
+      enabled: 0
+      currency: 0
+      price: 0
+      limit: 1
+      limitValue: 1
+      entry: 1
+      requiresGachaUnlock: 0
+      minQuestStep: -1
+  - toolId: T-05
+    rewardId: 
+    displayName: "\u89E3\u7801\u94B3"
+    layer: 1
+    cat: 3
+    gachaEligible: 0
+    poolId: scrap
+    codexOnly: 0
+    epicRequiresRepair: 0
+    rarity: 1
+    rangeBonus: 0
+    damageBonus: 0
+    yieldBonus: 0
+    processMult: 1
+    craftMult: 1
+    freeChargesMax: 0
+    purchase:
+      enabled: 0
+      currency: 0
+      price: 0
+      limit: 1
+      limitValue: 1
+      entry: 1
+      requiresGachaUnlock: 0
+      minQuestStep: -1
+  - toolId: T-06
+    rewardId: weapon_gripper
+    displayName: "\u52A0\u5F3A\u62FE\u53D6\u5939"
+    layer: 2
+    cat: -1
+    gachaEligible: 1
+    poolId: scrap
+    codexOnly: 0
+    epicRequiresRepair: 0
+    rarity: 1
+    rangeBonus: 1
+    damageBonus: 0
+    yieldBonus: 0
+    processMult: 1
+    craftMult: 1
+    freeChargesMax: 0
+    purchase:
+      enabled: 0
+      currency: 0
+      price: 240
+      limit: 1
+      limitValue: 1
+      entry: 1
+      requiresGachaUnlock: 0
+      minQuestStep: -1
+  - toolId: T-07
+    rewardId: weapon_magnet
+    displayName: "\u78C1\u94C1\u624B\u5957"
+    layer: 2
+    cat: 1
+    gachaEligible: 1
+    poolId: scrap
+    codexOnly: 0
+    epicRequiresRepair: 0
+    rarity: 1
+    rangeBonus: 0
+    damageBonus: 1
+    yieldBonus: 0
+    processMult: 1
+    craftMult: 1
+    freeChargesMax: 0
+    purchase:
+      enabled: 0
+      currency: 0
+      price: 290
+      limit: 1
+      limitValue: 1
+      entry: 1
+      requiresGachaUnlock: 0
+      minQuestStep: -1
+  - toolId: T-08
+    rewardId: weapon_purifier
+    displayName: "\u661F\u7403\u51C0\u5316\u5668"
+    layer: 2
+    cat: -1
+    gachaEligible: 1
+    poolId: scrap
+    codexOnly: 0
+    epicRequiresRepair: 1
+    rarity: 2
+    rangeBonus: 0
+    damageBonus: 0
+    yieldBonus: 0
+    processMult: 1
+    craftMult: 1
+    freeChargesMax: 2
+    purchase:
+      enabled: 0
+      currency: 0
+      price: 360
+      limit: 1
+      limitValue: 1
+      entry: 1
+      requiresGachaUnlock: 0
+      minQuestStep: -1
+  - toolId: T-09
+    rewardId: skill_ecomaster
+    displayName: "\u751F\u6001\u4E13\u5BB6"
+    layer: 2
+    cat: -1
+    gachaEligible: 1
+    poolId: scrap
+    codexOnly: 0
+    epicRequiresRepair: 1
+    rarity: 2
+    rangeBonus: 0
+    damageBonus: 0
+    yieldBonus: 0
+    processMult: 1
+    craftMult: 1
+    freeChargesMax: 0
+    purchase:
+      enabled: 0
+      currency: 0
+      price: 360
+      limit: 1
+      limitValue: 1
+      entry: 1
+      requiresGachaUnlock: 0
+      minQuestStep: -1
+  - toolId: T-10
+    rewardId: skill_quickdismantle
+    displayName: "\u5FEB\u901F\u5206\u89E3"
+    layer: 2
+    cat: -1
+    gachaEligible: 1
+    poolId: scrap
+    codexOnly: 1
+    epicRequiresRepair: 0
+    rarity: 1
+    rangeBonus: 0
+    damageBonus: 0
+    yieldBonus: 0
+    processMult: 1
+    craftMult: 1
+    freeChargesMax: 0
+    purchase:
+      enabled: 0
+      currency: 0
+      price: 180
+      limit: 1
+      limitValue: 1
+      entry: 1
+      requiresGachaUnlock: 0
+      minQuestStep: -1
+  books:
+  - rewardId: book_sorting
+    displayName: "\u5FEB\u5206\u62E3"
+    rarity: 1
+    weight: 5
+    maxStacks: 5
+    effect: 1
+    perStackMult: 0.99
+    chargesAtFull: 0
+    gachaOnly: 1
+    activeInPhaseA: 1
+    overflowMaterialCat: 0
+  - rewardId: book_handwork
+    displayName: "\u719F\u624B\u5DE5"
+    rarity: 1
+    weight: 5
+    maxStacks: 5
+    effect: 2
+    perStackMult: 0.99
+    chargesAtFull: 0
+    gachaOnly: 1
+    activeInPhaseA: 1
+    overflowMaterialCat: 0
+  - rewardId: book_flow
+    displayName: "\u4E00\u6C14\u54E6\u6210"
+    rarity: 2
+    weight: 2
+    maxStacks: 3
+    effect: 2
+    perStackMult: 0.98
+    chargesAtFull: 0
+    gachaOnly: 1
+    activeInPhaseA: 0
+    overflowMaterialCat: 3
+  - rewardId: book_tireless
+    displayName: "\u4E0D\u77E5\u75B2\u5026"
+    rarity: 2
+    weight: 2
+    maxStacks: 4
+    effect: 3
+    perStackMult: 1
+    chargesAtFull: 1
+    gachaOnly: 1
+    activeInPhaseA: 0
+    overflowMaterialCat: 2
+  pools:
+  - poolId: scrap
+    enabled: 1
+    rewardIds: []
+    rarityWeights: []
+    hardPityAt: -1
+    costTickets: 1
+    requireFlag: 
+    stockLimit: 0
+  coinPerTicket: 12
+  bookOverflowMaterial: 1
