@@ -336,14 +336,6 @@ namespace TrashPlanet.Whitebox.Editor
                     new Vector3(0.12f, 0.60f, 0.12f), new Vector3(-0.5f + i * 0.5f, 1.1f, -1.1f),
                     mats.Rust, false);
 
-            var lightGo = new GameObject("WarmLight");
-            lightGo.transform.SetParent(root.transform, false);
-            lightGo.transform.localPosition = new Vector3(0f, 0f, 2.1f);
-            Light warm = lightGo.AddComponent<Light>();
-            warm.type = LightType.Point;
-            warm.color = new Color(1f, 0.82f, 0.50f);
-            warm.intensity = 2.2f;
-            warm.range = 12f;
             return SavePrefab(root, "env_station_whitebox");
         }
 
@@ -392,10 +384,11 @@ namespace TrashPlanet.Whitebox.Editor
         static void BuildSceneContents(Scene scene, Mats mats, WhiteboxConfig cfg, float radius,
             TrashItem[] trashPrefabs, GameObject dogPrefab, GameObject stationPrefab, GameObject landmarkPrefab)
         {
-            // 立体感：环境光压低（原 0.55 → 0.30），让主光产生清晰的明暗梯度；
-            // 另加一盏冷色补光（对侧）与一盏轮廓光（背后上方），给出体积感与纵深，避免扁平。
+            // 明亮的全局环境光负责暗部填充；方向光仅保留低模表面的立体层次。
             RenderSettings.ambientMode = AmbientMode.Flat;
-            RenderSettings.ambientLight = new Color(0.30f, 0.30f, 0.34f);
+            RenderSettings.ambientLight = new Color(0.58f, 0.56f, 0.52f);
+            RenderSettings.ambientIntensity = 1.10f;
+            RenderSettings.reflectionIntensity = 0.85f;
             RenderSettings.skybox = null;
             RenderSettings.fog = true;
             RenderSettings.fogMode = FogMode.Linear;
@@ -440,7 +433,7 @@ namespace TrashPlanet.Whitebox.Editor
             Light sun = sunGo.AddComponent<Light>();
             sun.type = LightType.Directional;
             sun.color = new Color(1f, 0.96f, 0.9f);
-            sun.intensity = 1.25f;
+            sun.intensity = 1.10f;
             sun.shadows = LightShadows.Soft;
             sun.transform.rotation = Quaternion.Euler(cfg.LightAngle[0], -30f, 0f);
             RenderSettings.sun = sun;
@@ -451,7 +444,7 @@ namespace TrashPlanet.Whitebox.Editor
             Light fill = fillGo.AddComponent<Light>();
             fill.type = LightType.Directional;
             fill.color = new Color(0.75f, 0.82f, 1.0f);
-            fill.intensity = 0.55f;
+            fill.intensity = 0.30f;
             fill.shadows = LightShadows.None;
             fill.transform.rotation = Quaternion.Euler(15f, 150f, 0f);
 
@@ -461,7 +454,7 @@ namespace TrashPlanet.Whitebox.Editor
             Light rim = rimGo.AddComponent<Light>();
             rim.type = LightType.Directional;
             rim.color = new Color(1.0f, 0.98f, 0.92f);
-            rim.intensity = 0.40f;
+            rim.intensity = 0.20f;
             rim.shadows = LightShadows.None;
             rim.transform.rotation = Quaternion.Euler(55f, 210f, 0f);
 
@@ -815,7 +808,9 @@ namespace TrashPlanet.Whitebox.Editor
         public static void ApplyVolumeLighting(Scene scene)
         {
             RenderSettings.ambientMode = AmbientMode.Flat;
-            RenderSettings.ambientLight = new Color(0.30f, 0.30f, 0.34f);
+            RenderSettings.ambientLight = new Color(0.58f, 0.56f, 0.52f);
+            RenderSettings.ambientIntensity = 1.10f;
+            RenderSettings.reflectionIntensity = 0.85f;
 
             Transform worldRoot = null;
             foreach (GameObject r in scene.GetRootGameObjects())

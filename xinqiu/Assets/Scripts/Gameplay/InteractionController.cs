@@ -118,9 +118,9 @@ namespace TrashPlanet.Whitebox
                 if (!state.CanCollect(cfg, cat)) { game.Notice("背包已满"); return; }
                 int n = state.Collect(cfg, cat, 1); // NUM-001
                 if (n <= 0) { game.Notice("背包已满"); return; }
+                WorldPickupPopup.Show(target, game.ViewCamera, game.PlanetCenter, target.Category, n);
                 game.Spawner.Despawn(target);
                 Clear();
-                game.Hud.FloatText("+1");
                 game.OnWorldEvent();
                 if (game.Gacha != null) game.Gacha.OnTrashSearched(target.Category); // 新增玩法：搜索垃圾堆发现隐藏款
                 return;
@@ -137,9 +137,9 @@ namespace TrashPlanet.Whitebox
             int gain = state.Collect(cfg, cat, yieldAmount);
             if (gain <= 0) { game.Notice("背包已满，无法拆解"); return; }
             state.dismantled += 1;
+            WorldPickupPopup.Show(target, game.ViewCamera, game.PlanetCenter, target.Category, gain);
             game.Spawner.Despawn(target);
             Clear();
-            game.Hud.FloatText("+" + gain);
             game.OnWorldEvent();
             if (game.Gacha != null) game.Gacha.OnTrashSearched(target.Category); // 新增玩法：搜索垃圾堆发现隐藏款
         }

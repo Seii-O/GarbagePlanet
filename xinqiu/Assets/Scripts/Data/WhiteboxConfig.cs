@@ -22,13 +22,13 @@ namespace TrashPlanet.Whitebox
         [SerializeField] float mvpProgressTarget = 0.30f; // [待拍板 C7] MVP 各修到 30%
 
         // [待拍板] 策划案 §6.3 / §8 把「地图上限 50 件」列为冻结值；
-        // 本次按用户要求改为「全局总量 1500 件 + 地表并发 1000 件」两道上限：
-        // 累计生成满 1500 件（含已被捡走的）后，地表不再出现任何新垃圾。
+        // 本次按用户要求改为「全局总量 2000 件 + 地表并发 1000 件」两道上限：
+        // 累计生成满 2000 件（含已被捡走的）后，地表不再出现任何新垃圾。
         [Header("垃圾刷新 MECH-011 / 全局总量 [待拍板]")]
         [SerializeField, Min(1), Tooltip("地表同时存在的垃圾件数上限（满则暂停刷新，等玩家捡走再补）")]
         int mapTrashCap = 1000;
         [SerializeField, Min(1), Tooltip("全局垃圾总量：累计生成件数（含玩家已捡走的）达到后，地表不再刷新新垃圾")]
-        int totalTrashBudget = 1500;
+        int totalTrashBudget = 2000;
         [SerializeField, Min(0), Tooltip("开局铺在球面上的垃圾件数（同样计入全局总量）")]
         int initialTrashCount = 500;
         [SerializeField, Tooltip("各阶段两次刷新之间的间隔（秒）；三档同为 10 s = 与生态阶段无关的固定节奏")]
@@ -55,11 +55,11 @@ namespace TrashPlanet.Whitebox
         float spawnStartScale = 0.55f;
 
         [Header("拾取 / 拆解 [待拍板 C1 C4 C5]")]
-        // 背包改为「总量 20 → 40」两级：Lv.1 每类 5（合计 20），Lv.2 每类 10（合计 40，满级）。
+        // 背包为两级总量制：Lv.1 合计 50，Lv.2 合计 100（满级）。
         [SerializeField, Tooltip("背包 Lv.1 每类容量（塑/金/有/电）")]
-        int[] backpackCap = { 5, 5, 5, 5 };       // NUM-007
+        int[] backpackCap = { 13, 13, 12, 12 };       // NUM-007，总计 50
         [SerializeField, Tooltip("背包 Lv.2（满级）每类容量；只有 2 级，升级 1 次即到顶")]
-        int[] backpackCapMax = { 10, 10, 10, 10 };
+        int[] backpackCapMax = { 25, 25, 25, 25 };     // 总计 100
         [SerializeField, Min(1), Tooltip("背包 Lv.1 → Lv.2 的金属零件消耗")]
         int backpackUpgradeMetalCost = 15;
         [SerializeField, Tooltip("最远拾取距离（按工具等级）；本次整体 ×2")]
@@ -113,7 +113,7 @@ namespace TrashPlanet.Whitebox
         [SerializeField] string durabilityHex = "#F2C14E";
 
         [Header("三阶段色板 ART-003 / 光照 ART-005")]
-        [SerializeField] string[] groundHex = { "#6E6053", "#7C7A50", "#5FA233" };
+        [SerializeField] string[] groundHex = { "#B56F32", "#A79A45", "#67B83A" };
         [SerializeField] string[] waterHex = { "#3A4A4E", "#4E7A6E", "#4FB3C4" };
         [SerializeField] string[] skyHex = { "#9A9083", "#A8B5A0", "#8FD3DE" };
         [SerializeField] string[] fogHex = { "#8C8375", "#9AA694", "#B8DDE4" };
@@ -130,7 +130,7 @@ namespace TrashPlanet.Whitebox
         public float MvpProgressTarget => mvpProgressTarget;
         /// <summary>地表并发上限（不会被全局总量顶掉，两者取小生效）。</summary>
         public int MapTrashCap => Mathf.Clamp(mapTrashCap, 1, Mathf.Max(1, TotalTrashBudget));
-        /// <summary>全局总量：累计生成 1500 件后地表不再出现新垃圾。</summary>
+        /// <summary>全局总量：累计生成 2000 件后地表不再出现新垃圾。</summary>
         public int TotalTrashBudget => Mathf.Clamp(totalTrashBudget, 1, 100000);
         public int InitialTrashCount => Mathf.Clamp(initialTrashCount, 0, MapTrashCap);
         public float[] SpawnInterval => spawnInterval;
@@ -146,7 +146,7 @@ namespace TrashPlanet.Whitebox
         /// <summary>true = 批量加工/制造固定按「一件的时长」结算，数量不叠加时间。</summary>
         public bool BatchFixedDuration => batchFixedDuration;
         public int[] BackpackCap => backpackCap;
-        /// <summary>背包等级上限：1 = 初始 20 件，2 = 满级 40 件，一共只有 2 级。</summary>
+        /// <summary>背包等级上限：1 = 初始 50 件，2 = 满级 100 件，一共只有 2 级。</summary>
         public const int BagMaxLevel = 2;
         public int BackpackUpgradeMetalCost => Mathf.Max(1, backpackUpgradeMetalCost);
         /// <summary>按背包等级取每类容量；越界等级一律钳到 1..2。</summary>
@@ -254,8 +254,8 @@ namespace TrashPlanet.Whitebox
             stageTwoThreshold = Mathf.Clamp(stageTwoThreshold, stageOneThreshold + 0.01f, 0.99f);
 
             Ensure(ref spawnInterval, 3, 10f);
-            Ensure(ref backpackCap, 4, 5);
-            Ensure(ref backpackCapMax, 4, 10);
+            Ensure(ref backpackCap, 4, 12);
+            Ensure(ref backpackCapMax, 4, 25);
             Ensure(ref pickRange, 3, 4f);
             Ensure(ref dismantleDamage, 3, 1);
             Ensure(ref largeDurability, 3, 5);

@@ -17,7 +17,7 @@ MonoBehaviour:
   stageTwoThreshold: 0.7
   mvpProgressTarget: 0.3
   mapTrashCap: 1000
-  totalTrashBudget: 1500
+  totalTrashBudget: 2000
   initialTrashCount: 500
   spawnInterval:
   - 10
@@ -32,8 +32,8 @@ MonoBehaviour:
   spawnSinkDepth: 0.55
   spawnPopStagger: 0.06
   spawnStartScale: 0.55
-  backpackCap: 05000000050000000500000005000000
-  backpackCapMax: 0a0000000a0000000a0000000a000000
+  backpackCap: 0d0000000d0000000c0000000c000000
+  backpackCapMax: 19000000190000001900000019000000
   backpackUpgradeMetalCost: 15
   pickRange:
   - 4
@@ -87,9 +87,9 @@ MonoBehaviour:
   bagWarningHex: '#E2603C'
   durabilityHex: '#F2C14E'
   groundHex:
-  - '#6E6053'
-  - '#7C7A50'
-  - '#5FA233'
+  - '#B56F32'
+  - '#A79A45'
+  - '#67B83A'
   waterHex:
   - '#3A4A4E'
   - '#4E7A6E'

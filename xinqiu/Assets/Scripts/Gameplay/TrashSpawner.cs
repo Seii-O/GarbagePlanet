@@ -8,7 +8,7 @@ namespace TrashPlanet.Whitebox
     /// 垃圾刷新 + 对象池（策划案 §12：上限全部走池，避免运行时反复 Instantiate）。
     ///
     /// 本次改动：
-    /// 1. 全局总量：累计生成 1500 件（含玩家已捡走的）后，地表不再出现任何新垃圾。
+    /// 1. 全局总量：累计生成 2000 件（含玩家已捡走的）后，地表不再出现任何新垃圾。
     ///    计数落在 WhiteboxState.totalSpawned（随存档持久化），并发上限 MapTrashCap 仍然生效。
     /// 2. 随机散落：不再按固定堆心成簇生成。每件垃圾在整颗球面上随机取点，
     ///    与已有垃圾保持最小间距、且不刷在玩家身边，于是垃圾分散在地表各处而不是攒成几座山。
@@ -43,7 +43,7 @@ namespace TrashPlanet.Whitebox
         public Transform TrashRoot { get => trashRoot; set => trashRoot = value; }
         public List<TrashItem> Active => active;
 
-        /// <summary>累计生成件数（含已捡走）——HUD 展示「累计 x/1500」用。</summary>
+        /// <summary>累计生成件数（含已捡走）——HUD 展示「累计 x/2000」用。</summary>
         public int TotalSpawned => game != null && game.State != null ? game.State.totalSpawned : 0;
 
         /// <summary>全局总量是否已用尽：用尽后地表不再刷新新垃圾。</summary>
@@ -245,10 +245,8 @@ namespace TrashPlanet.Whitebox
         /// 1. 消除平底与凸球面之间的漏光缝；
         /// 2. 吃掉低模球面的弦高误差 —— 星球是 Unity 内置 Sphere（经纬分段有限），
         ///    三角面中心比理想球面低 R(1-cos(半段角))，R=8 时约 2~4 cm。
-        ///    垃圾按解析球面贴地，在这些位置就会看起来悬空；嵌入 3 cm 后视觉上才真的"压"在地面上。
+        ///    垃圾按解析球面贴地，在这些位置就会看起来悬空；因此按物件外形使用独立嵌入深度。
         /// </summary>
-        const float GroundSink = 0.03f;
-
         // 包围盒 8 个角点的符号组合，用于把 localBounds 展开成顶点
         static readonly Vector3[] BoxCorners =
         {
@@ -260,15 +258,15 @@ namespace TrashPlanet.Whitebox
 
         /// <summary>
         /// 让物体真正压在地表上：实测当前姿态（含 yaw 与倾斜）下所有可见渲染器的最低点，
-        /// 沿法线把整件物体抬到「最低点刚好触地」，再刻意嵌入 GroundSink。
+        /// 沿法线把整件物体抬到「最低点刚好触地」，再按该物件的接地深度略微压入地面。
         /// 以前用固定值（Large ? 0.28 : 0.18）当半高，形状一换就对不上：
         /// 轮胎半高 0.22、金属设备 0.225 会浮 5~6 cm，塑料瓶 0.21 反而陷进地面，
         /// 再叠 ±8° 倾斜就会把整件垃圾抬离地表 —— 用户看到的「都浮起来」就是这个。
         /// </summary>
-        static void GroundFit(Transform t, Vector3 up)
+        static void GroundFit(Transform t, Vector3 up, float contactDepth)
         {
             float lowest = LowestPointOffset(t, up);
-            t.position += up * (-lowest - GroundSink);
+            t.position += up * (-lowest - Mathf.Clamp(contactDepth, 0.01f, 0.15f));
         }
 
         /// <summary>所有可见渲染器在该姿态下沿 up 的最低投影（相对 transform.position，向下为负）。</summary>
@@ -336,7 +334,15 @@ namespace TrashPlanet.Whitebox
             // 先按「pivot 正好压在地表」摆位，姿态摆完后再按实测最低点整体抬升 —— 见下方 GroundFit
             SphericalSurface.Place(item.transform, Vector3.zero, up, cfg.PlanetRadius, 0f, hint);
             item.transform.Rotate(up, Random.Range(0f, 360f), Space.World);
-            float tilt = cfg.ScatterTiltDegrees;
+            // 大型家电约一半直立、一半横倒；旋转后仍由 GroundFit 按实际包围盒重新贴地。
+            if (item.RandomlyLayOnSide && Random.value < 0.5f)
+            {
+                float side = Random.value < 0.5f ? -90f : 90f;
+                item.transform.rotation = Quaternion.AngleAxis(side, item.transform.forward) * item.transform.rotation;
+            }
+            // 每种美术形状有自己的物理倾斜上限：纸箱等平底物体必须平放，
+            // 瓶子、树枝和垃圾袋才允许轻微随机倾斜。GroundFit 会在最终姿态下再次贴地。
+            float tilt = Mathf.Min(cfg.ScatterTiltDegrees, item.NaturalTiltDegrees);
             if (tilt > 0f)
             {
                 Vector3 axis = Vector3.Cross(up, item.transform.forward);
@@ -345,7 +351,7 @@ namespace TrashPlanet.Whitebox
                         Quaternion.AngleAxis(Random.Range(-tilt, tilt), axis.normalized) * item.transform.rotation;
             }
 
-            GroundFit(item.transform, up);
+            GroundFit(item.transform, up, item.GroundContactDepth);
             active.Add(item);
             if (game.State != null) game.State.totalSpawned++;
 

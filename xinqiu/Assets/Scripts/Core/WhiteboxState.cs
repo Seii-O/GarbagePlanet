@@ -18,14 +18,14 @@ namespace TrashPlanet.Whitebox
 
         public int version = 1;
         public int[] bag = new int[4];        // 背包：4 类垃圾
-        public int bagLevel = 1;              // 背包等级 1..2（总容量 20 → 40），在中转站升级
+        public int bagLevel = 1;              // 背包等级 1..2（总容量 50 → 100），在中转站升级
         public int[] raw = new int[4];        // 中转站：已存入待加工的垃圾
         public int[] materials = new int[4];  // 再生塑料 / 金属零件 / 有机原料 / 电子元件
         public int toolLevel = 1;
         public float landProgress;
         public float waterProgress;
         public int collected;
-        /// <summary>累计生成过的垃圾件数（含开局铺设、含玩家已捡走/拆掉的）：全局总量 1500 的计数。</summary>
+        /// <summary>累计生成过的垃圾件数（含开局铺设、含玩家已捡走/拆掉的）：全局总量 2000 的计数。</summary>
         public int totalSpawned;
         public int processed;
         public int crafted;

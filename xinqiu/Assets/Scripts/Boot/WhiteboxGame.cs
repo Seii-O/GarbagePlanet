@@ -1,6 +1,7 @@
 // @trace MECH-001, PLAT-001, PLAT-005, TOOL-001, BAG-001, COIN-001, UI-004, SAVE-001, SAVE-002, ART-013
 using PlanetCleaner;
 using UnityEngine;
+using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
 
 namespace TrashPlanet.Whitebox
@@ -232,13 +233,39 @@ namespace TrashPlanet.Whitebox
             if (gacha != null) gacha.Init(this); // 新增玩法：转盘系统
             ApplyUiState();
 
-            // 运行时确保立体感：压低环境光，让主光产生清晰的明暗梯度（避免扁平化）；
-            // 场景里另有冷色补光与轮廓光（由 BuildSceneContents / 菜单 ⑦ 写入），二者叠加给出体积与纵深。
-            RenderSettings.ambientLight = new Color(0.30f, 0.30f, 0.34f);
+            ConfigureBrightEnvironmentLighting();
 
             Debug.Log("[WhiteboxGame] 启动完成：半径=" + config.PlanetRadius
                       + "，垃圾=" + spawner.Active.Count + "，阶段=" + (eco.Stage + 1)
                       + "，Unity=" + Application.unityVersion);
+        }
+
+        /// <summary>
+        /// 使用全局环境光照亮整颗星球，移除会造成局部过曝/远处发黑的点光源。
+        /// 方向光只负责保留低模表面的明暗层次，不承担暗部填充。
+        /// </summary>
+        void ConfigureBrightEnvironmentLighting()
+        {
+            RenderSettings.ambientMode = AmbientMode.Flat;
+            RenderSettings.ambientLight = new Color(0.58f, 0.56f, 0.52f, 1f);
+            RenderSettings.ambientIntensity = 1.10f;
+            RenderSettings.reflectionIntensity = 0.85f;
+
+            Light[] lights = FindObjectsOfType<Light>(true);
+            for (int i = 0; i < lights.Length; i++)
+            {
+                Light light = lights[i];
+                if (light == null) continue;
+                if (light.type == LightType.Point)
+                {
+                    light.enabled = false;
+                    continue;
+                }
+
+                if (light == sun) light.intensity = 1.10f;
+                else if (light.name == "env_fill_light") light.intensity = 0.30f;
+                else if (light.name == "env_rim_light") light.intensity = 0.20f;
+            }
         }
 
         void Update()

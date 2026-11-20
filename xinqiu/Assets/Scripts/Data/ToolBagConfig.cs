@@ -12,7 +12,7 @@ namespace TrashPlanet.Whitebox
     [CreateAssetMenu(fileName = "ToolBagConfig", menuName = "垃圾星球/工具背包配置")]
     public sealed class ToolBagConfig : ScriptableObject
     {
-        [SerializeField, Range(4, 24), Tooltip("工具与技能书背包的格子数（默认 12；与垃圾背包 20/40 件完全不同）")]
+        [SerializeField, Range(4, 24), Tooltip("工具与技能书背包的格子数（默认 12；与垃圾背包 50/100 件完全不同）")]
         int slotCount = 12;
         [SerializeField, Range(1, 9), Tooltip("单格工具堆叠上限（工具默认 1 = 同 id 占 1 格）")]
         int toolStackLimit = 1;

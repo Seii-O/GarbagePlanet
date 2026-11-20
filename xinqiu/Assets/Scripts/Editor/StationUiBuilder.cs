@@ -228,12 +228,12 @@ namespace TrashPlanet.Whitebox.Editor
                 Skin("pn_列表行"), null, false, Image.Type.Sliced).rectTransform;
             Img(status, "Img_StatusIcon", 12f, 11f, 20f, 20f, Lib("03_界面拆件/ic_警示"), Amber, false,
                 Image.Type.Simple, true);
-            Lbl(status, "Txt_Repaired", "已修复: 否（先造 1 块再生建材板）  ·  背包 Lv.1/2（总 0/20）",
+            Lbl(status, "Txt_Repaired", "已修复: 否（先造 1 块再生建材板）  ·  背包 Lv.1/2（总 0/50）",
                 42f, 7f, PW - 48f - 54f, 28f, 15, TextSoft);
 
             // ---------------- 卡片：玩家背包 ----------------
             RectTransform bag = Card(panel.transform, "Card_Bag", "Bag", 24f, CY, 496f, CH, "玩家背包", "BACKPACK");
-            Lbl(bag, "Txt_BagSum", "0 / 20", 296f, 8f, 180f, 28f, 20, Amber, TextAnchor.MiddleRight, true);
+            Lbl(bag, "Txt_BagSum", "0 / 50", 296f, 8f, 180f, 28f, 20, Amber, TextAnchor.MiddleRight, true);
 
             for (int i = 0; i < 4; i++)
             {
@@ -365,7 +365,7 @@ namespace TrashPlanet.Whitebox.Editor
             // Btn_BagUpgrade 必须是 Panel_Station 的直接子物体（WhiteboxValidator 用 transform.Find 检查），
             // 视觉位置仍落在「④ 工具与背包」区块里，绝对坐标与卡片内部一致。
             Button bagUp = Btn(panel.transform, "Btn_BagUpgrade",
-                "升级背包（总 20 → 40，需 15 金属零件）", 1130f, CY + 376f, 508f, 48f,
+                "升级背包（总 50 → 100，需 15 金属零件）", 1130f, CY + 376f, 508f, 48f,
                 Skin("bt_幽灵按钮"), TextSoft, 15, TextAnchor.MiddleLeft, false);
             if (bagUp != null)
             {

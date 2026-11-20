@@ -18,7 +18,7 @@ namespace TrashPlanet.Whitebox
     /// 2. 点击加工/制造按钮不再直接执行 1 次，而是进入「待确认」状态（Begin*），
     ///    由数量选择弹窗（StationQuantityDialog）读 Max / 当前值，确认后调 ConfirmPending。
     ///    单次执行的旧入口 StartProcess / StartCraft 保留，IMGUI 回退与外部调用不受影响。
-    /// 3. 新增背包升级（20 → 40，共 2 级，15 金属零件）。
+    /// 3. 新增背包升级（50 → 100，共 2 级，15 金属零件）。
     /// [待拍板 C2/C3/C7] 转化比例、过滤器配方、升级消耗全部是可配置默认值，不是定稿。
     /// </summary>
     public sealed class StationSystem : MonoBehaviour
@@ -409,7 +409,7 @@ namespace TrashPlanet.Whitebox
             return "⑥ 升级" + name + "（需 " + cost + "）";
         }
 
-        /// <summary>背包升级：Lv.1（总 20）→ Lv.2（总 40），消耗 15 金属零件，满级后不再可升。</summary>
+        /// <summary>背包升级：Lv.1（总 50）→ Lv.2（总 100），消耗 15 金属零件，满级后不再可升。</summary>
         public bool UpgradeBackpack()
         {
             WhiteboxConfig cfg = game.Config;
@@ -525,7 +525,7 @@ namespace TrashPlanet.Whitebox
             return game != null && game.Config != null && game.Config.BatchFixedDuration;
         }
 
-        /// <summary>「每类 5/5/5/5」这种短文案。</summary>
+        /// <summary>「每类 13/13/12/12」这种短文案。</summary>
         public static string CapsText(WhiteboxConfig cfg, int level)
         {
             int[] caps = cfg.BackpackCapAt(level);

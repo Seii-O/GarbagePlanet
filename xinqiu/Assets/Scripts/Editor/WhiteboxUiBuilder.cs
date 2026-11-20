@@ -280,7 +280,7 @@ namespace TrashPlanet.Whitebox.Editor
                 TopButton(station.transform, "Btn_Craft_" + i, "③ 制造 " + StationSystem.RecipeNames[i],
                     334f + i * 38f, w, 34f, font);
             TopButton(station.transform, "Btn_Upgrade", "④ 升级工具（Lv.1 → 2）", 452f, w, 34f, font);
-            TopButton(station.transform, "Btn_BagUpgrade", "⑤ 升级背包（总 20 → 40，需 15 金属零件）", 636f, w, 34f, font);
+            TopButton(station.transform, "Btn_BagUpgrade", "⑤ 升级背包（总 50 → 100，需 15 金属零件）", 636f, w, 34f, font);
             GameObject job = Panel(station.transform, "JobBar", new Vector2(w, 18f),
                 new Vector2(16f, -496f), TopLeft, TopLeft, BarBg);
             FilledBar(job.transform, "JobFill", durability);
@@ -366,8 +366,8 @@ namespace TrashPlanet.Whitebox.Editor
             Transform station = FindTransform(uiRoot, "Panel_Station");
             if (station != null && FindTransform(station, "Btn_BagUpgrade") == null)
             {
-                int baseCap = cfg != null ? cfg.BackpackTotalCap(1) : 20;
-                int maxCap = cfg != null ? cfg.BackpackTotalCap(2) : 40;
+                int baseCap = cfg != null ? cfg.BackpackTotalCap(1) : 50;
+                int maxCap = cfg != null ? cfg.BackpackTotalCap(2) : 100;
                 int cost = cfg != null ? cfg.BackpackUpgradeMetalCost : 15;
                 TopButton(station, "Btn_BagUpgrade",
                     "⑤ 升级背包（总 " + baseCap + " → " + maxCap + "，需 " + cost + " 金属零件）",

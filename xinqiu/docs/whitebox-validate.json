@@ -6,7 +6,7 @@
   "errorCount": 0,
   "checks": [
     "PASS 配置资产存在",
-    "PASS 全局垃圾总量 ≥ 地表并发上限（1500 ≥ 1000）",
+    "PASS 全局垃圾总量 ≥ 地表并发上限（2000 ≥ 1000）",
     "PASS 星球半径在可玩区间（8 m）",
     "PASS 预制体存在 prop_trash_plastic_whitebox",
     "PASS 预制体含 TrashItem prop_trash_plastic_whitebox",
@@ -35,7 +35,7 @@
     "PASS 垃圾预制体引用无空项",
     "PASS 核心系统组件齐全",
     "PASS IMGUI 代理已绑定 Hierarchy uGUI 视图",
-    "INFO 星球场景半径 36.21 m，配置 8 m（不一致时运行期自动对齐）",
+    "INFO 星球场景半径 8 m，配置 8 m（不一致时运行期自动对齐）",
     "PASS Hierarchy 含可编辑 UI 根 UI_Whitebox",
     "PASS UI Canvas 为 Screen Space Overlay",
     "PASS UI 含 CanvasScaler / GraphicRaycaster",
