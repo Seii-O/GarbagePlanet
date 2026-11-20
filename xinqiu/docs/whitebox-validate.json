@@ -35,7 +35,7 @@
     "PASS 垃圾预制体引用无空项",
     "PASS 核心系统组件齐全",
     "PASS IMGUI 代理已绑定 Hierarchy uGUI 视图",
-    "INFO 星球场景半径 8 m，配置 8 m（不一致时运行期自动对齐）",
+    "INFO 星球场景半径 36.21 m，配置 8 m（不一致时运行期自动对齐）",
     "PASS Hierarchy 含可编辑 UI 根 UI_Whitebox",
     "PASS UI Canvas 为 Screen Space Overlay",
     "PASS UI 含 CanvasScaler / GraphicRaycaster",

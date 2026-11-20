@@ -76,7 +76,11 @@ namespace TrashPlanet.Whitebox.Editor
             }
             EditorApplication.update -= AutoSmokeAfterUi; // 只判定一次，避免反复进 Play
             if (fresh) return;
-            WhiteboxPlaySmoke.RequestRun();
+            // 修复：这里自动请求冒烟会注册 delayCall，在 Play 模式下经 DoRun 调到
+            // EditorSceneManager.OpenScene，抛 "This cannot be used during play mode"
+            // 并可能干扰用户手动按 Play。改为不自动触发，只提示；需要时在非 Play 状态
+            // 手动点菜单⑤「重跑 Play 冒烟测试」。
+            Debug.LogWarning(Tag + "运行冒烟报告缺失或已过期；请在非 Play 状态手动执行菜单⑤「重跑 Play 冒烟测试」。");
         }
 
         static void AutoEnsure()
