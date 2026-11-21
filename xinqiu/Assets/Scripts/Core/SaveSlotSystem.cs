@@ -31,8 +31,12 @@ namespace TrashPlanet.Whitebox
         {
             public int version = SlotVersion;
             public string savedAt = "";  // ISO 8601 (round-trip)
+            public string displayName = ""; // 玩家自定义存档名；旧档缺字段 → 空串 → 显示回退到"槽 N"
             public WhiteboxState state;
         }
+
+        /// <summary>未命名时的统一回退文案。</summary>
+        public static string DefaultName(int slot) => "槽 " + slot;
 
         /// <summary>由 WhiteboxGame 在 Awake 注册；Save 前回调，把玩家位置/视角写进 state。</summary>
         public static Action<WhiteboxState> CapturePoseHook;
@@ -86,6 +90,26 @@ namespace TrashPlanet.Whitebox
             catch { return ""; }
         }
 
+        /// <summary>返回玩家自定义的存档名；无档、旧档缺字段或名字为空时回退到"槽 N"。</summary>
+        public static string GetName(int slot)
+        {
+            if (!Exists(slot)) return DefaultName(slot);
+            try
+            {
+                SlotData d = JsonUtility.FromJson<SlotData>(File.ReadAllText(SlotPath(slot)));
+                if (d != null && !string.IsNullOrEmpty(d.displayName)) return d.displayName;
+            }
+            catch { }
+            return DefaultName(slot);
+        }
+
+        /// <summary>存档列表用的完整标题："名字  时间"。无档返回空串。</summary>
+        public static string SlotTitle(int slot)
+        {
+            if (!Exists(slot)) return "";
+            return GetName(slot) + "  " + SavedAtText(slot);
+        }
+
         // ------------------------------------------------------------------
         // 读 / 写 / 删
         // ------------------------------------------------------------------
@@ -113,17 +137,41 @@ namespace TrashPlanet.Whitebox
             return slot > 0 ? Load(slot) : new WhiteboxState();
         }
 
-        /// <summary>写入指定槽并把 ActiveSlot 指向它。写失败不改变 ActiveSlot。</summary>
+        /// <summary>写入指定槽并把 ActiveSlot 指向它（不改名：保留该槽原有名字）。写失败不改变 ActiveSlot。</summary>
         public static void Save(int slot, WhiteboxState s)
+        {
+            Save(slot, s, null);
+        }
+
+        /// <summary>
+        /// 写入指定槽并显示命名。displayName 非空则写入新名字；传 null 表示保留旧名，
+        /// 传空串表示清空名字（显示回退到"槽 N"）。自动保存走不带名字的重载，不会抹掉玩家取的名。
+        /// </summary>
+        public static void Save(int slot, WhiteboxState s, string displayName)
         {
             if (!IsValid(slot) || s == null) return;
             try
             {
                 if (CapturePoseHook != null) CapturePoseHook(s);
+                string name;
+                if (displayName != null)
+                    name = displayName.Trim(); // 空串 = 取消命名，显示回退到"槽 N"
+                else
+                {
+                    // 保留旧名：读现有 displayName，旧档缺字段时为 null → 空串
+                    name = "";
+                    if (Exists(slot))
+                    {
+                        SlotData old = JsonUtility.FromJson<SlotData>(File.ReadAllText(SlotPath(slot)));
+                        if (old != null && old.displayName != null) name = old.displayName;
+                    }
+                }
+
                 SlotData d = new SlotData
                 {
                     version = SlotVersion,
                     savedAt = DateTime.Now.ToString("o", CultureInfo.InvariantCulture),
+                    displayName = name,
                     state = s
                 };
                 string path = SlotPath(slot);

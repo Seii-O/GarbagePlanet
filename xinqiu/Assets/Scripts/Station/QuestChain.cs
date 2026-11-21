@@ -21,7 +21,7 @@ namespace TrashPlanet.Whitebox
             "制作环保产品：制造 1 个生态肥料包",
             "修复土地：达到 MVP 进度",
             "净化水源：达到 MVP 进度",
-            "恢复星球：完成最终目标"
+            "恢复星球：净化区覆盖整颗星球"
         };
 
         WhiteboxGame game;
@@ -73,8 +73,12 @@ namespace TrashPlanet.Whitebox
                 case 6: return s.fertilizer >= 1;
                 case 7: return s.landProgress >= cfg.MvpProgressTarget - 0.0001f;
                 case 8: return s.waterProgress >= cfg.MvpProgressTarget - 0.0001f;
-                case 9: return s.landProgress >= cfg.MvpProgressTarget - 0.0001f
-                            && s.waterProgress >= cfg.MvpProgressTarget - 0.0001f;
+                // 最终步：以中转站为中心的净化区扩张到覆盖整颗星球才结算。
+                // 降级：旧场景无净化系统时退回原来的双进度条件，避免任务链永远卡在最后一步。
+                case 9:
+                    if (game.Purification != null) return game.Purification.FullyCovered;
+                    return s.landProgress >= cfg.MvpProgressTarget - 0.0001f
+                        && s.waterProgress >= cfg.MvpProgressTarget - 0.0001f;
                 default: return false;
             }
         }

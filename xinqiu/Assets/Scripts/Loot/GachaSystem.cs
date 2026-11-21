@@ -5,9 +5,10 @@ using UnityEngine;
 namespace TrashPlanet.Whitebox
 {
     /// <summary>
-    /// 转盘玩法核心：隐藏款发现 → 获得券 → 抽奖（稀有度权重 + 软/硬保底）→ 奖励入库。
+    /// 老虎机抽奖核心：隐藏款发现 → 获得券 → 抽奖（稀有度权重 + 软/硬保底）→ 奖励入库。
     /// 独立系统，Init(WhiteboxGame) 拿引用，不改任何既有玩法数值与存档格式（只扩展字段）。
-    /// R 键为单独开启键：与 M/ESC 同层，在 WhiteboxGame 的输入仲裁里统一处理，避免同帧冲突。
+    /// 面板不再由 R 键独立开启：只由场景内老虎机实体在玩家走近对准、按 F 时调用 Open() 弹出；
+    /// 结算数字与奖品池仍走本系统，UI 表现交给 GachaPanelView。
     /// </summary>
     public sealed class GachaSystem : MonoBehaviour
     {
@@ -100,7 +101,7 @@ namespace TrashPlanet.Whitebox
             if (game.Hud != null)
             {
                 game.Hud.FloatText("★ 隐藏款 +" + config.TicketsPerFind + "券");
-                game.Hud.Notice("搜索垃圾堆时发现被误丢的崭新物品！按 R 打开转盘（券：" + state.gachaTickets + "）");
+                game.Hud.Notice("搜索垃圾堆时发现被误丢的崭新物品！走近老虎机按 F 抽奖（券：" + state.gachaTickets + "）");
             }
             WhiteboxState.Save(state);
             Debug.Log("[Gacha] 发现隐藏款（" + category + "）：券 +" + config.TicketsPerFind
@@ -108,9 +109,13 @@ namespace TrashPlanet.Whitebox
         }
 
         // ------------------------------------------------------------------
-        // 入口二：转盘开合（R 键由 WhiteboxGame 调用）
+        // 入口二：老虎机开合（只由场景内 SlotMachine 在游戏里按 F 调用，无常驻快捷键）
         // ------------------------------------------------------------------
 
+        /// <summary>
+        /// 由老虎机 F 交互统一入口：先关掉其他面板，再打开本面板，保证一次只弹一个 UI。
+        /// 由 WhiteboxGame 转调（面板互斥归它管），避免 GachaSystem 越过仲裁层。
+        /// </summary>
         public void Toggle()
         {
             if (panel == null) return;
@@ -121,13 +126,17 @@ namespace TrashPlanet.Whitebox
         public void Open()
         {
             if (panel == null || panel.IsOpen) return;
-            // 打开中转站/暂停时不开转盘，避免两个面板叠加
+            // 打开中转站/暂停时不开面板，避免两个面板叠加
             if (game != null && (game.StationOpen || game.IsPaused)) return;
             panel.Show();
             RefreshPanel();
-            if (game != null) game.ApplyUiState(); // 解锁光标、禁用玩家移动（IsUiBlocking 已含转盘）
+            if (game != null) game.ApplyUiState(); // 解锁光标、禁用玩家移动（IsUiBlocking 已含本面板）
         }
 
+        /// <summary>
+        /// 关闭面板并彻底复位：GachaPanelView.Hide() 停转轮协程+清落点+恢复按钮，
+        /// ApplyUiState() 恢复光标锁定与玩家移动；InteractionController 下一帧自然重算准星目标。
+        /// </summary>
         public void Close()
         {
             if (panel == null || !panel.IsOpen) return;

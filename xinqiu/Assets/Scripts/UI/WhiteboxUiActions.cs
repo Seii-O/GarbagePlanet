@@ -68,16 +68,25 @@ namespace TrashPlanet.Whitebox
         }
 
         /// <summary>
-        /// 局内「退出」：先存档再回到标题主界面（Title.unity），由标题页的「退出游戏」真正退进程。
+        /// 局内「退出」：先弹「是否存档」确认框，由玩家决定——
+        /// 【是】进存档面板选槽命名保存后回主界面；【否】直接回主界面。
         /// 暂停页与结算页的退出按钮都绑到这里；不再直接 Application.Quit，
         /// 否则编辑器里只会打一行日志、看起来像"点了没反应"。
         /// </summary>
         public void Quit()
         {
-            // 回标题前落盘当前进度，标题页「继续游戏」才能接着玩；无 Game/无 state 时安全跳过。
+            QuitConfirmDialog dialog = FindFirstObjectByType<QuitConfirmDialog>();
+            if (dialog != null)
+            {
+                dialog.Open();
+                Debug.Log("[WhiteboxUI] 局内退出：弹出是否存档确认框");
+                return;
+            }
+
+            // 确认框缺失（旧场景未补齐 UI）：降级为原行为——存档后直接回主界面，功能不丢
             if (Game != null && Game.State != null) WhiteboxState.Save(Game.State);
-            Time.timeScale = 1f; // 暂停时是 0，不还原会让标题与下次进关卡都卡在时间静止
-            Debug.Log("[WhiteboxUI] 局内退出：存档 → 返回标题 " + TitleController.TitleSceneName);
+            Time.timeScale = 1f;
+            Debug.LogWarning("[WhiteboxUI] 未找到退出确认框，退出降级为：存档 → 返回标题");
             SceneManager.LoadScene(TitleController.TitleSceneName);
         }
     }

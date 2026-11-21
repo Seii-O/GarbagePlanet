@@ -371,6 +371,12 @@ namespace TrashPlanet.Whitebox
             SaveSlotSystem.Save(slot, s);
         }
 
+        /// <summary>写入指定槽并显示命名；displayName 传 null 表示保留旧名。</summary>
+        public static void Save(WhiteboxState s, int slot, string displayName)
+        {
+            SaveSlotSystem.Save(slot, s, displayName);
+        }
+
         public static void Delete()
         {
             SaveSlotSystem.DeleteActive();

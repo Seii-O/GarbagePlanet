@@ -35,6 +35,7 @@ namespace TrashPlanet.Whitebox
         readonly List<Vector3> occupied = new List<Vector3>(); // 撒点去重用的位置缓存（每批重建一次）
         Stack<TrashItem>[] pools;
         WhiteboxGame game;
+        int trashLayer = -1; // Trash 层：PlayerController 会忽略与该层的碰撞（玩家可直接穿过垃圾）
         float timer;
         int batchIndex;
         bool budgetAnnounced;
@@ -53,6 +54,10 @@ namespace TrashPlanet.Whitebox
         public void Init(WhiteboxGame g)
         {
             game = g;
+            // 垃圾实例统一放到 Trash 层，让 PlayerController.Awake 里的
+            // Physics.IgnoreLayerCollision(Player, Trash, true) 对垃圾生效：玩家不再被挡住。
+            // 预制体本身是 Default(0) 层，所以必须在生成时改，不能直接靠预制体设置。
+            trashLayer = LayerMask.NameToLayer("Trash");
             if (prefabs == null) prefabs = new TrashItem[0];
             if (trashRoot == null) trashRoot = transform;
             pools = new Stack<TrashItem>[prefabs.Length];
@@ -75,6 +80,10 @@ namespace TrashPlanet.Whitebox
             if (game.IsUiBlocking) return;
             WhiteboxConfig cfg = game.Config;
             if (cfg == null) return;
+
+            // 全星球已净化：地表不再生成任何垃圾（完成态）。
+            PurificationSystem purify = game.Purification;
+            if (purify != null && purify.FullyCovered) return;
 
             // 全局总量用尽：彻底停止刷新（并发上限之外的第二道上限）
             if (BudgetSpent)
@@ -206,6 +215,10 @@ namespace TrashPlanet.Whitebox
             Vector3 stationPos = hasStation ? game.Station.position : Vector3.zero;
             const float StationClearance = 2.5f;
 
+            // 净化区（MECH-011）：已净化土地不再生成垃圾。进度越高，被拒的球面区域越大，
+            // 于是无垃圾区域随净化推进而增大；与玩家/中转站/间距判定叠加，谁先命中谁拒绝。
+            PurificationSystem purify = game != null ? game.Purification : null;
+
             for (int attempt = 0; attempt < 24; attempt++)
             {
                 Vector3 d = Random.onUnitSphere;
@@ -215,12 +228,30 @@ namespace TrashPlanet.Whitebox
                 if (hasPlayer && clearance > 0f &&
                     (p - playerPos).sqrMagnitude < clearance * clearance) continue;
                 if (hasStation && (p - stationPos).sqrMagnitude < StationClearance * StationClearance) continue;
+                if (purify != null && purify.IsPurified(p)) continue;
                 if (minSq > 0f && OccupiedTooClose(p, minSq)) continue;
                 dir = d;
                 return true;
             }
 
-            // 地表已经很密：这一件仍然随机落点，但放宽间距要求（宁可挨着一点，也不要少刷）
+            // 地表已经很密 / 净化区很大：退化落点仍要避开净化区，否则会刷进"无垃圾区域"。
+            // 扩到 48 次并放宽间距，优先找净化区外的点；只有当整颗球都被净化时才接受净化区内的点
+            // （那时本来就已完成，spawner 也不再刷新，见 Update 的 FullyCovered 早退）。
+            for (int attempt = 0; attempt < 48; attempt++)
+            {
+                Vector3 d = Random.onUnitSphere;
+                if (d.sqrMagnitude < 0.001f) continue;
+                d.Normalize();
+                Vector3 p = SphericalSurface.Point(Vector3.zero, d, cfg.PlanetRadius, 0f);
+                if (purify != null && purify.FullyCovered) { dir = d; return true; }
+                if (purify != null && purify.IsPurified(p)) continue;
+                if (hasPlayer && clearance > 0f &&
+                    (p - playerPos).sqrMagnitude < clearance * clearance * 0.25f) continue;
+                dir = d;
+                return true;
+            }
+
+            // 极端兜底：随机点，宁可挨着一点也不要少刷
             dir = Random.onUnitSphere;
             if (dir.sqrMagnitude < 0.001f) dir = Vector3.up;
             dir.Normalize();
@@ -324,6 +355,10 @@ namespace TrashPlanet.Whitebox
                 owner[item] = prefabIndex;
             }
 
+            // 整件垃圾（含所有子节点）设为 Trash 层：碰撞体在 Body 子节点上，
+            // 只设根节点不够，必须递归，Player 对 Trash 的忽略才会覆盖到实际碰撞体。
+            if (trashLayer >= 0) SetLayerRecursively(item.gameObject, trashLayer);
+
             item.ResetState();
             Vector3 up = direction.sqrMagnitude < 0.000001f ? Vector3.up : direction.normalized;
 
@@ -370,6 +405,15 @@ namespace TrashPlanet.Whitebox
                 item.transform.localScale = Vector3.one * cfg.SpawnStartScale;
             }
             return item;
+        }
+
+        /// <summary>递归设置整个层级到指定 Layer（碰撞体挂在各子节点，必须连子节点一起改）。</summary>
+        static void SetLayerRecursively(GameObject go, int layer)
+        {
+            go.layer = layer;
+            Transform t = go.transform;
+            for (int i = 0; i < t.childCount; i++)
+                SetLayerRecursively(t.GetChild(i).gameObject, layer);
         }
 
         public void Despawn(TrashItem item)

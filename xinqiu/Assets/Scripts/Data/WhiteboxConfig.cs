@@ -120,6 +120,12 @@ namespace TrashPlanet.Whitebox
         [SerializeField] float[] fogDistance = { 40f, 60f, 100f };
         [SerializeField] float[] lightAngle = { 25f, 45f, 60f };
 
+        [Header("星球净化 MECH-011 / LEV-001 [待拍板]")]
+        [SerializeField, Min(0f), Tooltip("中转站周围初始已净化半径（球面弧长·米），progress=0 时即生效")]
+        float purifyBaseRadius = 5f;
+        [SerializeField, Tooltip("是否显示净化区边界标记（一圈小点，随进度沿球面张开）；纯视觉，无碰撞")]
+        bool purifyShowBoundary = true;
+
         [Header("动效时长 ART-008 / 9.5")]
         [SerializeField] float stageFadeSeconds = 3f;
         [SerializeField] float stageFlashSeconds = 2.5f;
@@ -206,6 +212,8 @@ namespace TrashPlanet.Whitebox
         public Color[] FogColors => HexArray(fogHex);
         public float[] FogDistance => fogDistance;
         public float[] LightAngle => lightAngle;
+        public float PurifyBaseRadius => Mathf.Max(0f, purifyBaseRadius);
+        public bool PurifyShowBoundary => purifyShowBoundary;
         public float StageFadeSeconds => stageFadeSeconds;
         public float StageFlashSeconds => stageFlashSeconds;
         public float PickupFloatSeconds => pickupFloatSeconds;
@@ -247,6 +255,7 @@ namespace TrashPlanet.Whitebox
             spawnPopStagger = Mathf.Max(0f, spawnPopStagger);
             spawnStartScale = Mathf.Clamp(spawnStartScale, 0.05f, 1f);
             repairPerItem = Mathf.Clamp01(repairPerItem);
+            purifyBaseRadius = Mathf.Max(0f, purifyBaseRadius);
             backpackUpgradeMetalCost = Mathf.Max(1, backpackUpgradeMetalCost);
             highlightRange = Mathf.Max(0.1f, highlightRange);
             mvpProgressTarget = Mathf.Clamp01(mvpProgressTarget);

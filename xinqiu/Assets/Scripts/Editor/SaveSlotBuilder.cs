@@ -15,6 +15,7 @@ namespace TrashPlanet.Whitebox.Editor
     ///    每个按钮下保证有一个 Text 子对象用于显示"槽 N  时间"。
     /// 红线：全部用 Editor API 生成/接线，不手写 .unity YAML；可重复执行（面板存在即重建）。
     /// </summary>
+    [InitializeOnLoad]
     public static class SaveSlotBuilder
     {
         const string UiRoot = "UI_Whitebox";
@@ -22,6 +23,50 @@ namespace TrashPlanet.Whitebox.Editor
         const string PanelName = "Panel_InGameSave";
         const string Tag = "[SaveSlotBuilder] ";
         const int Slots = 5;
+        // v2：新增「存档名输入框 + 每槽垃圾桶 + 批量删除按钮」。改 key 让域重载后再补一次。
+        const string AutoKey = "TrashPlanet.SaveSlot.Extras.v2";
+
+        static SaveSlotBuilder()
+        {
+            EditorApplication.delayCall += AutoEnsure;
+            EditorApplication.update += AutoEnsure;
+        }
+
+        static void AutoEnsure()
+        {
+            if (Application.isBatchMode || EditorApplication.isPlayingOrWillChangePlaymode) return;
+            if (SessionState.GetBool(AutoKey, false))
+            {
+                EditorApplication.update -= AutoEnsure;
+                return;
+            }
+            if (EditorApplication.isCompiling || EditorApplication.isUpdating) return;
+            Scene scene = SceneManager.GetActiveScene();
+            if (!scene.IsValid() || scene.path != WhiteboxBuilder.ScenePath) return; // 不在白膜场景：等菜单⑮
+            // UI_Whitebox / sys_whitebox 由 WhiteboxUiBuilder 生成；若尚未就绪则这一轮不消费 SessionState，
+            // 下一帧再来，避免抢在 UI 生成之前执行导致 BuildInGameScene 直接报错返回。
+            if (FindRoot(scene, UiRoot) == null || FindRoot(scene, SysRoot) == null) return;
+
+            SessionState.SetBool(AutoKey, true);
+            EditorApplication.update -= AutoEnsure;
+            // 新增了结构性元素（名字输入框 / 垃圾桶 / 批量删除），旧布局塞不下，
+            // 按菜单⑮既有语义重建整个面板，保证位置正确。菜单⑮本就是"面板存在即重建"。
+            if (!NeedsRebuild(scene)) return;
+            BuildInGameScene(scene); // 内部会重建面板 + 重新接线 + 保存场景
+            Debug.Log(Tag + "已重建存档面板：名字输入框 / 每槽垃圾桶 / 批量删除按钮，场景已保存");
+        }
+
+        /// <summary>存档面板缺失，或缺少新增元素（名字框 / 垃圾桶 / 删除按钮）时需要重建。</summary>
+        static bool NeedsRebuild(Scene scene)
+        {
+            GameObject uiRoot = FindRoot(scene, UiRoot);
+            GameObject panel = uiRoot != null ? FindChild(uiRoot.transform, PanelName) : null;
+            if (panel == null) return true;
+            if (FindChild(panel.transform, "Inp_SaveName") == null) return true;
+            if (FindChild(panel.transform, "Btn_Trash_1") == null) return true;
+            if (FindChild(panel.transform, "Btn_DeleteSelected") == null) return true;
+            return false;
+        }
 
         static readonly Color PanelBg = new Color(0.06f, 0.12f, 0.11f, 0.97f);
         static readonly Color BtnBg = new Color(0.16f, 0.26f, 0.24f, 0.98f);
@@ -91,24 +136,82 @@ namespace TrashPlanet.Whitebox.Editor
         static void BuildSavePanel(Transform canvas)
         {
             Font font = UiFont.Load();
-            GameObject panel = Panel(canvas, PanelName, new Vector2(560f, 520f), Vector2.zero, PanelBg);
-            Txt(panel.transform, "Txt_SaveTitle", "存档 · 选择槽位", new Vector2(0f, 224f),
+            GameObject panel = Panel(canvas, PanelName, new Vector2(600f, 560f), Vector2.zero, PanelBg);
+            Txt(panel.transform, "Txt_SaveTitle", "存档 · 选择槽位", new Vector2(0f, 250f),
                 new Vector2(460f, 44f), 26, Accent, TextAnchor.MiddleCenter, font);
-            Txt(panel.transform, "Txt_SaveHint", "F9 / ESC 关闭  ·  点击槽位保存到该档（含玩家位置）",
-                new Vector2(0f, 190f), new Vector2(500f, 32f), 15, TextColor, TextAnchor.MiddleCenter, font);
+            Txt(panel.transform, "Txt_SaveHint", "输入名字后点槽保存  ·  点垃圾桶批量删除  ·  F9 / ESC 关闭",
+                new Vector2(0f, 214f), new Vector2(560f, 30f), 14, TextColor, TextAnchor.MiddleCenter, font);
+
+            // 存档名输入框：留空则显示回退到"槽 N"
+            Txt(panel.transform, "Txt_NameLabel", "存档名：", new Vector2(-208f, 176f),
+                new Vector2(100f, 34f), 17, Accent, TextAnchor.MiddleLeft, font);
+            InputField nameInput = TextInput(panel.transform, "Inp_SaveName", new Vector2(42f, 176f),
+                new Vector2(320f, 38f), "留空 = 槽 N", font);
 
             for (int i = 0; i < Slots; i++)
             {
                 int slot = i + 1;
-                float y = 140f - i * 62f;
-                GameObject btn = Btn(panel.transform, "Btn_SaveSlot_" + slot,
-                    "槽 " + slot, new Vector2(0f, y), new Vector2(460f, 52f), BtnBg, font);
+                float y = 128f - i * 56f;
+                GameObject btn = Btn(panel.transform, "Btn_SaveSlot_" + slot, "",
+                    new Vector2(-16f, y), new Vector2(500f, 48f), BtnBg, font);
                 Txt(btn.transform, "Txt_SaveSlot_" + slot, "槽 " + slot + "  空（新建）",
-                    Vector2.zero, new Vector2(440f, 44f), 18, TextColor, TextAnchor.MiddleCenter, font);
+                    Vector2.zero, new Vector2(480f, 42f), 18, TextColor, TextAnchor.MiddleCenter, font);
+                // 垃圾桶：槽按钮右下角的小图标按钮；文本用「🗑」的后备字符，缺字形时仍可点
+                Btn(panel.transform, "Btn_Trash_" + slot, "×",
+                    new Vector2(248f, y - 9f), new Vector2(34f, 30f),
+                    new Color(0.42f, 0.16f, 0.14f, 0.98f), font);
             }
-            Btn(panel.transform, "Btn_SaveClose", "关闭", new Vector2(0f, -200f),
-                new Vector2(200f, 44f), BtnBg, font);
+
+            // 删除模式按钮：默认由 InGameSaveView 运行时按状态显隐
+            Btn(panel.transform, "Btn_DeleteSelected", "删除所选",
+                new Vector2(-104f, -192f), new Vector2(180f, 42f),
+                new Color(0.55f, 0.20f, 0.16f, 0.98f), font);
+            Btn(panel.transform, "Btn_DeleteCancel", "取消",
+                new Vector2(104f, -192f), new Vector2(180f, 42f), BtnBg, font);
+            Btn(panel.transform, "Btn_SaveClose", "关闭", new Vector2(0f, -240f),
+                new Vector2(200f, 40f), BtnBg, font);
             panel.SetActive(false);
+        }
+
+        /// <summary>单行文本输入框（存档名用）：ContentType=Standard，限制 24 字。</summary>
+        static InputField TextInput(Transform parent, string name, Vector2 pos, Vector2 size,
+            string placeholder, Font font)
+        {
+            GameObject go = new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(InputField));
+            go.transform.SetParent(parent, false);
+            RectTransform rt = (RectTransform)go.transform;
+            rt.anchorMin = Center; rt.anchorMax = Center; rt.pivot = Center;
+            rt.sizeDelta = size; rt.anchoredPosition = pos;
+            Image bg = go.GetComponent<Image>();
+            bg.color = new Color(0.10f, 0.16f, 0.15f, 0.98f);
+
+            GameObject phGo = new GameObject("Placeholder", typeof(RectTransform), typeof(CanvasRenderer), typeof(Text));
+            phGo.transform.SetParent(go.transform, false);
+            RectTransform phRt = (RectTransform)phGo.transform;
+            phRt.anchorMin = Vector2.zero; phRt.anchorMax = Vector2.one; phRt.pivot = Center;
+            phRt.offsetMin = new Vector2(10f, 2f); phRt.offsetMax = new Vector2(-10f, -2f);
+            Text ph = phGo.GetComponent<Text>();
+            ph.font = font; ph.fontSize = 16; ph.text = placeholder;
+            ph.color = new Color(0.55f, 0.62f, 0.60f, 0.7f);
+            ph.alignment = TextAnchor.MiddleLeft; ph.raycastTarget = false;
+
+            GameObject txGo = new GameObject("Text", typeof(RectTransform), typeof(CanvasRenderer), typeof(Text));
+            txGo.transform.SetParent(go.transform, false);
+            RectTransform txRt = (RectTransform)txGo.transform;
+            txRt.anchorMin = Vector2.zero; txRt.anchorMax = Vector2.one; txRt.pivot = Center;
+            txRt.offsetMin = new Vector2(10f, 2f); txRt.offsetMax = new Vector2(-10f, -2f);
+            Text tx = txGo.GetComponent<Text>();
+            tx.font = font; tx.fontSize = 17; tx.text = "";
+            tx.color = TextColor; tx.alignment = TextAnchor.MiddleLeft; tx.raycastTarget = false;
+
+            InputField field = go.GetComponent<InputField>();
+            field.targetGraphic = bg;
+            field.textComponent = tx;
+            field.placeholder = ph;
+            field.lineType = InputField.LineType.SingleLine;
+            field.contentType = InputField.ContentType.Standard;
+            field.characterLimit = 24;
+            return field;
         }
 
         // ----------------------------------------------------------------

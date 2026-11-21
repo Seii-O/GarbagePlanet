@@ -16,16 +16,20 @@ namespace TrashPlanet.Whitebox
         readonly RaycastHit[] hits = new RaycastHit[64];
         WhiteboxGame game;
         TrashItem current;
+        SlotMachine currentMachine;      // 准星当前对准的老虎机实体（与垃圾目标互不干扰）
+        float machineDistance;
         int barLeft = -1, barMax = -1; // 黄条上次写入值，用于幂等，避免每帧无谓刷新
 
         public TrashItem CurrentTarget => current; // MECH-016：狗避开玩家准星锁定的目标
         public float CurrentDistance { get; private set; }
+        public SlotMachine CurrentMachine => currentMachine; // 供 HUD 提示"按 F 抽奖"用
 
         public void Init(WhiteboxGame g)
         {
             game = g;
             current = null;
             CurrentDistance = 0f;
+            SetMachine(null); // 清掉上一局可能残留的机器高亮
             barLeft = barMax = -1; // 强制下一帧重刷，清掉上一局可能残留的黄条状态
         }
 
@@ -48,12 +52,27 @@ namespace TrashPlanet.Whitebox
             TrashItem candidate = null;
             float candidateDist = float.MaxValue;
             float blockerDist = float.MaxValue;
+            SlotMachine machineCandidate = null;
+            float machineCandidateDist = float.MaxValue;
 
             for (int i = 0; i < count; i++)
             {
                 RaycastHit h = hits[i];
                 if (h.collider == null) continue;
                 if (game.Player != null && h.collider.transform.IsChildOf(game.Player)) continue;
+
+                // 老虎机实体：与垃圾并列的准星目标。命中它时不算"遮挡垃圾"的 blocker，
+                // 但仍要参与机器自己的遮挡判定（比它更近的实体会挡住它）。
+                SlotMachine machine = h.collider.GetComponentInParent<SlotMachine>();
+                if (machine != null)
+                {
+                    if (h.distance < machineCandidateDist)
+                    {
+                        machineCandidate = machine;
+                        machineCandidateDist = h.distance;
+                    }
+                    continue;
+                }
 
                 TrashItem item = h.collider.GetComponentInParent<TrashItem>();
                 if (item == null)
@@ -76,6 +95,21 @@ namespace TrashPlanet.Whitebox
             }
 
             if (candidate != null && blockerDist < candidateDist - 0.0001f) candidate = null;
+            if (machineCandidate != null && blockerDist < machineCandidateDist - 0.0001f) machineCandidate = null;
+
+            // 老虎机准星目标：只在玩家自己的交互半径内高亮；距离判定用机器自带半径，不跟拾取距离混用。
+            if (machineCandidate != null && machineCandidateDist > machineCandidate.InteractRange)
+                machineCandidate = null;
+            SetMachine(machineCandidate, machineCandidateDist);
+
+            // F 键：对准老虎机且在交互距离内 → 触发抽奖（GetKeyDown 边沿，避免按住连开）。
+            // 面板打开后 IsUiBlocking 会在下一帧走上面的 Clear() 分支，不会重复触发。
+            if (currentMachine != null && machineDistance <= currentMachine.InteractRange
+                && Input.GetKeyDown(KeyCode.F))
+            {
+                currentMachine.Interact();
+                return; // 本帧交出控制权，等面板的 ApplyUiState 生效
+            }
 
             if (candidate != current)
             {
@@ -144,11 +178,26 @@ namespace TrashPlanet.Whitebox
             if (game.Gacha != null) game.Gacha.OnTrashSearched(target.Category); // 新增玩法：搜索垃圾堆发现隐藏款
         }
 
+        /// <summary>切换老虎机准星目标：只在变化时写高亮，避免每帧刷新。</summary>
+        void SetMachine(SlotMachine machine, float distance = 0f)
+        {
+            if (currentMachine == machine)
+            {
+                if (machine != null) machineDistance = distance;
+                return;
+            }
+            if (currentMachine != null) currentMachine.SetHighlight(false);
+            currentMachine = machine;
+            machineDistance = machine != null ? distance : 0f;
+            if (currentMachine != null) currentMachine.SetHighlight(true);
+        }
+
         void Clear()
         {
             if (current != null) current.SetHighlight(false);
             current = null;
             CurrentDistance = 0f;
+            SetMachine(null); // 面板打开/暂停时取消机器高亮，关闭后由下一帧重新检测
             SetDurability(0, 0);
         }
 

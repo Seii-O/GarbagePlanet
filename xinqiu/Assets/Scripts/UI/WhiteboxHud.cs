@@ -186,7 +186,7 @@ namespace TrashPlanet.Whitebox
             if (hintLeft > 0f && !game.IsUiBlocking)
             {
                 GUI.Label(new Rect(20f, 16f, Screen.width - 40f, 22f),
-                    "WASD 移动 · 鼠标看视角 · 左键拾取/拆解 · M 中转站 · R 转盘 · I 背包 · B 交易 · Q 切专精 · F1 调试 · F5 新局 · F9 存档 · ESC 暂停");
+                    "WASD 移动 · 鼠标看视角 · 左键拾取/拆解 · F 对准老虎机抽奖 · M 中转站 · I 背包 · B 交易 · Q 切专精 · F1 调试 · F5 新局 · F9 存档 · ESC 暂停");
             }
 
             if (DebugVisible && !game.IsUiBlocking)

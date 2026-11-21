@@ -42,6 +42,7 @@ namespace TrashPlanet.Whitebox
         [SerializeField] CoinTradeSystem coinTrade;// 独立金币交易（B 键，运行时补建）
         [SerializeField] InGameSaveView inGameSave;  // 局内存档面板（F6，运行时补建）
         [SerializeField] SceneryDecorSystem scenery; // 场景装饰生态联动（ART-013，由 Builder 写入）
+        [SerializeField] PurificationSystem purification; // 星球净化区（MECH-011，运行时补建/Builder 写入）
 
         [Header("中转站交互半径")]
         [Tooltip("仅用于非星球场景（无 planetCenter）的兼容判定；星球场景内 M 键可在任意位置打开中转站。")]
@@ -76,6 +77,7 @@ namespace TrashPlanet.Whitebox
         public CoinTradeSystem CoinTrade => coinTrade;
         public InGameSaveView InGameSave => inGameSave;
         public SceneryDecorSystem Scenery => scenery;
+        public PurificationSystem Purification => purification;
         public bool IsPaused => paused;
         public bool StationOpen => stationOpen;
         public bool IsUiBlocking => paused || stationOpen || (gacha != null && gacha.IsOpen)
@@ -119,6 +121,9 @@ namespace TrashPlanet.Whitebox
 
         /// <summary>单独注入场景装饰联动系统（SceneryDecorBuilder 生成后调用）。</summary>
         public void WireScenery(SceneryDecorSystem s) { scenery = s; }
+
+        /// <summary>单独注入星球净化系统（PurificationBuilder 生成后调用）。</summary>
+        public void WirePurification(PurificationSystem p) { purification = p; }
 
         void Awake()
         {
@@ -221,6 +226,10 @@ namespace TrashPlanet.Whitebox
             if (coinTrade == null) coinTrade = gameObject.AddComponent<CoinTradeSystem>();
             coinTrade.Init(this);
             eco.Init(this);
+            // 净化区必须在 spawner 之前 Init：初始撒点要靠 IsPurified 排除中转站周围已净化土地。
+            // 旧场景无 Builder 引用时补建，组件内部会退回 game.Station 作为唯一中心。
+            if (purification == null) purification = gameObject.AddComponent<PurificationSystem>();
+            purification.Init(this);
             if (scenery == null) scenery = gameObject.AddComponent<SceneryDecorSystem>(); // 旧场景无 Builder 引用时补建
             scenery.Init(this); // 装饰联动：只读 eco.Stage 驱动视觉反馈，不写任何玩法/生态数值
             hud.Init(this);
@@ -283,11 +292,11 @@ namespace TrashPlanet.Whitebox
             }
 
             // 策划案 §6.4 / UI-004：同一帧只取一个输入，互斥优先级
-            // 背包(I) > 交易(B) > 转盘(R) > 中转站(M) > 暂停(ESC) > 专精(Q)。
-            // 两套新面板各有独立快捷键与独立视图，开其中一个必关其他，杜绝功能混用与面板叠加。
+            // 背包(I) > 交易(B) > 中转站(M) > 暂停(ESC) > 专精(Q)。
+            // 转盘不再有独立快捷键：只由场景内老虎机在准星对准、按 F 时经 InteractionController 弹出。
+            // 抽奖面板与其它面板仍走同一套互斥（OpenGachaFromMachine → ClosePanelsExcept）。
             bool bagKey = Input.GetKeyDown(KeyCode.I);
             bool tradeKey = Input.GetKeyDown(KeyCode.B);
-            bool gachaKey = Input.GetKeyDown(KeyCode.R);
             bool stationKey = Input.GetKeyDown(KeyCode.M);
             bool pauseKey = Input.GetKeyDown(KeyCode.Escape);
             bool specKey = Input.GetKeyDown(KeyCode.Q);
@@ -298,11 +307,6 @@ namespace TrashPlanet.Whitebox
             else if (tradeKey)
             {
                 if (!state.finished && !paused && coinTrade != null) ToggleCoinTrade();
-            }
-            else if (gachaKey)
-            {
-                // 结算态 R 不响应；否则转盘打开时 R 关闭、关闭时 R 打开，同一帧只走一个
-                if (!state.finished && gacha != null) ToggleGacha();
             }
             else if (stationKey)
             {
@@ -364,12 +368,16 @@ namespace TrashPlanet.Whitebox
             ApplyUiState();
         }
 
-        void ToggleGacha()
+        /// <summary>
+        /// 场景老虎机 F 交互的打开入口（由 InteractionController → SlotMachine.Interact 转调）。
+        /// 带面板互斥：打开抽奖面板前先关掉背包/交易/存档/中转站；结算态与暂停态不响应。
+        /// 面板已开时不再重复打开（此时关闭走 ESC / 面板的关闭按钮）。
+        /// </summary>
+        public void OpenGachaFromMachine()
         {
-            bool opening = gacha == null || !gacha.IsOpen;
+            if (state == null || state.finished || paused || gacha == null || gacha.IsOpen) return;
             ClosePanelsExcept("gacha");
-            if (opening && !stationOpen && !paused) gacha.Toggle();
-            else if (gacha != null && gacha.IsOpen) gacha.Close();
+            gacha.Open();
             ApplyUiState();
         }
 
@@ -448,6 +456,7 @@ namespace TrashPlanet.Whitebox
         {
             if (quest != null) quest.Evaluate();
             if (eco != null) eco.Refresh(true);
+            if (purification != null) purification.Refresh(); // 进度推进后即时回收净化区内垃圾、扩张边界
         }
 
         public void Notice(string text)

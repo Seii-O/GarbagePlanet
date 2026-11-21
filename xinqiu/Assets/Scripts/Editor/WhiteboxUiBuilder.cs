@@ -29,9 +29,10 @@ namespace TrashPlanet.Whitebox.Editor
     public static class WhiteboxUiBuilder
     {
         public const string RootName = "UI_Whitebox";
-        // v2：新增「数量选择弹窗 + ⑤ 升级背包」区块。改版本号 = 让已存在的编辑器会话在脚本重载后
+        // v3：新增「退出确认框 Panel_QuitConfirm」。改版本号 = 让已存在的编辑器会话在脚本重载后
         // 也重新走一次补齐（SessionState 跨域重载保持，不换 key 就永远不再补）。
-        const string SessionKey = "TrashPlanet.Whitebox.Ui.AutoBuilt.v2";
+        // v2 曾是「数量选择弹窗 + ⑤ 升级背包」。
+        const string SessionKey = "TrashPlanet.Whitebox.Ui.AutoBuilt.v3";
         const string Tag = "[WhiteboxUiBuilder] ";
 
         static readonly Color PanelBg = new Color(0.09f, 0.11f, 0.12f, 0.93f);
@@ -188,6 +189,7 @@ namespace TrashPlanet.Whitebox.Editor
 
             // 按名字补空引用；已绑定的非空引用保持不变
             changed |= EnsureStationExtras(ui.transform, game);
+            changed |= EnsureQuitConfirm(ui.transform, game);
             view.EditorResolve();
             changed |= EnsureButtonBindings(ui.transform, actions);
 
@@ -318,7 +320,7 @@ namespace TrashPlanet.Whitebox.Editor
 
             // ⑨ 常驻提示文字
             Txt(r, "Txt_Hint",
-                "WASD 移动 · 鼠标看视角 · 左键拾取/拆解 · M 中转站 · R 转盘 · I 背包 · B 交易 · Q 切专精 · F1 调试 · F5 新局 · F9 存档 · ESC 暂停",
+                "WASD 移动 · 鼠标看视角 · 左键拾取/拆解 · F 对准老虎机抽奖 · M 中转站 · I 背包 · B 交易 · Q 切专精 · F1 调试 · F5 新局 · F9 存档 · ESC 暂停",
                 new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(1500f, 30f),
                 new Vector2(0f, -14f), 15, TextColor, TextAnchor.MiddleCenter, font);
             Txt(r, "Txt_Notice", "", BottomLeft, BottomLeft, new Vector2(1000f, 30f),
@@ -387,6 +389,47 @@ namespace TrashPlanet.Whitebox.Editor
                 StationQuantityDialog dialog = FindTransform(uiRoot, "Panel_Quantity")
                     .GetComponent<StationQuantityDialog>();
                 if (dialog != null && dialog.Game == null && game != null) { dialog.Game = game; changed = true; }
+            }
+            return changed;
+        }
+
+        /// <summary>
+        /// 补齐局内「退出 → 是否存档」确认框：面板 + 标题 + 提示 + 【是】【否】按钮，
+        /// 并把 QuitConfirmDialog 挂到 UI 根（它从自身层级按名字找面板）。
+        /// 幂等：面板已存在则不重建，只补缺失的组件与 game 引用。
+        /// </summary>
+        static bool EnsureQuitConfirm(Transform uiRoot, WhiteboxGame game)
+        {
+            bool changed = false;
+            Font font = LoadFont();
+            Transform panel = FindTransform(uiRoot, QuitConfirmDialog.PanelName);
+            if (panel == null)
+            {
+                GameObject p = Panel(uiRoot, QuitConfirmDialog.PanelName, new Vector2(460f, 250f),
+                    Vector2.zero, Center, Center, PanelBg);
+                // 确认框要盖在暂停/结算面板之上：设在 UI 根下且排最后（后创建 = 后渲染）
+                p.transform.SetAsLastSibling();
+                TopLabel(p.transform, "Txt_QuitTitle", "退出前是否存档？", 14f, 420f, 22, Accent, font);
+                TopLabel(p.transform, "Txt_QuitHint", "是：选槽保存后回主界面　·　否：不存档直接回主界面",
+                    52f, 424f, 14, TextColor, font);
+                TopButton(p.transform, "Btn_QuitYes", "是 · 存档后退出", 96f, 420f, 46f, font);
+                TopButton(p.transform, "Btn_QuitNo", "否 · 直接退出", 158f, 420f, 46f, font);
+                p.SetActive(false);
+                panel = p.transform;
+                changed = true;
+                Debug.Log(Tag + "已补退出确认框 " + QuitConfirmDialog.PanelName + "（是/否）");
+            }
+
+            QuitConfirmDialog dialog = uiRoot.GetComponent<QuitConfirmDialog>();
+            if (dialog == null)
+            {
+                dialog = uiRoot.gameObject.AddComponent<QuitConfirmDialog>();
+                changed = true;
+            }
+            if (dialog != null && dialog.Game == null && game != null)
+            {
+                dialog.Game = game;
+                changed = true;
             }
             return changed;
         }

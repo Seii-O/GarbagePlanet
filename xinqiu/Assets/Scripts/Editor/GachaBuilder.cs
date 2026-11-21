@@ -1,4 +1,6 @@
-// 新增玩法：垃圾堆隐藏款 + 转盘奖励（参考图圆形平面转盘风格）
+// 新增玩法：垃圾堆隐藏款 + 场景内老虎机抽奖（转盘改造）
+// 红线与 WhiteboxUiBuilder 一致：全部 Editor API 生成，不手写 .unity / .asset YAML。
+// 布局：① 场景里一台老虎机实体（走近对准按 F）；② 弹出式小型三转轮面板（无常驻界面）。
 using System.IO;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -9,30 +11,77 @@ using UnityEngine.UI;
 namespace TrashPlanet.Whitebox.Editor
 {
     /// <summary>
-    /// 转盘玩法的一键生成 + 接线（Tools/垃圾星球白膜/⑨ 生成转盘配置与界面）。
-    /// 红线与 WhiteboxUiBuilder 一致：全部 Editor API 生成，不手写 .unity / .asset YAML。
-    /// 圆形盘面：10 扇区（7 普通 / 2 精英 / 1 史诗，含 2 个"再接再厉"空奖文案）、
-    /// 红黄交替灯泡外环、中心圆形开始按钮、黑色三角指针；扇区布局与旋转落点共用 WheelLayout。
-    /// 旧版方形界面在重跑菜单时自动重建；⑩ 为强制重建入口。
+    /// 老虎机玩法一键生成 + 接线（Tools/垃圾星球白膜/⑨ 生成老虎机配置、实体与面板）。
+    /// - 配置：Assets/Data/GachaConfig.asset（奖品/权重/保底，沿用旧转盘）。
+    /// - 场景实体：env_slotmachine_whitebox（预制体 + 实例，放中转站旁），带 SlotMachine 交互组件与碰撞体。
+    /// - 面板：UI_Whitebox/Panel_Gacha（520×560 小型三转轮，平时隐藏，只由 F 交互弹出）。
+    /// 旧圆形转盘面板会在重跑菜单时自动被替换为新转轮面板；⑩ 为强制重建入口。
     /// </summary>
+    [InitializeOnLoad]
     public static class GachaBuilder
     {
+        // 域重载后自动补齐一次：把旧圆形转盘换成老虎机实体 + 三转轮面板。
+        // 换 key = 让已存在的编辑器会话在脚本重编译后重新走一次补齐。
+        const string AutoKey = "TrashPlanet.Gacha.SlotMachine.v1";
+
+        static GachaBuilder()
+        {
+            EditorApplication.delayCall += AutoEnsure;
+            EditorApplication.update += AutoEnsure;
+        }
+
+        static void AutoEnsure()
+        {
+            if (Application.isBatchMode || EditorApplication.isPlayingOrWillChangePlaymode) return;
+            if (SessionState.GetBool(AutoKey, false)) { EditorApplication.update -= AutoEnsure; return; }
+            if (EditorApplication.isCompiling || EditorApplication.isUpdating) return;
+            Scene scene = SceneManager.GetActiveScene();
+            if (!scene.IsValid() || scene.path != WhiteboxBuilder.ScenePath) return; // 不在白膜场景：等菜单⑨
+            // 等 UI / sys / WorldRoot 就绪（由菜单 ①④ 生成），这一轮不消费 key
+            if (FindRoot(scene, UiRoot) == null || FindRoot(scene, SysRoot) == null
+                || FindRoot(scene, WorldRoot) == null) return;
+
+            SessionState.SetBool(AutoKey, true);
+            EditorApplication.update -= AutoEnsure;
+            Build(); // 幂等：已有实体/面板且不旧 → 只接线，不重建
+            Debug.Log(Tag + "已自动补齐场景老虎机与转轮面板");
+        }
+
         const string ConfigPath = "Assets/Data/GachaConfig.asset";
         const string UiRoot = "UI_Whitebox";
+        const string WorldRoot = "WorldRoot";
+        const string SysRoot = "sys_whitebox";
         const string PanelName = "Panel_Gacha";
+        const string MachineName = "env_slotmachine_whitebox";
+        const string MachinePrefabPath = "Assets/Prefabs/Whitebox/env_slotmachine_whitebox.prefab";
+        const string MaterialFolder = "Assets/Art/Materials";
         const string Tag = "[GachaBuilder] ";
 
         static readonly Color PanelBg = new Color(0.06f, 0.12f, 0.11f, 0.97f);
-        static readonly Color DiscBg = new Color(0.09f, 0.20f, 0.18f, 1f);
+        static readonly Color WindowBg = new Color(0.03f, 0.07f, 0.07f, 1f);
         static readonly Color BtnBg = new Color(0.20f, 0.26f, 0.27f, 0.97f);
         static readonly Color TextColor = new Color(0.96f, 0.97f, 0.94f, 1f);
         static readonly Color Accent = new Color(0.24f, 0.84f, 0.75f, 1f);
         static readonly Color EpicC = Hex("#E2B84E");
-        static readonly Color LampRed = Hex("#E8362B");
-        static readonly Color LampYellow = Hex("#FFD42A");
         static readonly Vector2 Center = new Vector2(0.5f, 0.5f);
 
-        [MenuItem("Tools/垃圾星球白膜/⑨ 生成转盘配置与界面", false, 16)]
+        // 三转轮的 9 行符号（从上到下索引 0..8）：普通 6 行 / 精英 2 行 / 史诗 1 行。
+        // 与 GachaPanelView.RarityRowIndex 的落点一一对应，改这里必须同步改那边。
+        static readonly string[] ReelSymbols =
+        {
+            "普通 ★", "普通 ☆", "普通 ◆", "精英 ◆", "普通 ●",
+            "普通 ▲", "普通 ■", "精英 ★", "史诗 ★"
+        };
+        static readonly string[] ReelSymbolColors =
+        {
+            "#FFC93C", "#FFD54F", "#FF7043", "#42A5F5", "#EC407A",
+            "#FB8C00", "#FF8A65", "#7E57C2", "#E53935"
+        };
+        const float ReelRowHeight = 58f;   // 每行高
+        const int ReelRows = 9;            // 行数，和 ReelSymbols 长度一致
+        const float ReelWindowHeight = 174f; // 可见 3 行
+
+        [MenuItem("Tools/垃圾星球白膜/⑨ 生成老虎机配置、实体与面板", false, 16)]
         public static void Build()
         {
             Scene scene = SceneManager.GetActiveScene();
@@ -44,39 +93,18 @@ namespace TrashPlanet.Whitebox.Editor
 
             GachaConfig cfg = EnsureConfig();
             GameObject uiRoot = FindRoot(scene, UiRoot);
-            if (uiRoot == null)
+            GameObject sys = FindRoot(scene, SysRoot);
+            GameObject world = FindRoot(scene, WorldRoot);
+            if (uiRoot == null || sys == null || world == null)
             {
-                Debug.LogError(Tag + "未找到 " + UiRoot + " 画布，请先跑菜单 ④ 生成 Hierarchy UI");
+                Debug.LogError(Tag + "缺少 UI_Whitebox / sys_whitebox / WorldRoot，请先跑菜单 ① 和 ④");
                 return;
             }
 
             bool changed = false;
-            GameObject panel = FindChild(uiRoot.transform, PanelName);
-            if (panel != null && FindChild(panel.transform, "Wheel_Disc") == null)
-            {
-                // 旧版方形盘面：整体重建，避免新旧扇区坐标混用导致指针落点错位
-                UnityEngine.Object.DestroyImmediate(panel);
-                panel = null;
-            }
-            if (panel == null) { panel = BuildPanel(uiRoot.transform); changed = true; }
-
-            GachaPanelView view = uiRoot.GetComponent<GachaPanelView>();
-            if (view == null) { view = uiRoot.AddComponent<GachaPanelView>(); changed = true; }
-
-            GameObject sys = FindRoot(scene, "sys_whitebox");
-            if (sys == null)
-            {
-                Debug.LogError(Tag + "未找到 sys_whitebox，请先跑菜单 ① 生成场景与预制体");
-                return;
-            }
-            GachaSystem gacha = sys.GetComponent<GachaSystem>();
-            if (gacha == null) { gacha = sys.AddComponent<GachaSystem>(); changed = true; }
-            gacha.Wire(cfg, view);
-            EditorUtility.SetDirty(gacha);
-
-            WhiteboxGame game = sys.GetComponent<WhiteboxGame>();
-            if (game != null) { game.WireGacha(gacha); EditorUtility.SetDirty(game); }
-            else Debug.LogWarning(Tag + "sys_whitebox 上未找到 WhiteboxGame，转盘已生成但未接入启动链");
+            changed |= EnsureMachine(scene, world, sys);
+            changed |= EnsurePanel(uiRoot);
+            changed |= WireAll(scene, sys, uiRoot, cfg);
 
             if (changed)
             {
@@ -84,12 +112,12 @@ namespace TrashPlanet.Whitebox.Editor
                 EditorSceneManager.SaveScene(scene);
             }
             AssetDatabase.SaveAssets();
-            Debug.Log(Tag + "完成：配置=" + ConfigPath + "，界面=" + UiRoot + "/" + PanelName
-                      + "，系统=sys_whitebox/GachaSystem（changed=" + changed + "）");
+            Debug.Log(Tag + "完成：配置=" + ConfigPath + "，实体=" + WorldRoot + "/" + MachineName
+                      + "，面板=" + UiRoot + "/" + PanelName + "（changed=" + changed + "）");
         }
 
-        [MenuItem("Tools/垃圾星球白膜/⑩ 重建转盘界面（圆形扇区）", false, 17)]
-        public static void RebuildPanel()
+        [MenuItem("Tools/垃圾星球白膜/⑩ 重建老虎机面板与实体", false, 17)]
+        public static void Rebuild()
         {
             Scene scene = SceneManager.GetActiveScene();
             if (!scene.IsValid() || scene.path != WhiteboxBuilder.ScenePath)
@@ -98,13 +126,23 @@ namespace TrashPlanet.Whitebox.Editor
                 return;
             }
             GameObject uiRoot = FindRoot(scene, UiRoot);
-            if (uiRoot == null) { Debug.LogError(Tag + "未找到 " + UiRoot); return; }
-            GameObject panel = FindChild(uiRoot.transform, PanelName);
-            if (panel != null) UnityEngine.Object.DestroyImmediate(panel);
-            BuildPanel(uiRoot.transform);
+            GameObject sys = FindRoot(scene, SysRoot);
+            GameObject world = FindRoot(scene, WorldRoot);
+            if (uiRoot == null || sys == null || world == null) { Debug.LogError(Tag + "缺少场景根节点"); return; }
+
+            GameObject oldPanel = FindChild(uiRoot.transform, PanelName);
+            if (oldPanel != null) UnityEngine.Object.DestroyImmediate(oldPanel);
+            GameObject oldMachine = FindChild(world.transform, MachineName);
+            if (oldMachine != null) UnityEngine.Object.DestroyImmediate(oldMachine);
+
+            EnsurePrefab();
+            EnsureMachine(scene, world, sys);
+            EnsurePanel(uiRoot);
+            WireAll(scene, sys, uiRoot, EnsureConfig());
             EditorSceneManager.MarkSceneDirty(scene);
             EditorSceneManager.SaveScene(scene);
-            Debug.Log(Tag + "圆形转盘界面已重建");
+            AssetDatabase.SaveAssets();
+            Debug.Log(Tag + "老虎机面板与实体已重建");
         }
 
         /// <summary>批处理入口，供命令行 / CI 调用。</summary>
@@ -113,23 +151,13 @@ namespace TrashPlanet.Whitebox.Editor
             Scene scene = EditorSceneManager.OpenScene(WhiteboxBuilder.ScenePath, OpenSceneMode.Single);
             GachaConfig cfg = EnsureConfig();
             GameObject uiRoot = FindRoot(scene, UiRoot);
-            GameObject sys = FindRoot(scene, "sys_whitebox");
-            if (uiRoot == null || sys == null) { Debug.LogError(Tag + "batch: 缺少 UI 根或 sys_whitebox"); return; }
-
-            GameObject panel = FindChild(uiRoot.transform, PanelName);
-            if (panel == null || FindChild(panel.transform, "Wheel_Disc") == null)
-            {
-                if (panel != null) UnityEngine.Object.DestroyImmediate(panel);
-                panel = BuildPanel(uiRoot.transform);
-            }
-            GachaPanelView view = uiRoot.GetComponent<GachaPanelView>();
-            if (view == null) view = uiRoot.AddComponent<GachaPanelView>();
-            GachaSystem gacha = sys.GetComponent<GachaSystem>();
-            if (gacha == null) gacha = sys.AddComponent<GachaSystem>();
-            gacha.Wire(cfg, view);
-            WhiteboxGame game = sys.GetComponent<WhiteboxGame>();
-            if (game != null) game.WireGacha(gacha);
-
+            GameObject sys = FindRoot(scene, SysRoot);
+            GameObject world = FindRoot(scene, WorldRoot);
+            if (uiRoot == null || sys == null || world == null) { Debug.LogError(Tag + "batch: 缺少场景根节点"); return; }
+            EnsurePrefab();
+            EnsureMachine(scene, world, sys);
+            EnsurePanel(uiRoot);
+            WireAll(scene, sys, uiRoot, cfg);
             EditorSceneManager.MarkSceneDirty(scene);
             EditorSceneManager.SaveScene(scene);
             AssetDatabase.SaveAssets();
@@ -161,121 +189,216 @@ namespace TrashPlanet.Whitebox.Editor
             }
         }
 
-        static GameObject BuildPanel(Transform canvas)
+        // ------------------------------------------------------------------
+        // 场景实体：老虎机
+        // ------------------------------------------------------------------
+
+        /// <summary>确保老虎机预制体存在（Editor API 生成，不手写 prefab YAML）。</summary>
+        static void EnsurePrefab()
         {
-            Font font = UiFont.Load();
-            GameObject panel = Panel(canvas, PanelName, new Vector2(820f, 760f), Vector2.zero, PanelBg);
+            if (AssetDatabase.LoadAssetAtPath<GameObject>(MachinePrefabPath) != null) return;
+            if (!AssetDatabase.IsValidFolder("Assets/Prefabs/Whitebox"))
+                AssetDatabase.CreateFolder("Assets/Prefabs", "Whitebox");
 
-            Txt(panel.transform, "Txt_Title", "垃圾星球 · 幸运转盘", new Vector2(0f, 348f),
-                new Vector2(560f, 44f), 26, Accent, TextAnchor.MiddleCenter, font);
-            Txt(panel.transform, "Txt_Tickets", "转盘券  ×0", new Vector2(-250f, 300f),
-                new Vector2(280f, 34f), 20, TextColor, TextAnchor.MiddleLeft, font);
-            Txt(panel.transform, "Txt_Draws", "已抽  0 次", new Vector2(250f, 300f),
-                new Vector2(280f, 34f), 18, TextColor, TextAnchor.MiddleRight, font);
-            Txt(panel.transform, "Txt_Pity", "距史诗保底  --", new Vector2(0f, 268f),
-                new Vector2(700f, 30f), 16, EpicC, TextAnchor.MiddleCenter, font);
+            GameObject root = new GameObject(MachineName);
+            // 机身主体：带碰撞体，准星射线靠它命中并 GetComponentInParent<SlotMachine>()
+            GameObject body = Primitive(root.transform, "Body", PrimitiveType.Cube,
+                new Vector3(1.1f, 1.9f, 0.7f), new Vector3(0f, 0.95f, 0f), Mat("M_Station_Whitebox.mat", Hex("#DBD5C5")), true);
+            // 顶部漏斗（呼应参考图里的投入口）
+            Primitive(root.transform, "Hopper", PrimitiveType.Cylinder,
+                new Vector3(0.5f, 0.28f, 0.5f), new Vector3(0f, 2.02f, 0f), Mat("M_Rust_Whitebox.mat", Hex("#8C3E2E")), false);
+            // 屏幕：发光青色，作为准星高亮对象
+            GameObject screen = Primitive(root.transform, "Screen", PrimitiveType.Cube,
+                new Vector3(0.82f, 0.78f, 0.06f), new Vector3(0f, 1.28f, 0.38f), Mat("M_SlotScreen_Whitebox.mat", new Color(0.10f, 0.55f, 0.52f)), false);
+            // 三转轮窗口装饰（竖条，纯视觉，呼应面板里的三个转轮）
+            for (int i = 0; i < 3; i++)
+                Primitive(screen.transform, "ReelWin_" + i, PrimitiveType.Cube,
+                    new Vector3(0.22f, 0.5f, 0.02f), new Vector3(-0.26f + i * 0.26f, 0f, -0.62f),
+                    Mat("M_SlotReel_Whitebox.mat", new Color(0.04f, 0.10f, 0.09f)), false);
+            // 拉杆
+            Primitive(root.transform, "Lever", PrimitiveType.Cylinder,
+                new Vector3(0.07f, 0.5f, 0.07f), new Vector3(0.72f, 1.0f, 0.18f), Mat("M_Rust_Whitebox.mat", Hex("#8C3E2E")), false);
+            // 底座
+            Primitive(root.transform, "Base", PrimitiveType.Cube,
+                new Vector3(1.3f, 0.18f, 0.9f), new Vector3(0f, 0.09f, 0f), Mat("M_Landmark_Whitebox.mat", Hex("#5C5340")), false);
 
-            BuildWheel(panel.transform, font);
+            // 交互组件：注入 Game 与高亮渲染器（Builder 注入，不改场景 YAML 手编）
+            SlotMachine slot = root.AddComponent<SlotMachine>();
+            slot.WireHighlight(screen.GetComponent<Renderer>());
+            PrefabUtility.SaveAsPrefabAsset(root, MachinePrefabPath);
+            UnityEngine.Object.DestroyImmediate(root);
+            AssetDatabase.SaveAssets();
+            Debug.Log(Tag + "已生成老虎机预制体：" + MachinePrefabPath);
+        }
 
-            Txt(panel.transform, "Txt_Result", "", new Vector2(0f, -300f),
-                new Vector2(780f, 76f), 19, TextColor, TextAnchor.MiddleCenter, font);
-            Txt(panel.transform, "Txt_Hint", "点中心【开始】消耗 1 券　·　R 关闭",
-                new Vector2(0f, -352f), new Vector2(780f, 26f), 15,
-                new Color(0.72f, 0.75f, 0.72f, 1f), TextAnchor.MiddleCenter, font);
-            Btn(panel.transform, "Btn_Close", "关  闭  (R)", new Vector2(320f, 348f),
-                new Vector2(150f, 44f), font, BtnBg);
+        /// <summary>确保场景里有一台老虎机实例，摆在中转站旁的球面上。</summary>
+        static bool EnsureMachine(Scene scene, GameObject world, GameObject sys)
+        {
+            bool changed = false;
+            EnsurePrefab();
+            GameObject machine = FindChild(world.transform, MachineName);
+            if (machine == null)
+            {
+                GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(MachinePrefabPath);
+                if (prefab == null) { Debug.LogError(Tag + "老虎机预制体缺失"); return false; }
+                machine = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
+                machine.name = MachineName;
+                machine.transform.SetParent(world.transform, true);
+                changed = true;
+            }
+
+            // 摆位：中转站在 Vector3.forward 方向，老虎机放在它稍偏右的位置，面向球心。
+            WhiteboxConfig cfg = AssetDatabase.LoadAssetAtPath<WhiteboxConfig>("Assets/Data/WhiteboxConfig.asset");
+            float radius = cfg != null ? cfg.PlanetRadius : 8f;
+            Vector3 dir = (Vector3.forward + Vector3.right * 0.32f).normalized;
+            SphericalSurface.Place(machine.transform, Vector3.zero, dir, radius, 0.02f, -dir);
+
+            // 保证碰撞体与交互组件齐全（旧实例可能缺）
+            BoxCollider col = machine.GetComponent<BoxCollider>();
+            if (col == null) { col = machine.AddComponent<BoxCollider>(); col.size = new Vector3(1.2f, 2.1f, 0.9f); col.center = new Vector3(0f, 1.05f, 0f); changed = true; }
+            if (machine.GetComponent<SlotMachine>() == null) { machine.AddComponent<SlotMachine>(); changed = true; }
+            EditorUtility.SetDirty(machine);
+            return changed;
+        }
+
+        // ------------------------------------------------------------------
+        // 面板：小型三转轮
+        // ------------------------------------------------------------------
+
+        static bool EnsurePanel(GameObject uiRoot)
+        {
+            GameObject panel = FindChild(uiRoot.transform, PanelName);
+            // 旧圆形转盘（有 Wheel_Disc）或旧结构（缺 Reel_View_0）→ 整体重建
+            bool old = panel != null && (FindChild(panel.transform, "Wheel_Disc") != null
+                                         || FindChild(panel.transform, "Reel_View_0") == null);
+            if (old) { UnityEngine.Object.DestroyImmediate(panel); panel = null; }
+            if (panel == null) { BuildPanel(uiRoot.transform); return true; }
+            return false;
+        }
+
+        static void BuildPanel(Transform canvas)
+        {
+            GameObject panel = Panel(canvas, PanelName, new Vector2(520f, 560f), Vector2.zero, PanelBg);
+
+            Txt(panel.transform, "Txt_Title", "老虎机 · 幸运抽奖", new Vector2(0f, 250f),
+                new Vector2(420f, 42f), 26, Accent, TextAnchor.MiddleCenter, UiFont.Load());
+            Txt(panel.transform, "Txt_Tickets", "抽奖券  ×0", new Vector2(-120f, 210f),
+                new Vector2(220f, 30f), 18, TextColor, TextAnchor.MiddleLeft, UiFont.Load());
+            Txt(panel.transform, "Txt_Draws", "已抽  0 次", new Vector2(150f, 210f),
+                new Vector2(180f, 30f), 16, TextColor, TextAnchor.MiddleRight, UiFont.Load());
+            Txt(panel.transform, "Txt_Pity", "距史诗保底  --", new Vector2(0f, 182f),
+                new Vector2(460f, 26f), 14, EpicC, TextAnchor.MiddleCenter, UiFont.Load());
+
+            BuildReels(panel.transform);
+
+            Txt(panel.transform, "Txt_Result", "", new Vector2(0f, -150f),
+                new Vector2(470f, 72f), 17, TextColor, TextAnchor.MiddleCenter, UiFont.Load());
+            Txt(panel.transform, "Txt_Hint", "", new Vector2(0f, -204f),
+                new Vector2(470f, 26f), 14, new Color(0.72f, 0.75f, 0.72f, 1f), TextAnchor.MiddleCenter, UiFont.Load());
+
+            Btn(panel.transform, "Btn_Draw", "S P I N  (1券)", new Vector2(-95f, -248f),
+                new Vector2(210f, 46f), UiFont.Load(), new Color(0.16f, 0.42f, 0.38f, 0.98f));
+            Btn(panel.transform, "Btn_Close", "关  闭", new Vector2(150f, -248f),
+                new Vector2(140f, 46f), UiFont.Load(), BtnBg);
 
             panel.SetActive(false);
             EditorUtility.SetDirty(panel);
-            return panel;
         }
 
-        /// <summary>圆形平面转盘：底板 → 10 扇区 → 红黄灯泡环 → 扇区文字 → 指针 → 中心开始按钮。</summary>
-        static void BuildWheel(Transform panel, Font font)
+        /// <summary>三个转轮窗口：每个窗口 RectMask2D 裁剪，内部视图含 9 行符号带，可沿 Y 滚动。</summary>
+        static void BuildReels(Transform panel)
         {
-            RectTransform wheel = Rect(panel, "Wheel", Center, Center,
-                new Vector2(500f, 500f), new Vector2(0f, -6f), false);
+            const float reelW = 132f;
+            const float gap = 18f;
+            float totalW = reelW * 3f + gap * 2f;
+            float startX = -totalW * 0.5f + reelW * 0.5f;
+            Font font = UiFont.Load();
 
-            // 底板（深色圆盘 + 白边），作为"旧界面检测"标记 Wheel_Disc
-            Disc(wheel, "Wheel_Disc", 220f, 3f, Color.white, DiscBg);
-
-            // 10 个扇区：颜色 / 文案全部来自 WheelLayout，与旋转落点共用
-            int n = WheelLayout.SectorCount;
-            for (int i = 0; i < n; i++)
+            for (int r = 0; r < 3; r++)
             {
-                float start = i * WheelLayout.SectorAngle;
-                Color fill = Hex(WheelLayout.ColorAt(i));
-                bool isEpic = WheelLayout.RarityAt(i) == GachaRarity.Epic;
-                bool isBlank = WheelLayout.LabelAt(i).Contains("再接");
-                // 描边分层：史诗金边加粗（最高层级）/ 空奖灰边弱化 / 其余白边
-                Color edge = isEpic ? EpicC : (isBlank ? new Color(0.62f, 0.68f, 0.72f, 1f)
-                                                       : new Color(1f, 1f, 1f, 0.92f));
-                WheelSectorGraphic sector = Sector(wheel, "Sec_" + i.ToString("00"),
-                    start, WheelLayout.SectorAngle, 214f, 0f, isEpic ? 5f : 3f, edge, fill);
-                sector.raycastTarget = false;
+                float x = startX + r * (reelW + gap);
+                RectTransform win = Rect(panel, "Reel_Window_" + r, Center, Center,
+                    new Vector2(reelW, ReelWindowHeight), new Vector2(x, 18f), true);
+                Image winBg = win.gameObject.AddComponent<Image>();
+                winBg.color = WindowBg;
+                winBg.raycastTarget = false;
+                win.gameObject.AddComponent<RectMask2D>();
 
-                float centerAngle = WheelLayout.CenterAngleAt(i);
-                Vector2 pos = new Vector2(Mathf.Sin(centerAngle * Mathf.Deg2Rad),
-                    Mathf.Cos(centerAngle * Mathf.Deg2Rad)) * 142f;
-                Color labelCol = isBlank ? new Color(0.88f, 0.92f, 0.95f, 1f) : Color.white;
-                Text sectorLabel = Txt(wheel, "Lbl_" + i.ToString("00"), WheelLayout.LabelAt(i), pos,
-                    new Vector2(118f, 82f), WheelLayout.LabelAt(i).Contains("\n") ? 19 : 24,
-                    labelCol, TextAnchor.MiddleCenter, font);
-                sectorLabel.fontStyle = FontStyle.Bold;
-                // 文字朝向：本地 up 指向扇区外侧，读数方向与参考图一致
-                sectorLabel.rectTransform.localEulerAngles = new Vector3(0f, 0f, -centerAngle);
-                Outline outline = sectorLabel.gameObject.AddComponent<Outline>();
-                outline.effectColor = new Color(0f, 0f, 0f, 0.72f);
-                outline.effectDistance = new Vector2(1.5f, -1.5f);
-                sectorLabel.raycastTarget = false;
+                // 视图：高 = 行数 × 行高；pivot 中心；初始 restY 使第 0 行落在窗口中心偏上
+                RectTransform view = Rect(win, "Reel_View_" + r, Center, Center,
+                    new Vector2(reelW - 8f, ReelRows * ReelRowHeight), Vector2.zero, false);
+                // 行 0 在视图内局部 y = +232；要让行 0 落在窗口中心(y=0)，视图需下移 232。
+                float restY = -(ReelRows - 1) * 0.5f * ReelRowHeight;
+                view.anchoredPosition = new Vector2(0f, restY);
+                for (int i = 0; i < ReelRows; i++)
+                {
+                    float rowY = (ReelRows - 1) * 0.5f * ReelRowHeight - i * ReelRowHeight;
+                    Text row = Txt(view, "Reel_Row_" + r + "_" + i, ReelSymbols[i],
+                        new Vector2(0f, rowY), new Vector2(reelW - 12f, ReelRowHeight - 4f),
+                        15, Hex(ReelSymbolColors[i]), TextAnchor.MiddleCenter, font);
+                    row.fontStyle = FontStyle.Bold;
+                    row.raycastTarget = false;
+                }
+
+                // 中央窗口文字：显示本次中奖档（由运行时覆盖）
+                Text center = Txt(win, "Reel_Center_" + r, RarityLabel(r),
+                    new Vector2(0f, -ReelWindowHeight * 0.5f - 14f), new Vector2(reelW, 24f),
+                    14, new Color(0.86f, 0.87f, 0.84f, 1f), TextAnchor.MiddleCenter, font);
+                center.raycastTarget = false;
             }
 
-            // 红黄交替灯泡外环：40 段弧 + 每段白色圆点
-            const int lampCount = 40;
-            float lampStep = 360f / lampCount;
-            for (int i = 0; i < lampCount; i++)
-            {
-                Color c = (i % 2 == 0) ? LampRed : LampYellow;
-                WheelSectorGraphic lamp = Sector(wheel, "Lamp_" + i.ToString("00"),
-                    i * lampStep, lampStep, 240f, 222f, 1.5f, Color.white, c);
-                lamp.raycastTarget = false;
-
-                float mid = (i + 0.5f) * lampStep;
-                Vector2 dotPos = new Vector2(Mathf.Sin(mid * Mathf.Deg2Rad),
-                    Mathf.Cos(mid * Mathf.Deg2Rad)) * 231f;
-                RectTransform dotRt = Rect(wheel, "LampDot_" + i.ToString("00"), Center, Center,
-                    new Vector2(10f, 10f), dotPos, false);
-                WheelSectorGraphic dot = dotRt.gameObject.AddComponent<WheelSectorGraphic>();
-                dot.Configure(0f, 360f, 5f, 0f, 0f, Color.white, Color.white);
-                dot.raycastTarget = false;
-            }
-
-            // 中央指针：pivot 在底部中心（盘心），旋转 z 即指向对应扇区（GachaPanelView 按名字取用）。
-            // 亮金描边 + 深棕主体 + 中轴高光，与彩色盘面强对比；长度伸到扇区中段、不压中心按钮。
-            RectTransform needle = Rect(wheel, "Wheel_Needle", Center, new Vector2(0.5f, 0f),
-                new Vector2(34f, 132f), Vector2.zero, false);
-            WheelNeedleGraphic needleGraphic = needle.gameObject.AddComponent<WheelNeedleGraphic>();
-            needleGraphic.Configure(5f, Hex("#FFD95B"), Hex("#241610"));
-            needleGraphic.raycastTarget = false;
-
-            // 中心圆形"开始"按钮：沿用 Btn_Draw 名称与运行时绑定，不新增交互入口
-            RectTransform hub = Rect(wheel, "Btn_Draw", Center, Center,
-                new Vector2(112f, 112f), Vector2.zero, true);
-            WheelSectorGraphic hubGraphic = hub.gameObject.AddComponent<WheelSectorGraphic>();
-            hubGraphic.Configure(0f, 360f, 54f, 0f, 5f, Hex("#FFD95B"), Hex("#F4511E"));
-            hubGraphic.raycastTarget = true;
-            Button draw = hub.gameObject.AddComponent<Button>();
-            draw.targetGraphic = hubGraphic;
-            draw.interactable = false;
-            RectTransform labelRt = Rect(hub, "Label", Center, Center, new Vector2(96f, 60f), Vector2.zero, false);
-            Text label = labelRt.gameObject.AddComponent<Text>();
-            label.font = font; label.fontSize = 28; label.fontStyle = FontStyle.Bold;
-            label.color = new Color(0.22f, 0.10f, 0.02f, 1f);
-            label.alignment = TextAnchor.MiddleCenter; label.text = "开 始";
-            label.raycastTarget = false;
+            // 中奖线：横贯三窗口的青色细线
+            RectTransform line = Rect(panel, "WinLine", Center, Center,
+                new Vector2(totalW + 24f, 3f), new Vector2(0f, 18f), false);
+            Image lineImg = line.gameObject.AddComponent<Image>();
+            lineImg.color = new Color(0.24f, 0.84f, 0.75f, 0.55f);
+            lineImg.raycastTarget = false;
         }
 
-        // --------------------------- UI 小工具（与 WhiteboxUiBuilder 同风格） ---------------------------
+        static string RarityLabel(int r)
+        {
+            return r == 1 ? "精英" : "普通";
+        }
+
+        // ------------------------------------------------------------------
+        // 接线：系统 / 视图 / 实体 / Game
+        // ------------------------------------------------------------------
+
+        static bool WireAll(Scene scene, GameObject sys, GameObject uiRoot, GachaConfig cfg)
+        {
+            bool changed = false;
+            GachaPanelView view = uiRoot.GetComponent<GachaPanelView>();
+            if (view == null) { view = uiRoot.AddComponent<GachaPanelView>(); changed = true; }
+
+            GachaSystem gacha = sys.GetComponent<GachaSystem>();
+            if (gacha == null) { gacha = sys.AddComponent<GachaSystem>(); changed = true; }
+            gacha.Wire(cfg, view);
+            EditorUtility.SetDirty(gacha);
+
+            WhiteboxGame game = sys.GetComponent<WhiteboxGame>();
+            if (game == null) { Debug.LogWarning(Tag + "sys_whitebox 上未找到 WhiteboxGame"); return changed; }
+            game.WireGacha(gacha);
+            EditorUtility.SetDirty(game);
+
+            // 老虎机实体注入 Game 引用（走互斥入口）+ 高亮渲染器
+            GameObject world = FindRoot(scene, WorldRoot);
+            GameObject machine = world != null ? FindChild(world.transform, MachineName) : null;
+            if (machine != null)
+            {
+                SlotMachine slot = machine.GetComponent<SlotMachine>();
+                if (slot != null)
+                {
+                    slot.Wire(game);
+                    Renderer screen = FindChild(machine.transform, "Screen") != null
+                        ? FindChild(machine.transform, "Screen").GetComponent<Renderer>() : null;
+                    if (screen != null) slot.WireHighlight(screen);
+                    EditorUtility.SetDirty(slot);
+                }
+            }
+            return changed;
+        }
+
+        // --------------------------- UI / 实体小工具 ---------------------------
 
         static GameObject Panel(Transform parent, string name, Vector2 size, Vector2 pos, Color bg)
         {
@@ -297,25 +420,41 @@ namespace TrashPlanet.Whitebox.Editor
             return rt;
         }
 
-        static WheelSectorGraphic Disc(Transform parent, string name, float radius,
-            float outline, Color edge, Color fill)
+        static GameObject Primitive(Transform parent, string name, PrimitiveType type,
+            Vector3 scale, Vector3 localPos, Material mat, bool collider)
         {
-            RectTransform rt = Rect(parent, name, Center, Center,
-                new Vector2(radius * 2f + 12f, radius * 2f + 12f), Vector2.zero, false);
-            WheelSectorGraphic g = rt.gameObject.AddComponent<WheelSectorGraphic>();
-            g.Configure(0f, 360f, radius, 0f, outline, edge, fill);
-            g.raycastTarget = false;
-            return g;
+            GameObject go = GameObject.CreatePrimitive(type);
+            go.name = name;
+            go.transform.SetParent(parent, false);
+            go.transform.localPosition = localPos;
+            go.transform.localRotation = Quaternion.identity;
+            go.transform.localScale = scale;
+            Renderer r = go.GetComponent<Renderer>();
+            if (r != null && mat != null) r.sharedMaterial = mat;
+            if (!collider)
+            {
+                Collider c = go.GetComponent<Collider>();
+                if (c != null) UnityEngine.Object.DestroyImmediate(c);
+            }
+            return go;
         }
 
-        static WheelSectorGraphic Sector(Transform parent, string name, float start, float sweep,
-            float outer, float inner, float outline, Color edge, Color fill)
+        static Material Mat(string file, Color c)
         {
-            RectTransform rt = Rect(parent, name, Center, Center,
-                new Vector2(outer * 2f + 12f, outer * 2f + 12f), Vector2.zero, false);
-            WheelSectorGraphic g = rt.gameObject.AddComponent<WheelSectorGraphic>();
-            g.Configure(start, sweep, outer, inner, outline, edge, fill);
-            return g;
+            string path = MaterialFolder + "/" + file;
+            Material m = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (m == null)
+            {
+                if (!AssetDatabase.IsValidFolder(MaterialFolder)) EnsureFolder(MaterialFolder);
+                Shader sh = Shader.Find("Universal Render Pipeline/Lit");
+                if (sh == null) sh = Shader.Find("Standard");
+                m = new Material(sh) { name = file.Replace(".mat", "") };
+                AssetDatabase.CreateAsset(m, path);
+            }
+            if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", c);
+            if (m.HasProperty("_Color")) m.SetColor("_Color", c);
+            EditorUtility.SetDirty(m);
+            return m;
         }
 
         static Text Txt(Transform parent, string name, string value, Vector2 pos, Vector2 size,
@@ -339,7 +478,7 @@ namespace TrashPlanet.Whitebox.Editor
             Button b = rt.gameObject.AddComponent<Button>();
             RectTransform label = Rect(rt, "Label", Center, Center, size - new Vector2(16f, 8f), Vector2.zero, false);
             Text t = label.gameObject.AddComponent<Text>();
-            t.font = font; t.fontSize = 22; t.color = TextColor; t.alignment = TextAnchor.MiddleCenter;
+            t.font = font; t.fontSize = 20; t.color = TextColor; t.alignment = TextAnchor.MiddleCenter;
             t.raycastTarget = false; t.text = caption;
             return b;
         }

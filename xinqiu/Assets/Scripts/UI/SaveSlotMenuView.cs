@@ -130,7 +130,7 @@ namespace TrashPlanet.Whitebox
                 if (b != null) b.interactable = has;
                 if (t != null)
                 {
-                    if (has) t.text = "槽 " + slot + "  " + SaveSlotSystem.SavedAtText(slot);
+                    if (has) t.text = SaveSlotSystem.SlotTitle(slot);
                     else t.text = "";
                 }
             }
