@@ -112,19 +112,7 @@ namespace TrashPlanet.Whitebox.Editor
                 collider.center = body.transform.InverseTransformPoint(bodyBounds.center);
                 collider.size = WorldSizeToLocal(body.transform, bodyBounds.size);
 
-                GameObject outline = UnityEngine.Object.Instantiate(body, root.transform);
-                outline.name = "Outline";
-                UnityEngine.Object.DestroyImmediate(outline.GetComponent<BoxCollider>());
-                outline.transform.localScale *= 1.067f;
-                foreach (Renderer renderer in outline.GetComponentsInChildren<Renderer>(true))
-                {
-                    Material[] materials = new Material[Mathf.Max(1, renderer.sharedMaterials.Length)];
-                    for (int i = 0; i < materials.Length; i++) materials[i] = outlineMaterial;
-                    renderer.sharedMaterials = materials;
-                    renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-                    renderer.receiveShadows = false;
-                }
-                outline.SetActive(false);
+                GameObject outline = TrashOutlineBuilder.BuildOutline(root.transform, body.transform, outlineMaterial, replacement.Prefab);
 
                 TrashItem item = root.GetComponent<TrashItem>();
                 SerializedObject serializedItem = new SerializedObject(item);
@@ -237,18 +225,7 @@ namespace TrashPlanet.Whitebox.Editor
                 collider.center = new Vector3(0f, 0.75f, 0f);
                 collider.size = new Vector3(0.88f, 1.50f, 0.82f);
 
-                GameObject outline = UnityEngine.Object.Instantiate(body, root.transform);
-                outline.name = "Outline";
-                foreach (Collider c in outline.GetComponentsInChildren<Collider>(true))
-                    UnityEngine.Object.DestroyImmediate(c);
-                outline.transform.localScale = Vector3.one * 1.045f;
-                foreach (Renderer renderer in outline.GetComponentsInChildren<Renderer>(true))
-                {
-                    renderer.sharedMaterial = outlineMaterial;
-                    renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-                    renderer.receiveShadows = false;
-                }
-                outline.SetActive(false);
+                GameObject outline = TrashOutlineBuilder.BuildOutline(root.transform, body.transform, outlineMaterial, prefabName);
 
                 TrashItem item = root.GetComponent<TrashItem>();
                 SerializedObject serializedItem = new SerializedObject(item);
@@ -309,18 +286,7 @@ namespace TrashPlanet.Whitebox.Editor
                 collider.center = new Vector3(0f, canCenterY, 0f);
                 collider.size = new Vector3(0.41f, 0.325f, 0.325f);
 
-                GameObject outline = UnityEngine.Object.Instantiate(body, root.transform);
-                outline.name = "Outline";
-                foreach (Collider c in outline.GetComponentsInChildren<Collider>(true))
-                    UnityEngine.Object.DestroyImmediate(c);
-                outline.transform.localScale = Vector3.one * 1.055f;
-                foreach (Renderer renderer in outline.GetComponentsInChildren<Renderer>(true))
-                {
-                    renderer.sharedMaterial = outlineMaterial;
-                    renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-                    renderer.receiveShadows = false;
-                }
-                outline.SetActive(false);
+                GameObject outline = TrashOutlineBuilder.BuildOutline(root.transform, body.transform, outlineMaterial, prefabName);
 
                 TrashItem item = root.GetComponent<TrashItem>();
                 SerializedObject serializedItem = new SerializedObject(item);

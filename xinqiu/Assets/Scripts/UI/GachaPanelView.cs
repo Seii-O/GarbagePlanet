@@ -18,6 +18,8 @@ namespace TrashPlanet.Whitebox
         const int ReelCount = 3;
         static readonly string[] RaritySlots = { "普通", "精英", "史诗" };
 
+        [SerializeField] ToolIconSet iconSet;   // ⑲ 生成并接线；为空或查不到时只显示文字
+
         GachaSystem system;
         bool bound;
 
@@ -27,6 +29,7 @@ namespace TrashPlanet.Whitebox
         Text txtPity;
         Text txtResult;
         Text txtHint;
+        Image imgResult;
         Button btnDraw;
         Button btnClose;
 
@@ -69,6 +72,7 @@ namespace TrashPlanet.Whitebox
             txtPity = FindText(panel, "Txt_Pity");
             txtResult = FindText(panel, "Txt_Result");
             txtHint = FindText(panel, "Txt_Hint");
+            imgResult = FindImage(panel, "Img_GachaResult");
             btnDraw = FindButton(panel, "Btn_Draw");
             btnClose = FindButton(panel, "Btn_Close");
 
@@ -148,6 +152,7 @@ namespace TrashPlanet.Whitebox
                                     : "距史诗保底  未启用");
                 txtPity.text = p + "　（连续未出 " + pity + "）";
             }
+            SetResultIcon(result != null && result.reward != null ? result.reward.id : null);
             if (txtResult != null)
             {
                 if (result != null && result.reward != null)
@@ -291,10 +296,25 @@ namespace TrashPlanet.Whitebox
             }
         }
 
+        /// <summary>按奖励 id 显示 2D 图标；查不到就隐藏图标、只留文字。</summary>
+        void SetResultIcon(string rewardId)
+        {
+            if (imgResult == null) return;
+            Sprite sp = (!string.IsNullOrEmpty(rewardId) && iconSet != null) ? iconSet.Get(rewardId) : null;
+            imgResult.sprite = sp;
+            imgResult.enabled = sp != null;
+        }
+
         static Text FindText(Transform root, string name)
         {
             Transform t = FindDeep(root, name);
             return t != null ? t.GetComponent<Text>() : null;
+        }
+
+        static Image FindImage(Transform root, string name)
+        {
+            Transform t = FindDeep(root, name);
+            return t != null ? t.GetComponent<Image>() : null;
         }
 
         static Button FindButton(Transform root, string name)

@@ -291,8 +291,16 @@ namespace TrashPlanet.Whitebox.Editor
 
             BuildReels(panel.transform);
 
-            Txt(panel.transform, "Txt_Result", "", new Vector2(0f, -150f),
-                new Vector2(470f, 72f), 17, TextColor, TextAnchor.MiddleCenter, UiFont.Load());
+            // 奖品图标位（TOOL-016）：抽到物品后显示对应 2D 图标，没图标时保持空（只回退文字）
+            RectTransform iconRt = Rect(panel.transform, "Img_GachaResult", Center, Center,
+                new Vector2(72f, 72f), new Vector2(-196f, -152f), false);
+            Image iconImg = iconRt.gameObject.AddComponent<Image>();
+            iconImg.raycastTarget = false;
+            iconImg.preserveAspect = true;
+            iconImg.enabled = false;
+
+            Txt(panel.transform, "Txt_Result", "", new Vector2(46f, -152f),
+                new Vector2(392f, 72f), 17, TextColor, TextAnchor.MiddleCenter, UiFont.Load());
             Txt(panel.transform, "Txt_Hint", "", new Vector2(0f, -204f),
                 new Vector2(470f, 26f), 14, new Color(0.72f, 0.75f, 0.72f, 1f), TextAnchor.MiddleCenter, UiFont.Load());
 

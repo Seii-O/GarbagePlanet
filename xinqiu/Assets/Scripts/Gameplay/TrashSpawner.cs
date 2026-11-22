@@ -309,7 +309,7 @@ namespace TrashPlanet.Whitebox
             for (int i = 0; i < renderers.Length; i++)
             {
                 Renderer r = renderers[i];
-                // 描边副本默认不激活，不能被算进最低点（它比本体大 6.67%，会让本体浮起来）
+                // 描边副本默认不激活，不能被算进最低点（它沿法线外扩，比本体大，会让本体浮起来）
                 if (r == null || !r.enabled || !r.gameObject.activeInHierarchy) continue;
                 Bounds b = r.localBounds;
                 Transform rt = r.transform;

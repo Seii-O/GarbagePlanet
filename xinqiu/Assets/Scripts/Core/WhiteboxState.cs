@@ -64,6 +64,16 @@ namespace TrashPlanet.Whitebox
         public string[] bagSlotIds = new string[0];       // 每格的 rewardId / toolId，空格为 ""
         public int[] bagSlotCounts = new int[0];          // 与格子平行的数量（技能书可叠层）
 
+        // 手持装备（version 保持 1）：模型 B 独立开关——已装备的工具各自生效，可多件并存；
+        // 手上只显示 activeToolId 那件（数字键 1~9 / 背包点选），换显示不影响其它已装备工具的加成。
+        // 注意两套 id：equippedToolIds 用 rewardId（仅辅助工具有，参与"装备才生效"）；
+        // activeToolId 用 toolId（T-01~T-10，主工具/专精也能拿手上，仅视觉）。
+        public string[] equippedToolIds = new string[0];  // 已装备辅助工具的 rewardId 列表（去重）
+        public string activeToolId = "";                  // 当前手上显示的工具 toolId（T-01~T-10；空=空手）
+        public string[] usedBookIds = new string[0];      // 已「使用」的技能书 rewardId（去重，各 1 份效果）
+        public int[] usedBookCounts = new int[0];         // 与 usedBookIds 平行：使用份数（上限见 SkillBookDef.maxStacks）
+        public bool equipMigrated;                        // 旧档一次性迁移标记：旧档缺字段=false→首次进工具系统自动装备已有工具
+
         // 独立金币交易（COIN-001）：余额 coins 在上文，这里记交易流水（时间用累计分钟，避免时区依赖）
         public string[] tradeItemIds = new string[0];     // 流水：物品 id
         public int[] tradeKinds = new int[0];             // 流水：0=购买 1=出售
@@ -98,6 +108,90 @@ namespace TrashPlanet.Whitebox
             if (toolBuyCounts == null) toolBuyCounts = new int[0];
             if (toolBuyCounts.Length < toolBuyIds.Length) Array.Resize(ref toolBuyCounts, toolBuyIds.Length);
             for (int i = 0; i < toolBuyCounts.Length; i++) toolBuyCounts[i] = Mathf.Max(0, toolBuyCounts[i]);
+        }
+
+        /// <summary>
+        /// 手持装备字段归一：平行数组对齐、空格/非正值清零、activeToolId 必须在已装备列表内。
+        /// 旧档缺字段（null/空）视为空手、无已用书，不升 version。
+        /// </summary>
+        public void NormalizeEquip()
+        {
+            if (equippedToolIds == null) equippedToolIds = new string[0];
+            if (usedBookIds == null) usedBookIds = new string[0];
+            if (usedBookCounts == null) usedBookCounts = new int[0];
+            // 已装备列表去重 + 去空格
+            var eq = new System.Collections.Generic.List<string>();
+            for (int i = 0; i < equippedToolIds.Length; i++)
+            {
+                string id = equippedToolIds[i];
+                if (string.IsNullOrEmpty(id)) continue;
+                if (!eq.Contains(id)) eq.Add(id);
+            }
+            equippedToolIds = eq.ToArray();
+            // 已用书：数组对齐、非正值清零、去空格
+            int n = Mathf.Min(usedBookIds.Length, usedBookCounts.Length);
+            var bIds = new System.Collections.Generic.List<string>();
+            var bCnt = new System.Collections.Generic.List<int>();
+            for (int i = 0; i < n; i++)
+            {
+                if (string.IsNullOrEmpty(usedBookIds[i]) || usedBookCounts[i] <= 0) continue;
+                int idx = bIds.IndexOf(usedBookIds[i]);
+                if (idx >= 0) bCnt[idx] += usedBookCounts[i];
+                else { bIds.Add(usedBookIds[i]); bCnt.Add(usedBookCounts[i]); }
+            }
+            usedBookIds = bIds.ToArray();
+            usedBookCounts = bCnt.ToArray();
+            // activeToolId 校验 strip 空白；是否可显示交给 ToolSystem/config 判定（主工具/专精无 rewardId 也能显示）
+            if (activeToolId == null) activeToolId = "";
+        }
+
+        /// <summary>是否已装备某工具（按 rewardId）。</summary>
+        public bool IsToolEquipped(string rewardId)
+        {
+            return !string.IsNullOrEmpty(rewardId) && equippedToolIds != null
+                   && System.Array.IndexOf(equippedToolIds, rewardId) >= 0;
+        }
+
+        /// <summary>装备工具（幂等）。仅写入装备列表，不碰归属计数。</summary>
+        public void EquipTool(string rewardId)
+        {
+            if (string.IsNullOrEmpty(rewardId) || equippedToolIds == null) return;
+            if (System.Array.IndexOf(equippedToolIds, rewardId) >= 0) return;
+            Array.Resize(ref equippedToolIds, equippedToolIds.Length + 1);
+            equippedToolIds[equippedToolIds.Length - 1] = rewardId;
+        }
+
+        /// <summary>卸下工具；若正拿在手上则同步清空手上显示。</summary>
+        public void UnequipTool(string rewardId)
+        {
+            if (string.IsNullOrEmpty(rewardId) || equippedToolIds == null) return;
+            var list = new System.Collections.Generic.List<string>(equippedToolIds);
+            list.Remove(rewardId);
+            equippedToolIds = list.ToArray();
+            if (activeToolId == rewardId) activeToolId = "";
+        }
+
+        /// <summary>已使用的技能书份数（未使用=0）。</summary>
+        public int UsedBookStacks(string rewardId)
+        {
+            if (string.IsNullOrEmpty(rewardId) || usedBookIds == null) return 0;
+            for (int i = 0; i < usedBookIds.Length && i < usedBookCounts.Length; i++)
+                if (usedBookIds[i] == rewardId) return Mathf.Max(0, usedBookCounts[i]);
+            return 0;
+        }
+
+        /// <summary>使用一份技能书：累计已用份数 +1，上限由调用方钳制。</summary>
+        public void AddUsedBook(string rewardId)
+        {
+            if (string.IsNullOrEmpty(rewardId)) return;
+            if (usedBookIds == null) usedBookIds = new string[0];
+            if (usedBookCounts == null) usedBookCounts = new int[0];
+            for (int i = 0; i < usedBookIds.Length && i < usedBookCounts.Length; i++)
+                if (usedBookIds[i] == rewardId) { usedBookCounts[i] += 1; return; }
+            Array.Resize(ref usedBookIds, usedBookIds.Length + 1);
+            Array.Resize(ref usedBookCounts, usedBookCounts.Length + 1);
+            usedBookIds[usedBookIds.Length - 1] = rewardId;
+            usedBookCounts[usedBookCounts.Length - 1] = 1;
         }
 
         /// <summary>
@@ -347,6 +441,7 @@ namespace TrashPlanet.Whitebox
             for (int i = 0; i < s.ownedRewardCounts.Length; i++)
                 s.ownedRewardCounts[i] = Mathf.Max(0, s.ownedRewardCounts[i]);
             s.NormalizeTools();     // 工具系统字段：旧档缺失时补位/钳制，version 仍为 1
+            s.NormalizeEquip();     // 手持装备字段：旧档补空数组，version 仍为 1
             s.NormalizeInventory(); // 背包格子 + 交易流水：旧档补空数组，version 仍为 1
             // 多槽位置字段旧档缺失：hasPlayerPose=false，读档端不还原位置（保持场景默认出生点）
             return s;

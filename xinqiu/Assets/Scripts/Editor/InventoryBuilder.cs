@@ -156,6 +156,8 @@ namespace TrashPlanet.Whitebox.Editor
                     "空", pos, new Vector2(156f, 108f), font);
                 Text label = slot.GetComponentInChildren<Text>(true);
                 if (label != null) label.gameObject.name = "Txt_Slot_" + i.ToString("00");
+                Transform iconTf = slot.transform.Find("Icon");
+                if (iconTf != null) iconTf.gameObject.name = "Img_Slot_" + i.ToString("00");
             }
 
             Txt(panel.transform, "Txt_InvDetail", "", new Vector2(0f, -232f),
@@ -166,6 +168,11 @@ namespace TrashPlanet.Whitebox.Editor
                 new Vector2(168f, 46f), font, BtnBg);
             Btn(panel.transform, "Btn_InvClose", "关闭 (I)", new Vector2(238f, -324f),
                 new Vector2(200f, 46f), font, BtnBg);
+            // 手持装备 / 技能书使用（TOOL-015/016）：选中格子后点按；旧 UI 缺按钮时面板逻辑自动跳过
+            Btn(panel.transform, "Btn_InvEquip", "装备/卸下", new Vector2(-103f, -378f),
+                new Vector2(196f, 44f), font, BtnBg);
+            Btn(panel.transform, "Btn_InvUse", "使用书", new Vector2(103f, -378f),
+                new Vector2(196f, 44f), font, BtnBg);
 
             panel.SetActive(false);
             return panel;
@@ -247,9 +254,13 @@ namespace TrashPlanet.Whitebox.Editor
             Image img = rt.gameObject.AddComponent<Image>();
             img.color = SlotBg; img.raycastTarget = true;
             Button b = rt.gameObject.AddComponent<Button>();
-            RectTransform label = Rect(rt, "Label", Center, Center, size - new Vector2(16f, 12f), Vector2.zero, false);
+            // 图标位（TOOL-016）：由 InventoryPanelView 按图标表填 Sprite；没图标时保持禁用，退回文字
+            RectTransform iconRt = Rect(rt, "Icon", Center, Center, new Vector2(64f, 64f), new Vector2(0f, 16f), false);
+            Image icon = iconRt.gameObject.AddComponent<Image>();
+            icon.raycastTarget = false; icon.preserveAspect = true; icon.enabled = false;
+            RectTransform label = Rect(rt, "Label", Center, Center, new Vector2(size.x - 16f, 34f), new Vector2(0f, -36f), false);
             Text t = label.gameObject.AddComponent<Text>();
-            t.font = font; t.fontSize = 18; t.color = TextColor; t.alignment = TextAnchor.MiddleCenter;
+            t.font = font; t.fontSize = 14; t.color = TextColor; t.alignment = TextAnchor.MiddleCenter;
             t.horizontalOverflow = HorizontalWrapMode.Wrap;
             t.raycastTarget = false; t.text = caption;
             return b;

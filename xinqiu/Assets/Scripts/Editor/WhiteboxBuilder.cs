@@ -536,19 +536,30 @@ namespace TrashPlanet.Whitebox.Editor
         {
             var root = new GameObject(name);
             root.transform.SetParent(parent, false);
-            // 注意：Unity 相机沿本地 -Z 方向渲染，双手必须放在 -Z（相机前方）才可见。
-            // 旧版写成 +0.32f / +0.24f / +0.70f，整只手都在相机背后，运行后完全看不见。
-            root.transform.localPosition = new Vector3(x, -0.58f, -0.32f);
+            // 注意：相机子物体的本地 +Z 才是前方（transform.forward = 本地 +Z），实测确认过：写成 -Z 会整只手落到相机背后被剔除。
+            // 且必须在 FOV 72（竖直半角 36°）之内，否则整只手被视锥裁掉——旧挂点 y=-0.58 就栽在这。
+            // 几何与 WhiteboxHandsFix 共用同一组常量：腕点 (±0.341,-0.36,-0.22) → 手部中心 (±0.242,-0.34,-0.61)。
+            float s = x < 0f ? -1f : 1f;
+            root.transform.localPosition = new Vector3(s * WhiteboxHandsFix.WristX,
+                WhiteboxHandsFix.WristY, WhiteboxHandsFix.WristZ);
+
+            // 只要工具时不生成手部图元（开关见 Tools > 星球白膜 > ⑤），挂点保留
+            if (!WhiteboxHandsFix.ShowHandMesh) return root.transform;
+
             Primitive(root.transform, "Forearm", PrimitiveType.Capsule,
-                new Vector3(0.11f, 0.32f, 0.11f), new Vector3(-x * 0.18f, -0.20f, -0.24f), mat, false);
+                new Vector3(0.11f, 0.34f, 0.11f),
+                new Vector3(s * (WhiteboxHandsFix.HandX - WhiteboxHandsFix.WristX) * 0.5f, -0.06f, -0.19f), mat, false);
             Primitive(root.transform, "Palm", PrimitiveType.Cube,
-                new Vector3(0.13f, 0.10f, 0.17f), new Vector3(-x * 0.35f, -0.36f, -0.70f), mat, false);
+                new Vector3(0.13f, 0.10f, 0.17f),
+                new Vector3(s * (WhiteboxHandsFix.HandX - WhiteboxHandsFix.WristX),
+                    WhiteboxHandsFix.HandY - WhiteboxHandsFix.WristY,
+                    WhiteboxHandsFix.HandZ - WhiteboxHandsFix.WristZ), mat, false);
             return root.transform;
         }
 
         /// <summary>
-        /// 把相机下的第一人称双手重建到相机前方（-Z）。会从已有 Hands 上读取 player / cameraRig
-        /// 引用并沿用其材质，避免重复创建材质资源。幂等于“已经在 -Z”的场景（调用方自行判断）。
+        /// 把相机下的第一人称双手重建到相机前方（本地 +Z）。会从已有 Hands 上读取 player / cameraRig
+        /// 引用并沿用其材质，避免重复创建材质资源。幂等于“已经在 +Z”的场景（调用方自行判断）。
         /// 用于一次性自动修复：旧版双手被放在 +Z（相机背后）导致运行后看不见。
         /// </summary>
         public static void RebuildHands(Camera cam)
@@ -672,14 +683,15 @@ namespace TrashPlanet.Whitebox.Editor
             bool ok = RefreshTrashOutlines();
             if (!Application.isBatchMode)
                 EditorUtility.DisplayDialog("垃圾描边刷新",
-                    ok ? "已把 7 个垃圾预制体的「底部蓝色地标环」替换为「整体白色描边」；\n"
-                         + "配置 WhiteboxConfig 的描边色已同步为白色。\n\n进入 Play 后准星对准垃圾即显示白色轮廓，不再有底部蓝环。"
-                        : "刷新失败，请看 Console 里 [WhiteboxBuilder] 的错误日志。", "好");
+                    ok ? "已把 7 个垃圾预制体的描边改为「复制替换后的美术模型 + 沿表面法线外扩」；\n"
+                         + "描边位置、厚度、走向现在与材质表现一致，不再跟随白膜轮廓。\n\n进入 Play 后准星对准垃圾即可查看。"
+                        : "刷新失败，请看 Console 里 [TrashOutlineBuilder] 的错误日志。", "好");
         }
 
         /// <summary>
         /// 只重建 7 个垃圾预制体的描边表现，不重建场景、不动 Hierarchy 里的 UI 面板。
-        /// 把旧版 HighlightRing 删除并新建 Outline（放大副本，白色描边材质），同时把配置描边色同步为白色。
+        /// 委托 TrashOutlineBuilder：从当前 Body（可能是已替换的美术模型）复制并沿法线外扩生成描边。
+        /// 同时把配置描边色同步为白色。
         /// </summary>
         public static bool RefreshTrashOutlines()
         {
@@ -696,42 +708,7 @@ namespace TrashPlanet.Whitebox.Editor
                 if (hp != null && hp.stringValue != "#FFFFFF") { hp.stringValue = "#FFFFFF"; so.ApplyModifiedProperties(); }
                 EditorUtility.SetDirty(cfg);
 
-                Mats mats = CreateMaterials();
-                bool allOk = true;
-                for (int i = 0; i < 7; i++)
-                {
-                    string path = PrefabFolder + "/" + TrashPrefabName(i) + ".prefab";
-                    GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
-                    if (prefab == null) { Debug.LogWarning(LogTag + "找不到垃圾预制体：" + path); allOk = false; continue; }
-                    GameObject contents = PrefabUtility.LoadPrefabContents(path);
-                    try
-                    {
-                        Transform ring = contents.transform.Find("HighlightRing");
-                        if (ring != null) UnityEngine.Object.DestroyImmediate(ring.gameObject);
-                        Transform old = contents.transform.Find("Outline");
-                        if (old != null) UnityEngine.Object.DestroyImmediate(old.gameObject);
-
-                        PrimitiveType type = ShapeType(i);
-                        Vector3 shape = ShapeScale(i);
-                        GameObject outline = Primitive(contents.transform, "Outline", type, shape * ThinOutlineScale,
-                            Vector3.zero, mats.Highlight, false);
-                        var omr = outline.GetComponent<MeshRenderer>();
-                        if (omr != null) { omr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off; omr.receiveShadows = false; }
-                        outline.SetActive(false);
-
-                        TrashItem ti = contents.GetComponent<TrashItem>();
-                        if (ti != null) ti.SetOutline(outline);
-
-                        PrefabUtility.SaveAsPrefabAsset(contents, path);
-                        Debug.Log(LogTag + "已刷新垃圾描边（去蓝环→白描边）；预制体=" + TrashPrefabName(i));
-                    }
-                    finally
-                    {
-                        PrefabUtility.UnloadPrefabContents(contents);
-                    }
-                }
-                AssetDatabase.SaveAssets();
-                return allOk;
+                return TrashOutlineBuilder.RebuildAll();
             }
             catch (Exception e)
             {
@@ -757,30 +734,10 @@ namespace TrashPlanet.Whitebox.Editor
             return false;
         }
 
-        /// <summary>当前 7 个垃圾预制体的白描边是否已收窄到 ThinOutlineScale（否则需重刷）。</summary>
+        /// <summary>当前 7 个垃圾预制体的描边是否已贴合替换后的美术模型（否则需重刷）。</summary>
         public static bool OutlineNeedsRefresh()
         {
-            for (int i = 0; i < 7; i++)
-            {
-                string path = PrefabFolder + "/" + TrashPrefabName(i) + ".prefab";
-                GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
-                if (prefab == null) continue;
-                GameObject contents = PrefabUtility.LoadPrefabContents(path);
-                bool need = false;
-                try
-                {
-                    Transform ol = contents.transform.Find("Outline");
-                    if (ol == null) need = true;
-                    else
-                    {
-                        Vector3 want = ShapeScale(i) * ThinOutlineScale;
-                        if (Vector3.Distance(ol.localScale, want) > 0.001f) need = true;
-                    }
-                }
-                finally { PrefabUtility.UnloadPrefabContents(contents); }
-                if (need) return true;
-            }
-            return false;
+            return TrashOutlineBuilder.NeedsRebuild();
         }
 
         [MenuItem("Tools/垃圾星球白膜/⑦ 增强立体感光照（当前场景）", false, 13)]

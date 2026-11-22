@@ -110,6 +110,8 @@ MonoBehaviour:
   - 25
   - 45
   - 60
+  purifyBaseRadius: 5
+  purifyShowBoundary: 1
   stageFadeSeconds: 3
   stageFlashSeconds: 2.5
   pickupFloatSeconds: 0.25

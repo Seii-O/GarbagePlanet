@@ -43,6 +43,7 @@ namespace TrashPlanet.Whitebox
         [SerializeField] InGameSaveView inGameSave;  // 局内存档面板（F6，运行时补建）
         [SerializeField] SceneryDecorSystem scenery; // 场景装饰生态联动（ART-013，由 Builder 写入）
         [SerializeField] PurificationSystem purification; // 星球净化区（MECH-011，运行时补建/Builder 写入）
+        [SerializeField] ToolViewModel heldTools; // 第一人称手持工具视图（TOOL-015/016，由 Builder 写入）
 
         [Header("中转站交互半径")]
         [Tooltip("仅用于非星球场景（无 planetCenter）的兼容判定；星球场景内 M 键可在任意位置打开中转站。")]
@@ -78,6 +79,7 @@ namespace TrashPlanet.Whitebox
         public InGameSaveView InGameSave => inGameSave;
         public SceneryDecorSystem Scenery => scenery;
         public PurificationSystem Purification => purification;
+        public ToolViewModel HeldTools => heldTools;
         public bool IsPaused => paused;
         public bool StationOpen => stationOpen;
         public bool IsUiBlocking => paused || stationOpen || (gacha != null && gacha.IsOpen)
@@ -118,6 +120,9 @@ namespace TrashPlanet.Whitebox
 
         /// <summary>单独注入局内存档面板（SaveSlotBuilder 生成后调用）。</summary>
         public void WireInGameSave(InGameSaveView v) { inGameSave = v; }
+
+        /// <summary>单独注入手持工具视图（ToolViewModelBuilder 生成后调用）。</summary>
+        public void WireHeldTools(ToolViewModel v) { heldTools = v; }
 
         /// <summary>单独注入场景装饰联动系统（SceneryDecorBuilder 生成后调用）。</summary>
         public void WireScenery(SceneryDecorSystem s) { scenery = s; }
@@ -223,6 +228,8 @@ namespace TrashPlanet.Whitebox
             tool.Init(this);
             if (bag == null) bag = gameObject.AddComponent<ToolBagSystem>();
             bag.Init(this);
+            // 手持视图：按迁移后的 activeToolId 刷新手上显示（纯视觉，排在工具/背包之后）
+            if (heldTools != null) heldTools.Init(this);
             if (coinTrade == null) coinTrade = gameObject.AddComponent<CoinTradeSystem>();
             coinTrade.Init(this);
             eco.Init(this);
@@ -292,7 +299,7 @@ namespace TrashPlanet.Whitebox
             }
 
             // 策划案 §6.4 / UI-004：同一帧只取一个输入，互斥优先级
-            // 背包(I) > 交易(B) > 中转站(M) > 暂停(ESC) > 专精(Q)。
+            // 背包(I) > 交易(B) > 中转站(M) > 暂停(ESC) > 专精(Q) > 手持数字键(1~9)。
             // 转盘不再有独立快捷键：只由场景内老虎机在准星对准、按 F 时经 InteractionController 弹出。
             // 抽奖面板与其它面板仍走同一套互斥（OpenGachaFromMachine → ClosePanelsExcept）。
             bool bagKey = Input.GetKeyDown(KeyCode.I);
@@ -300,6 +307,14 @@ namespace TrashPlanet.Whitebox
             bool stationKey = Input.GetKeyDown(KeyCode.M);
             bool pauseKey = Input.GetKeyDown(KeyCode.Escape);
             bool specKey = Input.GetKeyDown(KeyCode.Q);
+            // 数字键 1~9：切手上显示的工具（仅已装备/主工具/专精可拿；面板打开时不响应）
+            int heldIndex = -1;
+            if (!bagKey && !tradeKey && !stationKey && !pauseKey && !specKey
+                && !state.finished && !IsUiBlocking && heldTools != null && tool != null)
+            {
+                for (int k = 1; k <= 9; k++)
+                    if (Input.GetKeyDown(KeyCode.Alpha0 + k)) { heldIndex = k - 1; break; }
+            }
             if (bagKey)
             {
                 if (!state.finished && !paused && bag != null) ToggleBag();
@@ -326,6 +341,12 @@ namespace TrashPlanet.Whitebox
             else if (specKey)
             {
                 if (!state.finished && !IsUiBlocking && tool != null) tool.CycleActive();
+            }
+            else if (heldIndex >= 0)
+            {
+                string toolId = heldTools.ToolIdAt(heldIndex);
+                // 同一个数字按第二次 = 收起（空手），再按 = 重新拿起：只切显示，不影响已装备加成
+                if (!string.IsNullOrEmpty(toolId)) tool.ToggleHeldTool(toolId);
             }
 
             float dt = Time.deltaTime;
