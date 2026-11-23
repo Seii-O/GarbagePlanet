@@ -156,7 +156,7 @@ namespace TrashPlanet.Whitebox
             {
                 int r = i % 45;
                 int cat = r < 15 ? 0 : (r < 27 ? 1 : (r < 39 ? 2 : 3)); // 初始配比 15:12:12:6
-                int index = (i % 6 == 5) ? 4 + (cat % 3) : cat;
+                int index = PickPrefabForCategory((TrashCategory)cat, i % 6 == 5);
                 Vector3 dir;
                 if (!TryScatter(cfg, out dir)) break;
                 Spawn(index, dir);
@@ -181,7 +181,9 @@ namespace TrashPlanet.Whitebox
                 if (!TryScatter(cfg, out dir)) break;
                 // 批内逐件错开 0~0.3 s：同一批不是整齐划一地弹出，而是陆续冒出
                 float delay = j * cfg.SpawnPopStagger + Random.Range(0f, 0.12f);
-                if (SpawnAnimated(PickRandomCategory(), dir, delay) == null) continue;
+                TrashCategory category = PickRandomCategory();
+                int prefabIndex = PickPrefabForCategory(category, false);
+                if (SpawnAnimated(prefabIndex, dir, delay) == null) continue;
                 occupied.Add(SphericalSurface.Point(Vector3.zero, dir, cfg.PlanetRadius, 0f));
                 spawned++;
             }
@@ -266,9 +268,38 @@ namespace TrashPlanet.Whitebox
         }
 
         /// <summary>类别概率完全沿用原 SpawnRandom 的表达式，不改玩法掉落分布。</summary>
-        static int PickRandomCategory()
+        static TrashCategory PickRandomCategory()
         {
-            return Random.value < 0.333f ? 0 : (Random.value < 0.5f ? 1 : (Random.value < 0.5f ? 2 : 3));
+            return (TrashCategory)(Random.value < 0.333f ? 0 :
+                (Random.value < 0.5f ? 1 : (Random.value < 0.5f ? 2 : 3)));
+        }
+
+        /// <summary>
+        /// 先按玩法类别抽取，再在同类别的全部美术预制体中随机。
+        /// 这样 Garbage 目录新增的瓶子、苹果、轮胎等外观可以进入刷新池，
+        /// 又不会因为预制体数组下标变化而被结算到错误类别。
+        /// </summary>
+        int PickPrefabForCategory(TrashCategory category, bool preferLarge)
+        {
+            if (prefabs == null || prefabs.Length == 0) return -1;
+            var matches = new List<int>();
+            for (int i = 0; i < prefabs.Length; i++)
+            {
+                TrashItem candidate = prefabs[i];
+                if (candidate != null && candidate.Category == category && candidate.Large == preferLarge)
+                    matches.Add(i);
+            }
+
+            // 某类别没有对应尺寸时退回同类别任意外观，保证旧场景/部分配置仍能正常刷新。
+            if (matches.Count == 0)
+            {
+                for (int i = 0; i < prefabs.Length; i++)
+                {
+                    TrashItem candidate = prefabs[i];
+                    if (candidate != null && candidate.Category == category) matches.Add(i);
+                }
+            }
+            return matches.Count > 0 ? matches[Random.Range(0, matches.Count)] : -1;
         }
 
         /// <summary>

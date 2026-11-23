@@ -1,0 +1,30 @@
+newmtl Lowpoly_Apple_Core_Flesh
+illum 4
+Kd 0.86 0.68 0.38
+Ka 0.10 0.08 0.04
+Tf 1.00 1.00 1.00
+Ni 1.00
+Ks 0.03 0.03 0.03
+Ns 8.00
+newmtl Lowpoly_Apple_Core_PeelRed
+illum 4
+Kd 0.72 0.10 0.12
+Ka 0.10 0.02 0.02
+Tf 1.00 1.00 1.00
+Ni 1.00
+Ks 0.05 0.05 0.05
+Ns 12.00
+newmtl Lowpoly_Apple_Core_StemBrown
+illum 4
+Kd 0.28 0.13 0.05
+Ka 0.05 0.02 0.01
+Tf 1.00 1.00 1.00
+Ni 1.00
+Ks 0.02 0.02 0.02
+Ns 5.00
+newmtl lambert2SG
+illum 4
+Kd 0.00 0.00 0.00
+Ka 0.00 0.00 0.00
+Tf 1.00 1.00 1.00
+Ni 1.00
