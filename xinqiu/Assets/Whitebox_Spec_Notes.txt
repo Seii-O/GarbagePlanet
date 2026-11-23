@@ -27,3 +27,42 @@
 - @trace ART-012
   狗固定外观：CompanionDog.Init 一次性写入 M_Dog_Whitebox.mat（#D8C3A0），EcoStage 只接触地表/水材质；
   阶段切换不改狗的任何 Renderer，无 UpdateLook、无角色状态色板。
+
+背包与 UI
+- @trace BAG-002
+  工具/技能书背包（I）、金币交易（B）、中转站（M）三条链路数据独立；垃圾背包于本轮再拆出为 G 面板，互不读写对方数据。
+- @trace BAG-003
+  垃圾背包单品明细 WhiteboxState.bagItems[8]：每类两种单品，和恒等于 bag[cat]；支持查看、丢弃（不碰累计统计）、整理校准；
+  中转站投放后同步清空单品明细，避免 G 面板显示已投放垃圾。
+- @trace UI-004
+  面板互斥集中在 WhiteboxGame.Update / ClosePanelsExcept，同一帧只取一个面板键；G 键沿用同一套仲裁。
+- @trace UI-006
+  独立垃圾背包面板 Panel_GarbageBag（G 键）：2×2 分类卡 + 8 张单品卡，浅色卡片风格；
+  中转站只保留总量、打开入口与投放按钮；视图只写文字/图标开关/进度条。
+- @trace UI-007
+  五页签中转站 Panel_StationFiveTabs（M 键）：01 垃圾接收 / 02 垃圾分类 / 03 材料加工 /
+  04 产品制造 / 05 工具升级。按用户要求改为真实 uGUI 控件（非静态整页图）：
+  用新库「垃圾星球_UI资源库 1」06_UI界面拆件 的面板/卡片/按钮/页签(cp_页签_选中/未选中)/
+  进度条 + 01类别/02单品/06材料成品图标，逐控件拼出五页，每个元素具名可在 Inspector 修改；
+  站点美术集 StationArtSet 由 Editor 注入并序列化，运行时不碰 AssetDatabase；
+  StationFiveTabsView 每帧把 State/StationLogic 实时数值刷到具名 Text/Image，按钮接 StationSystem；
+  页签点击切 Page 显隐并真实切换选中 sprite/文字色；缺图时降级为参考图同色系纯色控件。
+  v4 按 04~08 参考图再对齐：紧凑页签置于左上、接收页双卡+中央一键存入、分类页 2×2 卡、
+  加工页表头/进度/转化比/材料条、制造页“图→名→标签→材料→产出→按钮”顺序、升级页序号卡+升级需求条；
+  按钮配色按参考：关闭=btnGhost 白、接收/分类/修复=btnSecondary 琥珀、加工/制造=btnPrimary 青绿。
+  新面板盖住旧 Panel_Station 但不删除（数据/校验器仍依赖），显隐跟随 Game.StationOpen 与 HUD 同口径。
+- @trace UI-008
+  独立任务日志 Panel_QuestLog（J 键 / HUD 常驻按钮 Btn_QuestLog）：按 10_任务日志.png 用真实 uGUI 拆件拼装；
+  左侧任务进度（已完成/进行中/未解锁 + 10 点）、当前任务三项提示、生态进度；右侧 10 条任务行实时勾选/进度/状态；
+  底部关闭 + 查看结算按钮（未完成禁用）。QuestLogPanelView 只读 State/QuestChain/Config，不写玩法数据；
+  QuestChain.IsStepDone(int) 暴露为只读查询；WhiteboxGame 增加 ToggleQuestLog 并接入互斥/ESC/IsUiBlocking；
+  HUD 按钮用 UnityEventTools 持久化绑到 WhiteboxUiActions.OpenQuestLog，Inspector 可见可改。
+- @trace UI-009
+  独立结算 Panel_SettlementFinal：按 12_结算.png 用真实 uGUI 拆件拼装；顶部标题/副标题、左侧评级圆环
+  （S/A/B/C/D + 生态完全恢复 + 三配色条 + 三小标签）、左右六行统计（清理/加工/制造/土地/水/时间）、
+  五阶段条（探索/回收/加工/制造/恢复）、底部统计口径 + 继续游玩/返回主菜单双按钮。
+  打分 SettlementScore（Core，纯静态只读 State/Config）：探索10+回收20+加工20+制造20+生态25+效率5，
+  每项 Clamp01 封顶，≥90 S / ≥75 A / ≥55 B / ≥30 C / 其余 D；不改 WhiteboxState、不加存档字段。
+  游玩结束 QuestChain.Evaluate 调 WhiteboxGame.OpenSettlement 弹出独立面板（旧 HUD 结算仅降级保留）；
+  结算纳入 IsUiBlocking/ESC/ClosePanelsExcept 互斥；继续游玩 DismissSettlement 保留 finished 可自由活动，
+  返回主菜单先存档再 ReturnToTitle。所有控件具名、Inspector 可改，Editor 构建时注入拆件 Sprite。

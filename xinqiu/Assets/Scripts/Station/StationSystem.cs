@@ -1,4 +1,4 @@
-// @trace MECH-007, MECH-009, MECH-012, MECH-001, NUM-004, NUM-007, TOOL-002
+// @trace MECH-007, MECH-009, MECH-012, MECH-001, NUM-004, NUM-007, TOOL-002, BAG-003
 using System;
 using UnityEngine;
 
@@ -36,6 +36,8 @@ namespace TrashPlanet.Whitebox
 
         public bool HasJob => onDone != null;
         public string JobLabel => jobLabel;
+        public float JobLeft => jobLeft;
+        public float JobTotal => jobTotal;
         public float JobProgress => HasJob ? 1f - Mathf.Clamp01(jobLeft / jobTotal) : 0f;
 
         public static readonly string[] CategoryNames = { "塑料", "金属", "有机", "电子" };
@@ -116,6 +118,13 @@ namespace TrashPlanet.Whitebox
                 sum += s.bag[i];
                 s.raw[i] += s.bag[i];
                 s.bag[i] = 0;
+                // BAG-003：投放后单品明细必须同步清空，否则独立垃圾背包会显示"已投放"的旧数量
+                int a = GarbageBagCatalog.FirstItemOf(i);
+                if (s.bagItems != null && a + 1 < s.bagItems.Length)
+                {
+                    s.bagItems[a] = 0;
+                    s.bagItems[a + 1] = 0;
+                }
             }
             if (sum <= 0) { game.Notice("背包是空的"); return false; }
             game.Notice("已投放 " + sum + " 件垃圾进中转站");

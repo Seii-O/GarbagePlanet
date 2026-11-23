@@ -217,6 +217,66 @@ namespace TrashPlanet.Whitebox.Editor
                 GameObject stationPanel = uiRoot.transform.Find("Panel_Station")?.gameObject;
                 Check(stationPanel != null && stationPanel.transform.Find("Btn_BagUpgrade") != null,
                     "中转站含 ⑤ 升级背包按钮", errors, checks);
+
+                // BAG-003 / UI-006：独立垃圾背包面板、视图/系统接线、交互按钮与中转站入口
+                GameObject garbageBagPanel = uiRoot.transform.Find("Panel_GarbageBag")?.gameObject;
+                Check(garbageBagPanel != null, "独立垃圾背包面板 Panel_GarbageBag 存在", errors, checks);
+                Check(garbageBagPanel != null && garbageBagPanel.GetComponentsInChildren<Image>(true).Length >= 20,
+                    "垃圾背包含分类/单品卡片结构", errors, checks);
+                Check(uiRoot.GetComponent<GarbageBagPanelView>() != null,
+                    "垃圾背包视图 GarbageBagPanelView 已挂载", errors, checks);
+                Check(UnityEngine.Object.FindObjectOfType<GarbageBagSystem>() != null,
+                    "垃圾背包系统 GarbageBagSystem 已挂载", errors, checks);
+                Check(garbageBagPanel != null && garbageBagPanel.transform.Find("Card_GB_0") != null
+                      && garbageBagPanel.transform.Find("Card_GB_0/Card_GBItem_0/Btn_GBDiscard_0") != null,
+                    "垃圾背包含单品卡与丢弃按钮", errors, checks);
+                Check(stationPanel != null && stationPanel.transform.Find("Card_Bag/Btn_OpenGarbageBag") != null,
+                    "中转站含打开垃圾背包入口（G）", errors, checks);
+
+                // UI-007：五页签中转站（真实 uGUI 控件：5 个内容 Page + 5 个具名页签按钮 + 控制器）
+                GameObject fiveTabPanel = FindDeep(uiRoot.transform, StationFiveTabsView.PanelName)?.gameObject;
+                Check(fiveTabPanel != null, "五页签中转站面板 Panel_StationFiveTabs 存在", errors, checks);
+                Check(uiRoot.GetComponent<StationFiveTabsView>() != null,
+                    "五页签控制器 StationFiveTabsView 已挂载", errors, checks);
+                int pageCount = 0, tabCount = 0;
+                for (int i = 0; i < 5; i++)
+                {
+                    if (fiveTabPanel != null && FindDeep(fiveTabPanel.transform, "Page_" + i) != null) pageCount++;
+                    if (fiveTabPanel != null && FindDeep(fiveTabPanel.transform, "Btn_Tab_" + i) != null) tabCount++;
+                }
+                Check(pageCount == 5, "五页签含 5 个内容 Page（" + pageCount + "/5）", errors, checks);
+                Check(tabCount == 5, "五页签含 5 个具名页签按钮（" + tabCount + "/5）", errors, checks);
+                Transform artSetProbe = fiveTabPanel != null ? FindDeep(uiRoot.transform, "Card_Bag") : null;
+                Check(artSetProbe != null, "五页签含真实控件卡片 Card_Bag（非静态整页图）", errors, checks);
+
+                // UI-008：独立任务日志（真实控件 + HUD 常驻入口按钮）
+                GameObject questLogPanel = FindDeep(uiRoot.transform, QuestLogPanelView.PanelName)?.gameObject;
+                Check(questLogPanel != null, "任务日志面板 Panel_QuestLog 存在", errors, checks);
+                Check(uiRoot.GetComponent<QuestLogPanelView>() != null,
+                    "任务日志控制器 QuestLogPanelView 已挂载", errors, checks);
+                Check(FindDeep(uiRoot.transform, "Btn_QuestLog") != null,
+                    "HUD 含独立任务日志入口按钮 Btn_QuestLog", errors, checks);
+                int questRows = 0;
+                for (int i = 0; i < 10; i++)
+                    if (questLogPanel != null && FindDeep(questLogPanel.transform, "Row_Quest_" + i) != null) questRows++;
+                Check(questRows == 10, "任务日志含 10 条具名任务行（" + questRows + "/10）", errors, checks);
+
+                // UI-009：独立结算界面（评级环 / 六行统计 / 五阶段条 / 双按钮）
+                GameObject settlePanel = FindDeep(uiRoot.transform, SettlementPanelView.PanelName)?.gameObject;
+                Check(settlePanel != null, "结算面板 Panel_SettlementFinal 存在", errors, checks);
+                Check(uiRoot.GetComponent<SettlementPanelView>() != null,
+                    "结算控制器 SettlementPanelView 已挂载", errors, checks);
+                Check(settlePanel != null && FindDeep(settlePanel.transform, "Txt_Grade") != null
+                      && FindDeep(settlePanel.transform, "Img_RingFill") != null,
+                    "结算含评级环与评级文字（真实控件）", errors, checks);
+                Check(settlePanel != null && FindDeep(settlePanel.transform, "Btn_ContinuePlaying") != null
+                      && FindDeep(settlePanel.transform, "Btn_BackToTitle") != null,
+                    "结算含「继续游玩 / 返回主菜单」双按钮", errors, checks);
+                int stageCount = 0;
+                for (int i = 0; i < 5; i++)
+                    if (settlePanel != null && FindDeep(settlePanel.transform, "Stage_" + i) != null) stageCount++;
+                Check(stageCount == 5, "结算含 5 个阶段节点（" + stageCount + "/5）", errors, checks);
+
                 Button[] buttons = uiRoot.GetComponentsInChildren<Button>(true);
                 int bound = 0;
                 for (int i = 0; i < buttons.Length; i++)
@@ -276,5 +336,15 @@ namespace TrashPlanet.Whitebox.Editor
         }
 
         static string Escape(string s) => s.Replace("\\", "\\\\").Replace("\"", "\\\"");
+
+        /// <summary>递归按名字找节点（含失活），供 UI-007 真实控件结构校验使用。</summary>
+        static Transform FindDeep(Transform root, string name)
+        {
+            if (root == null) return null;
+            if (root.name == name) return root;
+            Transform[] all = root.GetComponentsInChildren<Transform>(true);
+            for (int i = 0; i < all.Length; i++) if (all[i].name == name) return all[i];
+            return null;
+        }
     }
 }

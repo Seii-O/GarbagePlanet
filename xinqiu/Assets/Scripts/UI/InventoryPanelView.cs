@@ -1,4 +1,4 @@
-// @trace BAG-001, BAG-002, UI-004
+// @trace BAG-001, BAG-002, BAG-003, UI-004, UI-006
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -236,7 +236,7 @@ namespace TrashPlanet.Whitebox
         {
             if (!Bind() || system == null) return;
             if (txtTitle != null) txtTitle.text = "工具与技能书背包";
-            if (txtCapacity != null) txtCapacity.text = "格子 " + system.UsedSlots + " / " + system.Capacity + "　（I 关闭）";
+            if (txtCapacity != null) txtCapacity.text = "格子 " + system.UsedSlots + " / " + system.Capacity + "　（只放工具/技能书 · 垃圾按 G · I 关闭）";
             WhiteboxGame game = GetGame();
             for (int i = 0; i < SlotCount; i++)
             {

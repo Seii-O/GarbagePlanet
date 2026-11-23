@@ -1,4 +1,4 @@
-// @trace MECH-001, PLAT-001, PLAT-005, TOOL-001, BAG-001, COIN-001, UI-004, SAVE-001, SAVE-002, ART-013
+// @trace MECH-001, PLAT-001, PLAT-005, TOOL-001, BAG-001, BAG-003, COIN-001, UI-004, UI-006, SAVE-001, SAVE-002, ART-013
 using PlanetCleaner;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -39,8 +39,11 @@ namespace TrashPlanet.Whitebox
         [SerializeField] GachaSystem gacha; // 新增玩法：转盘（由 GachaBuilder 写入）
         [SerializeField] ToolSystem tool;   // 工具系统（运行时自动补建，无需改场景 YAML）
         [SerializeField] ToolBagSystem bag;       // 独立工具/技能书背包（I 键，运行时补建）
+        [SerializeField] GarbageBagSystem garbageBag; // 独立垃圾背包（G 键，运行时补建；只存废弃物）
         [SerializeField] CoinTradeSystem coinTrade;// 独立金币交易（B 键，运行时补建）
         [SerializeField] InGameSaveView inGameSave;  // 局内存档面板（F6，运行时补建）
+        [SerializeField] QuestLogPanelView questLog; // 独立任务日志（J / HUD 按钮，运行时补建）
+        [SerializeField] SettlementPanelView settlementView; // 独立结算界面（游玩结束弹出，运行时补建）
         [SerializeField] SceneryDecorSystem scenery; // 场景装饰生态联动（ART-013，由 Builder 写入）
         [SerializeField] PurificationSystem purification; // 星球净化区（MECH-011，运行时补建/Builder 写入）
         [SerializeField] ToolViewModel heldTools; // 第一人称手持工具视图（TOOL-015/016，由 Builder 写入）
@@ -75,16 +78,22 @@ namespace TrashPlanet.Whitebox
         public GachaSystem Gacha => gacha;
         public ToolSystem Tool => tool;
         public ToolBagSystem Bag => bag;
+        public GarbageBagSystem GarbageBag => garbageBag;
         public CoinTradeSystem CoinTrade => coinTrade;
         public InGameSaveView InGameSave => inGameSave;
+        public QuestLogPanelView QuestLog => questLog;
+        public SettlementPanelView Settlement => settlementView;
         public SceneryDecorSystem Scenery => scenery;
         public PurificationSystem Purification => purification;
         public ToolViewModel HeldTools => heldTools;
         public bool IsPaused => paused;
         public bool StationOpen => stationOpen;
         public bool IsUiBlocking => paused || stationOpen || (gacha != null && gacha.IsOpen)
-                                    || (bag != null && bag.IsOpen) || (coinTrade != null && coinTrade.IsOpen)
+                                    || (bag != null && bag.IsOpen) || (garbageBag != null && garbageBag.IsOpen)
+                                    || (coinTrade != null && coinTrade.IsOpen)
                                     || (inGameSave != null && inGameSave.IsOpen)
+                                    || (questLog != null && questLog.IsOpen)
+                                    || (settlementView != null && settlementView.IsOpen)
                                     || (state != null && state.finished);
 
         /// <summary>
@@ -115,11 +124,20 @@ namespace TrashPlanet.Whitebox
         /// <summary>单独注入独立背包（InventoryBuilder 生成后调用）。</summary>
         public void WireBag(ToolBagSystem b) { bag = b; }
 
+        /// <summary>单独注入独立垃圾背包（GarbageBagUiBuilder 生成后调用，不改主 Wire 签名）。</summary>
+        public void WireGarbageBag(GarbageBagSystem s) { garbageBag = s; }
+
         /// <summary>单独注入金币交易（InventoryBuilder 生成后调用）。</summary>
         public void WireCoinTrade(CoinTradeSystem c) { coinTrade = c; }
 
         /// <summary>单独注入局内存档面板（SaveSlotBuilder 生成后调用）。</summary>
         public void WireInGameSave(InGameSaveView v) { inGameSave = v; }
+
+        /// <summary>单独注入任务日志面板（QuestLogUiBuilder 生成后调用）。</summary>
+        public void WireQuestLog(QuestLogPanelView v) { questLog = v; }
+
+        /// <summary>单独注入独立结算面板（SettlementUiBuilder 生成后调用）。</summary>
+        public void WireSettlement(SettlementPanelView v) { settlementView = v; }
 
         /// <summary>单独注入手持工具视图（ToolViewModelBuilder 生成后调用）。</summary>
         public void WireHeldTools(ToolViewModel v) { heldTools = v; }
@@ -221,9 +239,10 @@ namespace TrashPlanet.Whitebox
                 return;
             }
 
-            // 固定初始化顺序：状态 → 工具 → 背包 → 金币交易 → 表现 → 系统 → 视图 → 任务
+            // 固定初始化顺序：状态 → 工具 → 工具背包 → 金币交易 → 垃圾背包 → 表现 → 系统 → 视图 → 任务
             // ToolSystem 必须在 interaction / stationSystem / eco / gacha 之前可用；
-            // 背包在工具之后（读 ToolConfig），金币交易在背包之后（拿 IToolBag 引用）。
+            // 背包在工具之后（读 ToolConfig），金币交易在背包之后（拿 IToolBag 引用）；
+            // 垃圾背包只读 State.bag/bagItems，排在三者之后只为统一旧档补齐时机。
             if (tool == null) tool = gameObject.AddComponent<ToolSystem>();
             tool.Init(this);
             if (bag == null) bag = gameObject.AddComponent<ToolBagSystem>();
@@ -232,6 +251,10 @@ namespace TrashPlanet.Whitebox
             if (heldTools != null) heldTools.Init(this);
             if (coinTrade == null) coinTrade = gameObject.AddComponent<CoinTradeSystem>();
             coinTrade.Init(this);
+            // 独立垃圾背包（BAG-003）：只读取 State.bag/bagItems，与工具背包/金币互不依赖；
+            // 排在工具与背包之后，保证旧档在这里一次性补齐 bagItems 明细。
+            if (garbageBag == null) garbageBag = gameObject.AddComponent<GarbageBagSystem>();
+            garbageBag.Init(this);
             eco.Init(this);
             // 净化区必须在 spawner 之前 Init：初始撒点要靠 IsPurified 排除中转站周围已净化土地。
             // 旧场景无 Builder 引用时补建，组件内部会退回 game.Station 作为唯一中心。
@@ -298,18 +321,21 @@ namespace TrashPlanet.Whitebox
                 else { WhiteboxState.Save(state); Notice(SaveSlotSystem.ActiveSlot > 0 ? "已存档" : "未选择存档槽"); }
             }
 
-            // 策划案 §6.4 / UI-004：同一帧只取一个输入，互斥优先级
-            // 背包(I) > 交易(B) > 中转站(M) > 暂停(ESC) > 专精(Q) > 手持数字键(1~9)。
+            // 策划案 §6.4 / UI-004 / UI-006 / UI-008：同一帧只取一个输入，互斥优先级
+            // 工具背包(I) > 垃圾背包(G) > 交易(B) > 任务日志(J) > 中转站(M) > 暂停(ESC) > 专精(Q) > 手持数字键(1~9)。
+            // I 只管工具/技能书，G 只管垃圾/废弃物；两条链路数据、面板、快捷键完全分开。
             // 转盘不再有独立快捷键：只由场景内老虎机在准星对准、按 F 时经 InteractionController 弹出。
             // 抽奖面板与其它面板仍走同一套互斥（OpenGachaFromMachine → ClosePanelsExcept）。
             bool bagKey = Input.GetKeyDown(KeyCode.I);
+            bool garbageBagKey = Input.GetKeyDown(KeyCode.G);
             bool tradeKey = Input.GetKeyDown(KeyCode.B);
+            bool questLogKey = Input.GetKeyDown(KeyCode.J);
             bool stationKey = Input.GetKeyDown(KeyCode.M);
             bool pauseKey = Input.GetKeyDown(KeyCode.Escape);
             bool specKey = Input.GetKeyDown(KeyCode.Q);
             // 数字键 1~9：切手上显示的工具（仅已装备/主工具/专精可拿；面板打开时不响应）
             int heldIndex = -1;
-            if (!bagKey && !tradeKey && !stationKey && !pauseKey && !specKey
+            if (!bagKey && !garbageBagKey && !tradeKey && !questLogKey && !stationKey && !pauseKey && !specKey
                 && !state.finished && !IsUiBlocking && heldTools != null && tool != null)
             {
                 for (int k = 1; k <= 9; k++)
@@ -319,9 +345,17 @@ namespace TrashPlanet.Whitebox
             {
                 if (!state.finished && !paused && bag != null) ToggleBag();
             }
+            else if (garbageBagKey)
+            {
+                if (!state.finished && !paused && garbageBag != null) ToggleGarbageBag();
+            }
             else if (tradeKey)
             {
                 if (!state.finished && !paused && coinTrade != null) ToggleCoinTrade();
+            }
+            else if (questLogKey)
+            {
+                if (!paused && questLog != null) ToggleQuestLog();
             }
             else if (stationKey)
             {
@@ -331,8 +365,11 @@ namespace TrashPlanet.Whitebox
             else if (pauseKey)
             {
                 // ESC 逐层退出：先关最上层面板，都关完才暂停
-                if (bag != null && bag.IsOpen) bag.Close();
+                if (settlementView != null && settlementView.IsOpen) DismissSettlement();
+                else if (bag != null && bag.IsOpen) bag.Close();
+                else if (garbageBag != null && garbageBag.IsOpen) garbageBag.Close();
                 else if (coinTrade != null && coinTrade.IsOpen) coinTrade.Close();
+                else if (questLog != null && questLog.IsOpen) questLog.Hide();
                 else if (gacha != null && gacha.IsOpen) gacha.Close();
                 else if (inGameSave != null && inGameSave.IsOpen) inGameSave.Close();
                 else if (stationOpen) ToggleStation();
@@ -372,9 +409,12 @@ namespace TrashPlanet.Whitebox
         void ClosePanelsExcept(string keep)
         {
             if (keep != "bag" && bag != null && bag.IsOpen) bag.Close();
+            if (keep != "garbageBag" && garbageBag != null && garbageBag.IsOpen) garbageBag.Close();
             if (keep != "trade" && coinTrade != null && coinTrade.IsOpen) coinTrade.Close();
             if (keep != "gacha" && gacha != null && gacha.IsOpen) gacha.Close();
             if (keep != "save" && inGameSave != null && inGameSave.IsOpen) inGameSave.Close();
+            if (keep != "questLog" && questLog != null && questLog.IsOpen) questLog.Hide();
+            if (keep != "settlement" && settlementView != null && settlementView.IsOpen) settlementView.Hide();
             if (keep != "station" && stationOpen) { stationOpen = false; if (stationSystem != null) stationSystem.ClearPending(); }
         }
 
@@ -412,6 +452,20 @@ namespace TrashPlanet.Whitebox
             ApplyUiState();
         }
 
+        /// <summary>
+        /// G 键：垃圾背包独立开关（BAG-003）。与 I 工具背包、B 金币交易、M 中转站完全分离；
+        /// 打开时关掉其它面板，保证一次只有一个面板，并继续走统一的指针/移动锁定。
+        /// </summary>
+        public void ToggleGarbageBag()
+        {
+            if (state == null || state.finished || paused || garbageBag == null) return;
+            bool opening = !garbageBag.IsOpen;
+            ClosePanelsExcept(opening ? "garbageBag" : null);
+            if (opening) garbageBag.Open();
+            else garbageBag.Close();
+            ApplyUiState();
+        }
+
         /// <summary>B 键：金币交易独立开关。与背包完全分离，打开时关掉背包/转盘/中转站。</summary>
         public void ToggleCoinTrade()
         {
@@ -420,6 +474,46 @@ namespace TrashPlanet.Whitebox
             ClosePanelsExcept("trade");
             if (opening) coinTrade.Open();
             ApplyUiState();
+        }
+
+        /// <summary>J 键 / HUD 按钮：任务日志独立开关。与 G/I/B/M 走同一套互斥与指针锁定。</summary>
+        public void ToggleQuestLog()
+        {
+            if (state == null || paused || questLog == null) return;
+            bool opening = !questLog.IsOpen;
+            ClosePanelsExcept(opening ? "questLog" : null);
+            if (opening) questLog.Show();
+            else questLog.Hide();
+            ApplyUiState();
+        }
+
+        /// <summary>
+        /// 游玩结束：由 QuestChain 在完成最后一刻调用，弹出独立结算面板。
+        /// 关掉其它面板、关掉旧 HUD 结算（若场景仍有），保证只有一层结算可见。
+        /// </summary>
+        public void OpenSettlement()
+        {
+            if (state == null || !state.finished) return;
+            ClosePanelsExcept(null);
+            if (hud != null) hud.CloseSettlement(); // 旧 HUD 结算面板仅作降级，独立面板接管后关闭
+            if (settlementView != null) settlementView.Show();
+            else if (hud != null) hud.OpenSettlement(); // 旧场景（未补独立面板）仍弹 HUD 结算，功能不丢
+            ApplyUiState();
+        }
+
+        /// <summary>结算「继续游玩」：关面板但保留 finished 状态，玩家可在已恢复的星球上自由活动。</summary>
+        public void DismissSettlement()
+        {
+            if (settlementView != null && settlementView.IsOpen) settlementView.Hide();
+            if (hud != null) hud.CloseSettlement();
+            ApplyUiState();
+        }
+
+        /// <summary>结算「返回主菜单」：回标题场景（存档由调用方先写）。</summary>
+        public void ReturnToTitle()
+        {
+            Time.timeScale = 1f;
+            SceneManager.LoadScene(TitleController.TitleSceneName);
         }
 
         // 提供给 Hierarchy UI 按钮直接绑定的入口（WhiteboxUiActions.CloseStation）
@@ -459,6 +553,7 @@ namespace TrashPlanet.Whitebox
             if (paused)
             {
                 stationOpen = false;
+                if (questLog != null && questLog.IsOpen) questLog.Hide();
                 if (stationSystem != null) stationSystem.ClearPending();
             }
             ApplyUiState();

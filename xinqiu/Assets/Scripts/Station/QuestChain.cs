@@ -54,10 +54,17 @@ namespace TrashPlanet.Whitebox
             if (s.questStep >= Steps.Length && !s.finished)
             {
                 s.finished = true;
-                game.Hud.OpenSettlement();
+                game.OpenSettlement(); // 游玩结束弹出独立结算面板（旧 HUD 结算仅作降级）
                 game.ApplyUiState(); // 结算时解锁光标、冻结 3D 输入，否则面板按钮点不到
                 WhiteboxState.Save(s);
             }
+        }
+
+        /// <summary>供任务日志等只读视图查询任意一步是否已完成（不改变任务链推进）。</summary>
+        public bool IsStepDone(int step)
+        {
+            if (game == null || game.State == null) return false;
+            return IsStepDone(step, game.State, game.Config);
         }
 
         bool IsStepDone(int step, WhiteboxState s, WhiteboxConfig cfg)

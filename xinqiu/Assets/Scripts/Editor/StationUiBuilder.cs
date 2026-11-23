@@ -1,4 +1,4 @@
-// @trace ART-004, ART-008, MECH-013, PLAT-005
+// @trace ART-004, ART-008, MECH-013, PLAT-005, BAG-003, UI-006
 using System;
 using UnityEditor;
 using UnityEditor.Events;
@@ -231,37 +231,29 @@ namespace TrashPlanet.Whitebox.Editor
             Lbl(status, "Txt_Repaired", "已修复: 否（先造 1 块再生建材板）  ·  背包 Lv.1/2（总 0/50）",
                 42f, 7f, PW - 48f - 54f, 28f, 15, TextSoft);
 
-            // ---------------- 卡片：玩家背包 ----------------
-            RectTransform bag = Card(panel.transform, "Card_Bag", "Bag", 24f, CY, 496f, CH, "玩家背包", "BACKPACK");
-            Lbl(bag, "Txt_BagSum", "0 / 50", 296f, 8f, 180f, 28f, 20, Amber, TextAnchor.MiddleRight, true);
+            // ---------------- 卡片：垃圾背包入口（BAG-003 / UI-006：详情已搬去 G 独立面板） ----------------
+            // 这里只保留「总量 + 打开入口 + 投放按钮」，不再放 4 行明细；
+            // Txt_BagSum / Txt_Raw / Btn_Deposit 名字不变，StationBoardView 与 WhiteboxUiActions 照旧工作。
+            RectTransform bag = Card(panel.transform, "Card_Bag", "Bag", 24f, CY, 496f, CH, "垃圾背包", "GARBAGE BAG");
+            Lbl(bag, "Txt_BagScope", "只存垃圾/废弃物 · 工具背包 I · 金币交易 B", 18f, 68f, 460f, 24f, 13, TextDim);
+            Lbl(bag, "Txt_BagSum", "0 / 50", 18f, 100f, 240f, 48f, 30, Amber, TextAnchor.MiddleLeft, true);
+            Lbl(bag, "Txt_BagEntryHint", "查看名称 / 图标 / 数量、整理、丢弃：按 G 打开独立面板",
+                18f, 152f, 460f, 42f, 13, TextSoft);
 
-            for (int i = 0; i < 4; i++)
+            Button openBag = Btn(bag, "Btn_OpenGarbageBag", "打开垃圾背包 (G)", 18f, 198f, 460f, 48f,
+                Skin("bt_次按钮"), OnAccent, 16, TextAnchor.MiddleCenter, true);
+            if (openBag != null)
             {
-                float y = 68f + i * 86f;
-                RectTransform row = Img(bag, "Row_Bag_" + i, 18f, y, 460f, 80f,
-                    Skin("pn_列表行"), null, false, Image.Type.Sliced).rectTransform;
-                Img(row, "Img_CatIcon_" + i, 12f, 22f, 36f, 36f, Lib(CatIconPaths[i]), null, false,
-                    Image.Type.Simple, true);
-                Lbl(row, "Txt_CatName_" + i, CatNames[i], 58f, 10f, 220f, 24f, 17, TextStrong);
-                Lbl(row, "Txt_CatNameEn_" + i, CatNamesEn[i], 58f, 34f, 220f, 14f, 10, TextDim);
-                Img(row, "Img_BagBarBg_" + i, 58f, 58f, 214f, 10f, Skin("pg_条_底"), null, false,
-                    Image.Type.Sliced);
-                Image fill = Img(row, "Img_BagBarFill_" + i, 58f, 58f, 214f, 10f, Skin("pg_条_填充_青"),
-                    null, false, Image.Type.Filled);
-                if (fill != null)
-                {
-                    fill.fillMethod = Image.FillMethod.Horizontal;
-                    fill.fillOrigin = 0;
-                    fill.fillAmount = 0.35f;
-                }
-                Lbl(row, "Txt_BagCount_" + i, "0", 292f, 6f, 70f, 30f, 22, Amber, TextAnchor.MiddleRight, true);
-                Lbl(row, "Txt_BagCap_" + i, "/0", 364f, 13f, 72f, 22f, 14, TextSoft);
+                Image oi = openBag.GetComponent<Image>();
+                if (oi != null) oi.type = Image.Type.Sliced;
             }
 
-            Div(bag, "Img_RawLine", 18f, 420f, 460f, 1f);
-            Lbl(bag, "Txt_Raw", "待加工垃圾  塑/金/有/电: 0/0/0/0", 18f, 423f, 460f, 22f, 14, TextDim);
+            Div(bag, "Img_RawLine", 18f, 268f, 460f, 1f);
+            Lbl(bag, "Txt_Raw", "待加工垃圾  塑/金/有/电: 0/0/0/0", 18f, 280f, 460f, 24f, 14, TextDim);
+            Lbl(bag, "Txt_BagBoundary", "本区只做投放；背包的查看与丢弃已移到 G 面板",
+                18f, 314f, 460f, 24f, 12, TextDim);
 
-            Button deposit = Btn(bag, "Btn_Deposit", "① 投放背包全部垃圾", 18f, 456f, 460f, 48f,
+            Button deposit = Btn(bag, "Btn_Deposit", "① 投放背包全部垃圾", 18f, 352f, 460f, 52f,
                 Skin("bt_主按钮"), OnAccent, 17, TextAnchor.MiddleCenter, true);
             if (deposit != null)
             {
@@ -602,6 +594,7 @@ namespace TrashPlanet.Whitebox.Editor
                 return;
             }
             Bind(panel, "Btn_Deposit", new UnityAction(a.DepositAll));
+            Bind(panel, "Btn_OpenGarbageBag", new UnityAction(a.OpenGarbageBag));
             for (int i = 0; i < 4; i++)
                 BindInt(panel, "Btn_Process_" + i, new UnityAction<int>(a.Process), i);
             for (int i = 0; i < 3; i++)

@@ -19,7 +19,9 @@ namespace TrashPlanet.Whitebox.Editor
     public static class UiArtImportSettings
     {
         public const string SkinFolder = "Assets/Art/UI/中转站皮肤";
-        public const string LibraryFolder = "Assets/Art/UI/垃圾星球_UI资源库";
+        // UI-007：美术把整页 UI 与拆件导入到带「 1」后缀的新库；旧的无后缀目录已不存在。
+        // 保留旧常量名，指向实际存在的新库，避免改动所有调用点。
+        public const string LibraryFolder = "Assets/Art/UI/垃圾星球_UI资源库 1";
         /// <summary>结束画面（游戏结束 / 结算）用的整图背景与封面，全图 Sprite、不切九宫格。</summary>
         public const string GameOverFolder = "Assets/Art/UI/结束画面";
         const string Tag = "[UiArtImportSettings] ";
@@ -27,18 +29,27 @@ namespace TrashPlanet.Whitebox.Editor
         /// <summary>需要 9 宫格拉伸的拆件：名字 → 四边边距（px）。表里没有的一律按普通 Sprite 处理。</summary>
         static readonly Dictionary<string, int> Sliced = new Dictionary<string, int>
         {
-            { "pn_主面板", 24 },
-            { "pn_卡片", 20 },
-            { "pn_列表行", 12 },
-            { "pn_列表行_亮", 12 },
-            { "bt_主按钮", 16 },
-            { "bt_次按钮", 16 },
-            { "bt_幽灵按钮", 16 },
-            { "bt_危险按钮", 16 },
-            { "cp_状态徽章", 18 },
+            // 旧库兼容名（保留，避免其它场景引用时丢失边距）
+            { "pn_主面板", 24 }, { "pn_列表行_亮", 12 }, { "cp_状态徽章", 18 },
+            { "pg_条_底", 6 }, { "pg_滚动条底", 6 },
+            // 新库「垃圾星球_UI资源库 1」：边距来自 06_UI界面拆件/九宫格参数.json
+            { "pn_面板_大", 44 }, { "pn_面板_大_氛围", 44 }, { "pn_面板_小", 44 },
+            { "pn_卡片", 34 }, { "pn_HUD卡", 32 }, { "pn_HUD卡_小", 28 },
+            { "pn_列表行", 20 }, { "pn_高亮行", 20 },
+            { "pn_头部条", 24 }, { "pn_底部操作条", 24 },
+            { "bt_主按钮", 32 }, { "bt_主按钮_按下", 32 },
+            { "bt_次按钮", 32 }, { "bt_次按钮_按下", 32 },
+            { "bt_危险按钮", 32 }, { "bt_幽灵按钮", 32 }, { "bt_禁用按钮", 32 },
+            { "bt_小按钮_主", 24 }, { "bt_小按钮_次", 24 }, { "bt_小按钮_幽灵", 24 },
             { "bt_关闭方键", 10 },
-            { "pg_条_底", 6 },
-            { "pg_滚动条底", 6 },
+            { "cp_页签_选中", 26 }, { "cp_页签_未选中", 26 }, { "cp_页签条底", 20 },
+            { "cp_状态徽章_正常", 22 }, { "cp_状态徽章_警告", 22 }, { "cp_状态徽章_离线", 22 },
+            { "cp_目标标牌", 25 }, { "cp_标签_琥珀", 20 }, { "cp_数量角标底", 20 },
+            { "pg_进度条_底", 8 }, { "pg_耐久条框", 30 },
+            { "ct_格子_普通", 30 }, { "ct_格子_选中", 30 }, { "ct_格子_高亮", 30 },
+            { "ct_格子_空", 30 }, { "ct_格子_锁定", 30 },
+            { "ct_背包格_小", 14 }, { "ct_背包格_小_选中", 14 },
+            { "hud_提示条_成功", 26 }, { "hud_提示条_失败", 26 },
         };
 
         [MenuItem("Tools/垃圾星球白膜/⑥ 应用 UI 贴图导入设置", false, 15)]

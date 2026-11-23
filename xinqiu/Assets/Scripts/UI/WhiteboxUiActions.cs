@@ -1,4 +1,4 @@
-// @trace MECH-013, PLAT-005, TOOL-002, UI-005
+// @trace MECH-013, PLAT-005, TOOL-002, UI-005, UI-006
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -55,6 +55,18 @@ namespace TrashPlanet.Whitebox
         public void CloseStation()
         {
             if (Game != null && Game.StationOpen) Game.ToggleStation();
+        }
+
+        /// <summary>中转站里的「打开垃圾背包」入口：转给统一仲裁，保证面板互斥与 G 键一致。</summary>
+        public void OpenGarbageBag()
+        {
+            if (Game != null) Game.ToggleGarbageBag();
+        }
+
+        /// <summary>HUD 常驻「任务日志」按钮：转给统一仲裁，与 J 键同一开关链路。</summary>
+        public void OpenQuestLog()
+        {
+            if (Game != null) Game.ToggleQuestLog();
         }
 
         public void Resume()

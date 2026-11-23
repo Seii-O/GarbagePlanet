@@ -1,4 +1,4 @@
-// @trace NUM-001, NUM-004, NUM-007, TOOL-006, BAG-001, BAG-002, COIN-001, NUM-018, SAVE-001, SAVE-002
+// @trace NUM-001, NUM-004, NUM-007, TOOL-006, BAG-001, BAG-002, BAG-003, COIN-001, NUM-018, UI-006, SAVE-001, SAVE-002
 using System;
 using System.IO;
 using UnityEngine;
@@ -17,7 +17,8 @@ namespace TrashPlanet.Whitebox
         const string SaveFileName = "trash_planet_whitebox_save.json";
 
         public int version = 1;
-        public int[] bag = new int[4];        // 背包：4 类垃圾
+        public int[] bag = new int[4];        // 垃圾背包：按类别的汇总数；容量/投放/任务仍以它为准
+        public int[] bagItems = new int[GarbageBagCatalog.ItemCount]; // BAG-003：8 种单品的展示数量，每类两项之和恒等于 bag[cat]
         public int bagLevel = 1;              // 背包等级 1..2（总容量 50 → 100），在中转站升级
         public int[] raw = new int[4];        // 中转站：已存入待加工的垃圾
         public int[] materials = new int[4];  // 再生塑料 / 金属零件 / 有机原料 / 电子元件
@@ -372,16 +373,106 @@ namespace TrashPlanet.Whitebox
 
         public int RewardKinds => ownedRewardIds != null ? ownedRewardIds.Length : 0;
 
-        /// <summary>NUM-001：collected = min(batch, capacityLeft[cat])，0 时目标不消失。</summary>
-        public int Collect(WhiteboxConfig cfg, int cat, int batch)
+        /// <summary>NUM-001：collected = min(batch, capacityLeft[cat])，0 时目标不消失。
+        /// BAG-003：itemIndex&gt;=0 时定向记到该单品；否则两类单品交替记账，旧调用无需改参数。</summary>
+        public int Collect(WhiteboxConfig cfg, int cat, int batch, int itemIndex = -1)
         {
             int index = Mathf.Clamp(cat, 0, 3);
             int left = Mathf.Max(0, cfg.BackpackCapAt(bagLevel)[index] - bag[index]);
             int n = Mathf.Max(0, Mathf.Min(Mathf.Max(0, batch), left));
             if (n <= 0) return 0;
             bag[index] += n;
+            AddGarbageItems(index, n, itemIndex, collected);
             collected += n;
             return n;
+        }
+
+        /// <summary>BAG-003：单品明细记账。bag[cat] 是真值，这里只做展示层的分配。</summary>
+        void AddGarbageItems(int cat, int n, int itemIndex, int collectedBefore)
+        {
+            bagItems = FixBagItems(bagItems);
+            if (itemIndex >= 0 && itemIndex < GarbageBagCatalog.ItemCount
+                && GarbageBagCatalog.CategoryOf(itemIndex) == cat)
+            {
+                bagItems[itemIndex] += n;
+                return;
+            }
+            int a = GarbageBagCatalog.FirstItemOf(cat);
+            int b = a + 1;
+            for (int k = 0; k < n; k++)
+                bagItems[((collectedBefore + k) & 1) == 0 ? a : b] += 1;
+        }
+
+        /// <summary>某个单品当前持有数（垃圾背包卡片用）。</summary>
+        public int GarbageItemCount(int itemIndex)
+        {
+            bagItems = FixBagItems(bagItems);
+            return itemIndex >= 0 && itemIndex < GarbageBagCatalog.ItemCount
+                ? Mathf.Max(0, bagItems[itemIndex]) : 0;
+        }
+
+        /// <summary>BAG-003：把单品明细对齐到 bag[4]。旧档缺字段、直接改 bag 的调试档都会在这里补齐。</summary>
+        public void NormalizeGarbageBagItems()
+        {
+            bagItems = FixBagItems(bagItems);
+            for (int cat = 0; cat < 4; cat++)
+            {
+                int a = GarbageBagCatalog.FirstItemOf(cat);
+                int b = a + 1;
+                int expected = Mathf.Max(0, bag != null && cat < bag.Length ? bag[cat] : 0);
+                int have = bagItems[a] + bagItems[b];
+                if (have == expected) continue;
+                if (have < expected)
+                {
+                    int add = expected - have;
+                    bagItems[a] += (add + 1) / 2; // 两类单品都尽量有展示，不把一类塞满一个图标
+                    bagItems[b] += add / 2;
+                }
+                else
+                {
+                    int excess = have - expected;
+                    int fromB = Mathf.Min(excess, bagItems[b]);
+                    bagItems[b] -= fromB;
+                    bagItems[a] -= excess - fromB;
+                }
+            }
+        }
+
+        /// <summary>整理：校准单品明细与背包总量，返回被调整的件数（0 表示本来就整齐）。</summary>
+        public int TidyGarbageBag()
+        {
+            bagItems = FixBagItems(bagItems);
+            int before = 0;
+            for (int i = 0; i < GarbageBagCatalog.ItemCount; i++) before += bagItems[i];
+            NormalizeGarbageBagItems();
+            int after = 0;
+            for (int i = 0; i < GarbageBagCatalog.ItemCount; i++) after += bagItems[i];
+            return Mathf.Abs(after - before);
+        }
+
+        /// <summary>BAG-003：丢弃单品。只减当前持有与展示数，不动 collected 等累计统计/任务进度。</summary>
+        public bool DiscardGarbage(int itemIndex, int n, out string reason)
+        {
+            reason = "";
+            bagItems = FixBagItems(bagItems);
+            if (itemIndex < 0 || itemIndex >= GarbageBagCatalog.ItemCount)
+            { reason = "物品无效"; return false; }
+            n = Mathf.Max(0, n);
+            if (n <= 0) { reason = "数量无效"; return false; }
+            if (bagItems[itemIndex] < n) { reason = "没有这么多可丢弃"; return false; }
+            bagItems[itemIndex] -= n;
+            int cat = GarbageBagCatalog.CategoryOf(itemIndex);
+            if (bag != null && cat >= 0 && cat < bag.Length) bag[cat] = Mathf.Max(0, bag[cat] - n);
+            return true;
+        }
+
+        static int[] FixBagItems(int[] a)
+        {
+            if (a != null && a.Length == GarbageBagCatalog.ItemCount) return a;
+            var r = new int[GarbageBagCatalog.ItemCount];
+            if (a != null)
+                System.Array.Copy(a, r, Mathf.Min(a.Length, r.Length));
+            return r;
         }
 
         public bool CanCollect(WhiteboxConfig cfg, int cat)
@@ -409,6 +500,7 @@ namespace TrashPlanet.Whitebox
         public void ClampBagToCap(WhiteboxConfig cfg)
         {
             for (int i = 0; i < 4; i++) bag[i] = Mathf.Clamp(bag[i], 0, cfg.BackpackCapAt(bagLevel)[i]);
+            NormalizeGarbageBagItems();
         }
 
         /// <summary>NUM-004：progress = min(1.0, p + items × 0.10)，负值钳到 0，溢出钳到 1。</summary>
@@ -424,6 +516,7 @@ namespace TrashPlanet.Whitebox
         {
             if (s == null || s.version != 1) return new WhiteboxState();
             s.bag = Fix(s.bag);
+            s.NormalizeGarbageBagItems(); // BAG-003：旧档缺 bagItems 时按 bag[4] 重建单品明细，version 不变
             s.raw = Fix(s.raw);
             s.materials = Fix(s.materials);
             // 旧存档没有 bagLevel 字段（JsonUtility 反序列化为 0），统一归一到 1..2
