@@ -1,7 +1,7 @@
 {
   "unityVersion": "2022.3.62f3c1",
   "scene": "Assets/Scenes/WhiteboxPrototype.unity",
-  "frames": 49,
+  "frames": 1,
   "pass": true,
   "runtimeErrorCount": 0,
   "note": "手动菜单⑤触发的 Play 冒烟测试（约 3 秒）；静态校验 48 项由 WhiteboxValidator 独立承担",

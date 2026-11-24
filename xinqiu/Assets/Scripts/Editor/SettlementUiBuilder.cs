@@ -38,10 +38,21 @@ namespace TrashPlanet.Whitebox.Editor
         {
             if (Application.isBatchMode || EditorApplication.isPlayingOrWillChangePlaymode) return;
             if (EditorApplication.isCompiling || EditorApplication.isUpdating) return;
+            // 全局总闸：UI 定稿并锁定后，编译/重启不再自动重建，保护手调布局。
+            if (UiAutoBuildGuard.Locked) return;
             if (SessionState.GetBool(SessionKey, false)) return;
             Scene scene = SceneManager.GetActiveScene();
             if (!scene.IsValid() || scene.path != WhiteboxBuilder.ScenePath) return;
-            if (FindRoot(scene, UiRoot) == null || FindRoot(scene, SysRoot) == null) return;
+            GameObject uiRootGuard = FindRoot(scene, UiRoot);
+            if (uiRootGuard == null || FindRoot(scene, SysRoot) == null) return;
+
+            // 防覆盖：面板已存在则跳过自动重建，保护 Inspector 里手调的布局。
+            // 域重载后场景序列化引用仍有效，无需重建；强制刷新请手动执行菜单 ㉓（仍为存在即删重建）。
+            if (FindDeep(uiRootGuard.transform, SettlementPanelView.PanelName) != null)
+            {
+                SessionState.SetBool(SessionKey, true);
+                return;
+            }
 
             SessionState.SetBool(SessionKey, true);
             try

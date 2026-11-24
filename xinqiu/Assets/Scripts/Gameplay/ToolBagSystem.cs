@@ -203,6 +203,13 @@ namespace TrashPlanet.Whitebox
         public string DisplayName(string itemId)
         {
             if (string.IsNullOrEmpty(itemId)) return "";
+            // C27：加工产物伪 ID mat_0..3 显示为中文名
+            if (itemId.StartsWith("mat_"))
+            {
+                int cat;
+                if (int.TryParse(itemId.Substring(4), out cat) && cat >= 0 && cat < StationSystem.MaterialNames.Length)
+                    return StationSystem.MaterialNames[cat];
+            }
             SkillBookDef b = toolConfig != null ? toolConfig.FindBook(itemId) : null;
             if (b != null) return b.displayName;
             ToolDef t = toolConfig != null ? toolConfig.FindByReward(itemId) : null;

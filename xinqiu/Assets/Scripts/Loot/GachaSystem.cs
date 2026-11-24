@@ -59,7 +59,6 @@ namespace TrashPlanet.Whitebox
             if (config == null || config.Rewards == null) return new GachaReward[0];
             GachaReward[] all = config.Rewards;
             bool toolsDone = tools != null && tools.AllToolsOwned();
-            bool repaired = EpicUnlocked();
             GachaReward[] result = new GachaReward[all.Length];
             int n = 0;
             for (int i = 0; i < all.Length; i++)
@@ -67,11 +66,9 @@ namespace TrashPlanet.Whitebox
                 GachaReward r = all[i];
                 if (r == null) continue;
                 ToolDef td = tools != null && tools.Config != null ? tools.Config.FindByReward(r.id) : null;
-                if (td != null && td.gachaEligible)
-                {
-                    if (toolsDone) continue;                    // 阶段 B：工具全部移出
-                    if (td.epicRequiresRepair && !repaired) continue; // C21：修复前史诗工具不入池
-                }
+                // C27：工具全部下线——凡能匹配到工具定义（weapon_*/skill_*）的一律不入池；
+                // 小物件与技能书（book_*）保留。原阶段切换逻辑随工具下线作废。
+                if (td != null) continue;
                 SkillBookDef sb = tools != null && tools.Config != null ? tools.Config.FindBook(r.id) : null;
                 if (sb != null && !sb.activeInPhaseA && !toolsDone) continue; // 史诗书只在阶段 B
                 result[n++] = r;

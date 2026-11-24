@@ -60,6 +60,12 @@ namespace TrashPlanet.Whitebox
         public string[] toolBuyIds = new string[0];       // 预留：购买记录
         public int[] toolBuyCounts = new int[0];          // 预留：购买次数
 
+        // 人物等级（version 保持 1；旧档缺字段时 Load 归一，不新增存档版本）
+        // 经验由既有行为计数推导，不新增采集挂钩；等级接管原工具加成线。
+        public int playerLevel = 1;                       // 人物等级 1..PlayerLevelMax
+        public int playerExp;                             // 当前等级内累计经验（升级后按阈值扣减）
+        public int playerExpTotal;                        // 历史累计经验（用于按计数重算/展示）
+
         // 独立工具/技能书背包（BAG-001/002）：与垃圾背包 bag[4] 无关，只管理携带格子。
         // 归属真值仍是 ownedRewardIds/Counts，这里只记「哪一格放了什么、几件」。
         public string[] bagSlotIds = new string[0];       // 每格的 rewardId / toolId，空格为 ""
@@ -533,6 +539,10 @@ namespace TrashPlanet.Whitebox
                 Array.Resize(ref s.ownedRewardCounts, s.ownedRewardIds.Length);
             for (int i = 0; i < s.ownedRewardCounts.Length; i++)
                 s.ownedRewardCounts[i] = Mathf.Max(0, s.ownedRewardCounts[i]);
+            // 人物等级字段：旧档反序列化为 0，归一到 Lv.1 / 经验 0；version 仍为 1
+            s.playerLevel = Mathf.Clamp(s.playerLevel <= 0 ? 1 : s.playerLevel, 1, WhiteboxConfig.PlayerLevelHardCap);
+            s.playerExp = Mathf.Max(0, s.playerExp);
+            s.playerExpTotal = Mathf.Max(0, s.playerExpTotal);
             s.NormalizeTools();     // 工具系统字段：旧档缺失时补位/钳制，version 仍为 1
             s.NormalizeEquip();     // 手持装备字段：旧档补空数组，version 仍为 1
             s.NormalizeInventory(); // 背包格子 + 交易流水：旧档补空数组，version 仍为 1

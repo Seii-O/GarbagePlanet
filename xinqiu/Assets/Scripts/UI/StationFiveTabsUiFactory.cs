@@ -29,7 +29,7 @@ namespace TrashPlanet.Whitebox
         static readonly Color Teal = new Color(0.17f, 0.66f, 0.60f, 1f);       // 青绿强调
         static readonly Color OnPrimary = new Color(0.04f, 0.11f, 0.10f, 1f);  // 主按钮上的字
 
-        static readonly string[] TabNames = { "垃圾接收", "垃圾分类", "材料加工", "产品制造", "工具升级" };
+        static readonly string[] TabNames = { "垃圾接收", "垃圾分类", "材料加工", "产品制造", "人物升级" };
         static readonly string[] CatNames = { "塑料", "金属", "有机", "电子" };
         static readonly string[] ItemNames = { "塑料瓶", "塑料袋", "易拉罐", "铁片", "苹果核", "枯叶", "电池", "电路板" };
         static readonly string[] MaterialNames = { "再生塑料", "金属零件", "有机原料", "电子元件" };
@@ -311,42 +311,76 @@ namespace TrashPlanet.Whitebox
         }
 
         // =====================================================================
-        // 05 工具升级（3 工具卡 + 底部升级需求条）
+        // 05 人物升级（C27：独立信息卡；当前/下一级/满级加成预览 + 经验条 + 材料消耗）
         // =====================================================================
         static void BuildUpgrade(RectTransform page, StationArtSet art, Font font)
         {
-            string[] names = { "基础回收器", "强化回收器", "智能回收器" };
-            string[] subs = { "手动靠近物件拾取", "拾取与吸附范围扩大", "覆盖半径进入范围后自动收集" };
-            string[] rows = { "拾取距离", "吸附距离", "拆解效率", "自动吸附" };
+            // 主卡片：居中大卡，承载人物成长的全部信息（对齐人物升级浮层布局）
+            RectTransform main = Card(page, "Card_LevelUp", 60f, 150f, 1680f, 760f, "", art, font, false);
+
+            // 顶部青绿标签：中转站 · 人物成长
+            Pill(main, "Pill_Section", "中转站 · 人物成长", 24f, 18f, 300f, 42f,
+                art?.labelTeal, Teal, 16, font);
+
+            // 标题 + 等级徽章
+            Lbl(main, "Txt_LevelTitle", "人物升级", 24f, 74f, 360f, 56f, 34, Ink, TextAnchor.MiddleLeft, true, font);
+            Img(main, "Img_LevelBadge", 400f, 82f, 130f, 44f, art?.labelTeal, Color.white, false, Image.Type.Sliced);
+            Lbl(main, "Txt_Level", "Lv.1", 400f, 82f, 130f, 44f, 20, Teal, TextAnchor.MiddleCenter, true, font);
+
+            // 经验区：累计经验 / 进度条 / 来源
+            Lbl(main, "Txt_ExpLabel", "累计经验", 24f, 148f, 200f, 32f, 16, InkSoft, TextAnchor.MiddleLeft, false, font);
+            Lbl(main, "Txt_ExpValue", "0 / 0", 1260f, 146f, 396f, 36f, 20, Amber, TextAnchor.MiddleRight, true, font);
+            Img(main, "Img_ExpBg", 24f, 190f, 1632f, 22f, art?.barBottom, Color.white, false, Image.Type.Sliced);
+            Image expFill = Img(main, "Img_ExpFill", 24f, 190f, 1632f, 22f, art?.fillTeal, Color.white, false, Image.Type.Filled);
+            expFill.type = Image.Type.Filled;
+            expFill.fillMethod = Image.FillMethod.Horizontal;
+            expFill.fillOrigin = 0;
+            expFill.fillAmount = 0f;
+            Lbl(main, "Txt_ExpSource", "经验来源：拾取 / 拆解 / 加工 / 制造 / 修复", 24f, 220f, 1000f, 30f, 14, InkDim, TextAnchor.MiddleLeft, false, font);
+
+            // 加成预览标题
+            Div(main, "Img_Div1", 24f, 258f, 1632f, 2f, art);
+            Lbl(main, "Txt_BonusHeader", "等级加成预览", 24f, 270f, 300f, 34f, 17, Ink, TextAnchor.MiddleLeft, true, font);
+
+            // 三张加成卡：当前 / 下一级 / 满级
+            string[] titles = { "当前等级", "下一等级", "满级目标" };
+            string[] specLabels = { "拾取距离", "拆解效率", "加工耗时", "零耗时次数" };
             for (int i = 0; i < 3; i++)
             {
-                RectTransform card = Card(page, "Card_Tool_" + i, 20f + i * 580f, 160f, 560f, 460f, "", art, font, false);
-                Pill(card, "Img_Idx_" + i, (i + 1).ToString(), 18f, 18f, 40f, 40f, art?.countBadge, Ink, 18, font);
-                Lbl(card, "Txt_ToolName_" + i, names[i], 70f, 18f, 340f, 38f, 22, Ink, TextAnchor.MiddleLeft, true, font);
-                Lbl(card, "Txt_Sub", subs[i], 70f, 56f, 460f, 28f, 14, InkDim, TextAnchor.MiddleLeft, false, font);
-
+                float cx = 24f + i * 552f;
+                RectTransform card = Card(main, "Card_Tool_" + i, cx, 312f, 528f, 260f, "", art, font, false);
+                Pill(card, "Img_Idx_" + i, (i + 1).ToString(), 16f, 14f, 36f, 36f, art?.countBadge, Ink, 16, font);
+                Lbl(card, "Txt_ToolName_" + i, titles[i], 62f, 14f, 300f, 40f, 19,
+                    i == 1 ? Teal : Ink, TextAnchor.MiddleLeft, true, font);
+                Lbl(card, "Txt_Sub", i == 0 ? "当前生效" : (i == 1 ? "升级后生效" : "等级上限"),
+                    62f, 52f, 420f, 26f, 13, InkDim, TextAnchor.MiddleLeft, false, font);
                 for (int r = 0; r < 4; r++)
                 {
-                    RectTransform rr = Row(card, "Row_Spec_" + i + "_" + r, 16f, 100f + r * 58f, 528f, 56f, art);
-                    Lbl(rr, "Txt_Label", rows[r], 14f, 10f, 240f, 36f, 17, Ink, TextAnchor.MiddleLeft, false, font);
-                    Lbl(rr, "Txt_Value", "—", 300f, 10f, 210f, 36f, 18, InkSoft, TextAnchor.MiddleRight, true, font);
+                    RectTransform rr = Row(card, "Row_Spec_" + i + "_" + r, 16f, 88f + r * 38f, 496f, 36f, art);
+                    Lbl(rr, "Txt_Label", specLabels[r], 14f, 4f, 220f, 28f, 15, InkSoft, TextAnchor.MiddleLeft, false, font);
+                    Lbl(rr, "Txt_Value", "—", 244f, 4f, 238f, 28f, 16,
+                        i == 1 ? Teal : Ink, TextAnchor.MiddleRight, true, font);
                 }
-                Btn(card, "Btn_Tool_" + i, i == 0 ? "已解锁" : "待解锁", 16f, 396f, 528f, 50f,
-                    i == 1 ? art?.btnPrimary : art?.btnDisabled,
-                    i == 1 ? OnPrimary : InkSoft, 19, TextAnchor.MiddleCenter, true, font);
             }
 
-            RectTransform up = Card(page, "Card_Upgrade", 20f, 640f, 1740f, 170f, "", art, font, false);
-            Lbl(up, "Txt_UpPath", "升级路径 / lv.1 → lv.2 → lv.3", 20f, 14f, 400f, 30f, 14, InkDim, TextAnchor.MiddleLeft, false, font);
-            Lbl(up, "Txt_UpState", "材料不足", 20f, 42f, 160f, 34f, 18, Amber, TextAnchor.MiddleLeft, true, font);
-            Lbl(up, "Txt_UpHint", "返回星球上收集更多材料", 20f, 78f, 260f, 50f, 13, InkDim, TextAnchor.UpperLeft, false, font);
-            Img(up, "Img_CostMat", 300f, 42f, 40f, 40f, art?.Material(1), Color.white, false, Image.Type.Simple, true);
-            Lbl(up, "Txt_CostMat", "金属零件 0 / 100", 348f, 38f, 220f, 44f, 15, Ink, TextAnchor.MiddleLeft, false, font);
-            Img(up, "Img_CostElec", 580f, 42f, 40f, 40f, art?.Material(3), Color.white, false, Image.Type.Simple, true);
-            Lbl(up, "Txt_CostElec", "电子元件 0 / 120", 628f, 38f, 220f, 44f, 15, Ink, TextAnchor.MiddleLeft, false, font);
-            Btn(up, "Btn_Upgrade", "升级", 1510f, 56f, 180f, 58f, art?.btnDisabled, InkSoft, 20, TextAnchor.MiddleCenter, true, font);
-            Bottom(page, art, font, "Txt_BottomLeft", "lv.3 起升级进入吸附范围后自动收集 · 大型垃圾仍需手动拆解",
-                null, null, false, null, Ink);
+            // 材料消耗
+            Div(main, "Img_Div2", 24f, 580f, 1632f, 2f, art);
+            Lbl(main, "Txt_CostHeader", "升级消耗", 24f, 592f, 300f, 34f, 17, Ink, TextAnchor.MiddleLeft, true, font);
+            RectTransform matCard = Card(main, "Card_CostMat", 24f, 634f, 800f, 72f, "", art, font, false);
+            Img(matCard, "Img_CostMat", 16f, 16f, 40f, 40f, art?.Material(1), Color.white, false, Image.Type.Simple, true);
+            Lbl(matCard, "Txt_CostMatLabel", "金属零件", 66f, 16f, 170f, 40f, 15, InkSoft, TextAnchor.MiddleLeft, false, font);
+            Lbl(matCard, "Txt_CostMat", "需 0 / 持有 0", 250f, 16f, 534f, 40f, 17, Amber, TextAnchor.MiddleRight, true, font);
+            RectTransform elecCard = Card(main, "Card_CostElec", 856f, 634f, 800f, 72f, "", art, font, false);
+            Img(elecCard, "Img_CostElec", 16f, 16f, 40f, 40f, art?.Material(3), Color.white, false, Image.Type.Simple, true);
+            Lbl(elecCard, "Txt_CostElecLabel", "电子元件", 66f, 16f, 170f, 40f, 15, InkSoft, TextAnchor.MiddleLeft, false, font);
+            Lbl(elecCard, "Txt_CostElec", "需 0 / 持有 0", 250f, 16f, 534f, 40f, 17, Amber, TextAnchor.MiddleRight, true, font);
+
+            // 升级状态 / 提示
+            Lbl(main, "Txt_UpState", "可升级", 24f, 714f, 240f, 30f, 16, Teal, TextAnchor.MiddleLeft, true, font);
+            Lbl(main, "Txt_UpHint", "", 280f, 714f, 1376f, 30f, 14, InkDim, TextAnchor.MiddleLeft, false, font);
+
+            Bottom(page, art, font, "Txt_BottomLeft", "经验达标并消耗加工材料后即可升级人物",
+                "Btn_Upgrade", "升级", true, art?.btnPrimary, OnPrimary, "取消");
         }
 
         // =====================================================================
@@ -404,11 +438,12 @@ namespace TrashPlanet.Whitebox
         }
 
         static void Bottom(Transform page, StationArtSet art, Font font, string leftName, string leftText,
-            string rightBtnName, string rightText, bool showRight, Sprite primarySprite, Color primaryText)
+            string rightBtnName, string rightText, bool showRight, Sprite primarySprite, Color primaryText,
+            string closeText = "关闭")
         {
             RectTransform bar = Img(page, "BottomBar", 30f, 910f, 1740f, 62f, art?.bottomBar, Color.white, false, Image.Type.Sliced).rectTransform;
             Lbl(bar, leftName, leftText, 24f, 12f, 1000f, 38f, 16, InkSoft, TextAnchor.MiddleLeft, false, font);
-            Btn(bar, "Btn_ClosePage", "关闭", showRight ? 1440f : 1590f, 10f, 140f, 44f,
+            Btn(bar, "Btn_ClosePage", closeText, showRight ? 1440f : 1590f, 10f, 140f, 44f,
                 art?.btnGhost, Ink, 19, TextAnchor.MiddleCenter, false, font);
             if (!showRight || rightBtnName == null) return;
             Btn(bar, rightBtnName, rightText, 1600f, 10f, 170f, 44f,

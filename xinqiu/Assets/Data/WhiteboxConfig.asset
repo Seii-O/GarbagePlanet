@@ -57,6 +57,36 @@ MonoBehaviour:
   gripperRangeBonus: 1
   magnetFirstHitBonus: 1
   purifierChargesMax: 2
+  playerLevelMax: 5
+  playerLevelExp: 0000000014000000370000006e000000be000000
+  expPerCollect: 1
+  expPerDismantle: 2
+  expPerProcess: 2
+  expPerCraft: 3
+  expPerRepair: 10
+  playerPickRange:
+  - 4
+  - 5
+  - 6
+  - 7
+  - 8
+  playerDismantleDamage: 0100000001000000010000000200000002000000
+  playerProcessMult:
+  - 1
+  - 0.97
+  - 0.94
+  - 0.91
+  - 0.88
+  playerCraftMult:
+  - 1
+  - 0.97
+  - 0.94
+  - 0.91
+  - 0.88
+  playerFreeChargeFromLevel: 3
+  playerFreeChargePerLevel: 1
+  playerUpgradeMetalCost: 080000000c000000120000001a00000024000000
+  playerUpgradeElectronicCost: 04000000060000000a0000000f00000014000000
   conversionRate:
   - 0.5
   - 0.5

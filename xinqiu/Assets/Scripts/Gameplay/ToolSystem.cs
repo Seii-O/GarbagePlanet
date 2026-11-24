@@ -376,11 +376,9 @@ namespace TrashPlanet.Whitebox
             WhiteboxConfig cfg = GameConfig;
             WhiteboxState s = GameState;
             if (cfg == null || s == null) return 0f;
-            int lv = Mathf.Clamp(s.toolLevel - 1, 0, 2);
-            float value = cfg.PickRange[lv];
-            if (IsEquipped("weapon_gripper")) value += cfg.GripperRangeBonus;
-            int c = (int)cat;
-            if (c == 1 && stateActiveIs(1) && s.toolLevels[1] >= 1) value += cfg.SpecRangeBonus;
+            // C27：拾取范围由人物等级驱动；工具/专精加成随工具下线不再叠加
+            PlayerLevelSystem lv = GameLevel;
+            float value = lv != null ? lv.PickRangeAt(lv.Level) : cfg.PickRange[Mathf.Clamp(s.toolLevel - 1, 0, 2)];
             return Mathf.Min(cfg.PickRangeCap, Mathf.Max(0f, value));
         }
 
@@ -394,25 +392,22 @@ namespace TrashPlanet.Whitebox
         public int EffectiveDamage(TrashCategory cat, bool isFirstHit)
         {
             WhiteboxConfig cfg = GameConfig;
-            WhiteboxState s = GameState;
-            if (cfg == null || s == null) return 1;
-            int lv = Mathf.Clamp(s.toolLevel - 1, 0, 2);
-            int damage = cfg.DismantleDamage[lv];
-            int c = (int)cat;
-            int specBonus = c == 1 && stateActiveIs(1) && s.toolLevels[1] >= 2 ? cfg.SpecDamageBonus : 0;
-            int magnetBonus = isFirstHit && IsEquipped("weapon_magnet") ? cfg.MagnetFirstHitBonus : 0;
-            // T-03 与 T-07 取最大，不相加
-            damage += Mathf.Max(specBonus, magnetBonus);
+            if (cfg == null) return 1;
+            // C27：拆解伤害由人物等级驱动；专精/磁铁手套加成随工具下线不再叠加
+            PlayerLevelSystem lv = GameLevel;
+            int damage = lv != null ? lv.DismantleDamageAt(lv.Level)
+                : cfg.DismantleDamage[Mathf.Clamp(GameState != null ? GameState.toolLevel - 1 : 0, 0, 2)];
             return Mathf.Max(1, Mathf.Min(cfg.DismantleDamageCap, damage));
         }
 
         public int EffectiveYield(TrashCategory cat)
         {
             WhiteboxConfig cfg = GameConfig;
-            WhiteboxState s = GameState;
-            if (cfg == null || s == null) return 1;
+            if (cfg == null) return 1;
             int gain = cfg.LargeYield;
-            if ((int)cat == 0 && stateActiveIs(0) && s.toolLevels[0] >= 2) gain += cfg.SpecYieldBonus;
+            // C27：大型产出由人物等级门槛驱动（Lv.4 起 +1），替代原塑料专精 Lv.2
+            PlayerLevelSystem lv = GameLevel;
+            if (lv != null && lv.Level >= 4) gain += cfg.SpecYieldBonus;
             return Mathf.Max(1, Mathf.Min(3, gain));
         }
 
@@ -423,26 +418,23 @@ namespace TrashPlanet.Whitebox
         public float ProcessMultiplier(int cat)
         {
             WhiteboxConfig cfg = GameConfig;
-            WhiteboxState s = GameState;
-            if (cfg == null || s == null) return 1f;
-            float tool = 1f;
-            if (stateActiveIs(cat) && s.toolLevels[Mathf.Clamp(cat, 0, 3)] >= 1)
-                tool = Mathf.Min(tool, cfg.SpecProcessMult);
+            if (cfg == null) return 1f;
+            // C27：加工效率主乘区由人物等级驱动；技能书独立乘区保留
+            PlayerLevelSystem lv = GameLevel;
+            float levelMult = lv != null ? lv.ProcessMultAt(lv.Level) : cfg.SpecProcessMult;
             float book = BookMultiplier(BookEffect.ProcessTime);
-            return Mathf.Max(cfg.EfficiencyFloor, tool * book);
+            return Mathf.Max(cfg.EfficiencyFloor, levelMult * book);
         }
 
         public float CraftMultiplier(int recipe)
         {
             WhiteboxConfig cfg = GameConfig;
-            WhiteboxState s = GameState;
-            if (cfg == null || s == null) return 1f;
-            float tool = 1f;
-            int cat = recipe == 1 ? 2 : (recipe == 2 ? 3 : -1);
-            if (cat >= 0 && stateActiveIs(cat) && s.toolLevels[cat] >= 2)
-                tool = Mathf.Min(tool, cfg.SpecCraftMult);
+            if (cfg == null) return 1f;
+            // C27：制造效率主乘区由人物等级驱动；技能书独立乘区保留
+            PlayerLevelSystem lv = GameLevel;
+            float levelMult = lv != null ? lv.CraftMultAt(lv.Level) : cfg.SpecCraftMult;
             float book = BookMultiplier(BookEffect.CraftTime);
-            return Mathf.Max(cfg.EfficiencyFloor, tool * book);
+            return Mathf.Max(cfg.EfficiencyFloor, levelMult * book);
         }
 
         float BookMultiplier(BookEffect effect)
@@ -520,7 +512,9 @@ namespace TrashPlanet.Whitebox
         {
             WhiteboxConfig cfg = GameConfig;
             if (cfg == null) return 0;
-            int cap = IsEquipped("weapon_purifier") ? Mathf.Max(0, cfg.PurifierChargesMax) : 0;
+            // C27：零耗时次数 = 人物等级白送 + 技能书满层；净化器装备加成随工具下线移除
+            PlayerLevelSystem lv = GameLevel;
+            int cap = lv != null ? lv.FreeChargeAt(lv.Level) : 0;
             if (BookMaxed("book_tireless")) cap += 1;
             return Mathf.Clamp(cap, 0, 3);
         }
@@ -537,12 +531,13 @@ namespace TrashPlanet.Whitebox
         public void OnStageAdvanced()
         {
             WhiteboxState s = GameState;
-            if (s == null || !IsEquipped("weapon_purifier")) return;
+            if (s == null) return;
+            // C27：生态阶段跃迁补一次零耗时，上限由人物等级/技能书决定（不再依赖净化器装备）
             int cap = FreeChargeCap();
-            if (s.freeJobCharges >= cap) return;
+            if (cap <= 0 || s.freeJobCharges >= cap) return;
             s.freeJobCharges += 1;
             if (game != null && game.Hud != null)
-                game.Hud.Notice("净化器蓄能：零耗时任务 +1（" + s.freeJobCharges + "/" + cap + "）");
+                game.Hud.Notice("生态蓄能：零耗时任务 +1（" + s.freeJobCharges + "/" + cap + "）");
             WhiteboxState.Save(s);
         }
 
@@ -552,6 +547,7 @@ namespace TrashPlanet.Whitebox
             return s != null && s.toolActive == cat;
         }
 
+        PlayerLevelSystem GameLevel => game != null ? game.PlayerLevel : null;
         WhiteboxConfig GameConfig => game != null ? game.Config : null;
         WhiteboxState GameState => game != null ? game.State : null;
     }

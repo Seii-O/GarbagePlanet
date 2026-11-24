@@ -21,3 +21,8 @@ MonoBehaviour:
   trinketBasePrice: 20
   tradeFee: 0
   startingCoins: 0
+  materialSellPrices:
+  - 12
+  - 18
+  - 10
+  - 25

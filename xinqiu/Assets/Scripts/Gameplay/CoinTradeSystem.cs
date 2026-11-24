@@ -91,8 +91,12 @@ namespace TrashPlanet.Whitebox
         public int BuyPrice(string itemId)
         {
             ToolConfig tc = ToolConfigRef;
-            ToolDef def = tc != null ? tc.FindByReward(itemId) : null;
-            if (def == null || def.purchase == null) return 0; // 非工具（含技能书）不开放购买
+            if (tc == null) return 0;
+            // C27：技能书可用金币购买（price>0）
+            SkillBookDef book = tc.FindBook(itemId);
+            if (book != null) return book.Price;
+            ToolDef def = tc.FindByReward(itemId);
+            if (def == null || def.purchase == null) return 0;
             return Mathf.Max(0, def.purchase.price);
         }
 
@@ -100,6 +104,9 @@ namespace TrashPlanet.Whitebox
         {
             ToolConfig tc = ToolConfigRef;
             if (tc == null || config == null) return 0;
+            // C27：加工产物的出售单价直接取配置（不走稀有度基准 × sellRatio）
+            int matCat;
+            if (IsMaterialItem(itemId, out matCat)) return config.MaterialSellPrice(matCat);
             SkillBookDef book = tc.FindBook(itemId);
             if (book != null) return Mathf.Max(1, Mathf.RoundToInt(config.BasePrice(book.rarity, tc) * config.SellRatio));
             ToolDef tool = tc.FindByReward(itemId);
@@ -118,29 +125,51 @@ namespace TrashPlanet.Whitebox
             return 0;
         }
 
-        /// <summary>可购买清单：仅 price>0 且有 rewardId 的工具（技能书 gachaOnly，不开放购买）。</summary>
+        /// <summary>可购买清单：price>0 的技能书 + 工具（C27：技能书进商城；工具随下线不再出现）。</summary>
         public string[] BuyCatalog()
         {
             ToolConfig tc = ToolConfigRef;
             if (tc == null) return new string[0];
             System.Collections.Generic.List<string> list = new System.Collections.Generic.List<string>();
+            SkillBookDef[] books = tc.Books;
+            for (int i = 0; i < books.Length; i++)
+            {
+                SkillBookDef b = books[i];
+                if (b == null || string.IsNullOrEmpty(b.rewardId) || b.Price <= 0) continue;
+                if (!list.Contains(b.rewardId)) list.Add(b.rewardId);
+            }
             ToolDef[] all = tc.Tools;
             for (int i = 0; i < all.Length; i++)
             {
                 ToolDef t = all[i];
                 if (t == null || string.IsNullOrEmpty(t.rewardId)) continue;
-                if (t.purchase != null && t.purchase.price > 0) list.Add(t.rewardId);
+                if (t.purchase != null && t.purchase.enabled && t.purchase.price > 0 && !list.Contains(t.rewardId))
+                    list.Add(t.rewardId);
             }
             return list.ToArray();
         }
 
-        /// <summary>可出售清单：图鉴里当前有归属的物品（工具 + 小物件；技能书 C20 抽奖专属，不可卖）。</summary>
+        const string MaterialItemPrefix = "mat_"; // C27 材料出售伪 ID：mat_0..3，不进归属系统
+
+        static bool IsMaterialItem(string id, out int cat)
+        {
+            cat = -1;
+            if (string.IsNullOrEmpty(id) || !id.StartsWith(MaterialItemPrefix)) return false;
+            return int.TryParse(id.Substring(MaterialItemPrefix.Length), out cat) && cat >= 0 && cat <= 3;
+        }
+
+        /// <summary>可出售清单：四种加工产物（存量>0）+ 图鉴里有归属的物品；技能书不可卖。</summary>
         public string[] SellCatalog()
         {
             WhiteboxState s = GameState;
             ToolConfig tc = ToolConfigRef;
-            if (s == null || tc == null || s.ownedRewardIds == null) return new string[0];
+            if (s == null || tc == null) return new string[0];
             System.Collections.Generic.List<string> list = new System.Collections.Generic.List<string>();
+            // C27：加工产物换金币（放在最前，玩家最先看到）
+            if (s.materials != null)
+                for (int c = 0; c < 4; c++)
+                    if (s.materials[c] > 0) list.Add(MaterialItemPrefix + c);
+            if (s.ownedRewardIds == null) return list.ToArray();
             for (int i = 0; i < s.ownedRewardIds.Length; i++)
             {
                 string id = s.ownedRewardIds[i];
@@ -195,18 +224,30 @@ namespace TrashPlanet.Whitebox
             amount = Mathf.Max(1, amount);
             int price = SellPrice(itemId);
             if (price <= 0) { r.message = "该物品不可出售"; return r; }
-            if (ToolConfigRef != null && ToolConfigRef.FindBook(itemId) != null)
-            { r.message = "技能书为抽奖专属，不可出售"; return r; }
-            if (s.RewardCount(itemId) < amount) { r.message = "持有数量不足"; return r; }
 
-            // 背包有这个物品就先出库；背包里没有（如小物件）则跳过，只扣归属
-            if (bag != null && bag.CountOf(itemId) > 0)
+            int matCat;
+            bool isMaterial = IsMaterialItem(itemId, out matCat);
+            if (!isMaterial)
             {
-                string why;
-                if (!bag.RemoveFirst(itemId, Mathf.Min(amount, bag.CountOf(itemId)), out why))
-                { r.message = "出库失败：" + why; return r; }
+                if (ToolConfigRef != null && ToolConfigRef.FindBook(itemId) != null)
+                { r.message = "技能书不可出售"; return r; }
+                if (s.RewardCount(itemId) < amount) { r.message = "持有数量不足"; return r; }
             }
-            if (!s.ConsumeReward(itemId, amount)) { r.message = "扣减归属失败"; return r; }
+            else if (s.materials == null || matCat >= s.materials.Length || s.materials[matCat] < amount)
+            { r.message = "产物数量不足"; return r; }
+
+            // 非材料物品：背包出库 + 扣归属（防刷）；材料直接扣 materials，不进归属/背包
+            if (!isMaterial)
+            {
+                if (bag != null && bag.CountOf(itemId) > 0)
+                {
+                    string why;
+                    if (!bag.RemoveFirst(itemId, Mathf.Min(amount, bag.CountOf(itemId)), out why))
+                    { r.message = "出库失败：" + why; return r; }
+                }
+                if (!s.ConsumeReward(itemId, amount)) { r.message = "扣减归属失败"; return r; }
+            }
+            else s.materials[matCat] -= amount;
 
             int fee = Mathf.FloorToInt(price * amount * config.TradeFee);
             int income = Mathf.Max(1, price * amount - fee);
@@ -262,6 +303,12 @@ namespace TrashPlanet.Whitebox
 
         string NameOf(string id)
         {
+            int matCat;
+            if (IsMaterialItem(id, out matCat))
+            {
+                string[] names = StationSystem.MaterialNames;
+                return names != null && matCat < names.Length ? names[matCat] : "加工产物";
+            }
             return bag != null ? bag.DisplayName(id) : id;
         }
 

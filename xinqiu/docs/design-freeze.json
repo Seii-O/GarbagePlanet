@@ -1,5 +1,5 @@
 {
-  "version": 26,
+  "version": 27,
   "status": "frozen",
   "frozenAt": "2026-11-23",
   "project": "垃圾星球",
@@ -265,7 +265,7 @@
     {
       "id": "NUM-017",
       "type": "numeric",
-      "name": "商城扩展接口与定价：金币不上线、T-10定价180（C22/C23）",
+      "name": "金币交易已上线：B键余额/买书/卖加工产物；工具T-06~T-10随工具下线从奖池与商城移除（C27 覆盖 C22/C23 的「金币不上线」旧口径）",
       "confirmed": true
     },
     {
@@ -375,9 +375,15 @@
       "type": "art",
       "name": "伙伴狗程序化动作表现：根物体小跑起伏/回望/叼回前探与子部件尾巴/四肢/头部动画，保持固定色与体高红线",
       "confirmed": true
+    },
+    {
+      "id": "MECH-018",
+      "type": "mechanic",
+      "name": "人物等级接管工具加成：经验由拾取/拆解/加工/制造/修复既有计数推导，中转站第5页消耗金属+电子手动升级（Lv.1~5），驱动拾取范围/拆解伤害/加工制造效率/零耗时；工具T-01~T-10全部下线不入奖池，技能书保留并可用金币购买，四种加工产物可出售换金币（C27）",
+      "confirmed": true
     }
   ],
-  "scopeNote": "v26: 应用户需求给伙伴狗加戏。新增 MECH-017（周期性探路：Follow/Scout/Return 状态机，玩家静止或间隔到点时狗走到玩家侧前方进入第一人称视野，探路期间暂停叼回）与 ART-014（程序化动作：根物体小跑起伏/回望/叼回前探 + 子部件尾巴/四肢/头部 localRotation 动画）。ART-012 固定外观仍然成立：全程不改材质/Renderer 色，只改 transform。数值全部在 WhiteboxConfig 新增 13 个字段，WhiteboxBuilder 用 Editor API 幂等补齐旧资产；WhiteboxValidator 增加 5 项校验（41→46）。同步把 deferred 里与 items 重号的 ART-013（C13 狗色号）改为 ART-015。 v18: 应用户需求实现 5 槽 JSON 多存档系统。新增 SAVE-001/002/003。核心 SaveSlotSystem 管理 5 个独立槽文件（trash_planet_save_slot_N.json），写保存时间、原子写入、旧单文件档自动迁移到槽 1。WhiteboxState 增加玩家位置/视角字段并抽出 NormalizeLoaded 统一归一口径；所有既有 Save(s) 调用改为写当前激活槽，新增 Save(s,slot) 写指定槽。WhiteboxGame 进场景注册 CapturePoseHook 保存前写位置、Awake 还原位置并 ResolvePlanetGeometry，F9 打开局内存档面板（ToggleInGameSave，并入 IsUiBlocking 与 ESC 链）。TitleController 开始新游戏=ActiveSlot=0 不删槽，继续游戏=打开 ContinueGameUI 选槽面板；SaveSlotMenuView 列出 5 槽（有档亮+时间/无档灰+空字），点有档按钮设 ActiveSlot 并进游戏。InGameSaveView（F9）5 按钮保存/覆盖任意槽。Editor SaveSlotBuilder（菜单⑮）用 Editor API 生成面板并接线，不手写场景 YAML。",
+  "scopeNote": "v27: 应用户需求重构成长经济线。新增 MECH-018（人物等级：经验复用既有计数、中转站第5页消耗金属+电子手动升 Lv.1~5，接管原工具的拾取范围/拆解伤害/加工制造效率/零耗时加成；工具 T-01~T-10 全部下线、从抽奖奖池移除；技能书保留并开放金币购买；四种加工产物新增出售换金币通道）。新增 PlayerLevelSystem（运行时自动补建、@trace C27），WhiteboxState 加 playerLevel/playerExp/playerExpTotal 三字段（version 保持 1，NormalizeLoaded 补默认），WhiteboxConfig 加人物等级经验/加成/升级消耗配置（OnValidate 幂等补齐 .asset），CoinTradeConfig 加 materialSellPrices。ToolConfig 技能书加 price 字段并设 gachaOnly=0。StationFiveTabsView 第5页改人物升级（沿用现有控件不重建场景），InventoryPanelView 改「技能书背包」。GachaSystem.ActivePool 过滤所有工具 reward。同步更新 NUM-017 口径（金币已上线）。 v26: 应用户需求给伙伴狗加戏。新增 MECH-017（周期性探路：Follow/Scout/Return 状态机，玩家静止或间隔到点时狗走到玩家侧前方进入第一人称视野，探路期间暂停叼回）与 ART-014（程序化动作：根物体小跑起伏/回望/叼回前探 + 子部件尾巴/四肢/头部 localRotation 动画）。ART-012 固定外观仍然成立：全程不改材质/Renderer 色，只改 transform。数值全部在 WhiteboxConfig 新增 13 个字段，WhiteboxBuilder 用 Editor API 幂等补齐旧资产；WhiteboxValidator 增加 5 项校验（41→46）。同步把 deferred 里与 items 重号的 ART-013（C13 狗色号）改为 ART-015。 v18: 应用户需求实现 5 槽 JSON 多存档系统。新增 SAVE-001/002/003。核心 SaveSlotSystem 管理 5 个独立槽文件（trash_planet_save_slot_N.json），写保存时间、原子写入、旧单文件档自动迁移到槽 1。WhiteboxState 增加玩家位置/视角字段并抽出 NormalizeLoaded 统一归一口径；所有既有 Save(s) 调用改为写当前激活槽，新增 Save(s,slot) 写指定槽。WhiteboxGame 进场景注册 CapturePoseHook 保存前写位置、Awake 还原位置并 ResolvePlanetGeometry，F9 打开局内存档面板（ToggleInGameSave，并入 IsUiBlocking 与 ESC 链）。TitleController 开始新游戏=ActiveSlot=0 不删槽，继续游戏=打开 ContinueGameUI 选槽面板；SaveSlotMenuView 列出 5 槽（有档亮+时间/无档灰+空字），点有档按钮设 ActiveSlot 并进游戏。InGameSaveView（F9）5 按钮保存/覆盖任意槽。Editor SaveSlotBuilder（菜单⑮）用 Editor API 生成面板并接线，不手写场景 YAML。",
   "deferredNote": "deferred 为待拍板项（策划案 v1.2 第16章 C1-C13），保持 confirmed:false，工程以可配置默认值实现但不视为定稿；C13 狗固定色号候选对应 ART-015（v26 从与 items 重号的 ART-013 改编号）。拍板后须递增 version 并把条目移回 items 且置 confirmed:true。",
   "deferred": [
     {

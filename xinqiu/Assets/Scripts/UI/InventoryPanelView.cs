@@ -115,7 +115,7 @@ namespace TrashPlanet.Whitebox
             string[] candidates = system.StorageCandidates();
             if (candidates == null || candidates.Length == 0)
             {
-                Notice("仓库里没有待放入的工具/技能书（去抽奖或交易获得）");
+                Notice("仓库里没有待放入的技能书（按 B 用金币购买）");
                 return;
             }
             string reason;
@@ -235,8 +235,8 @@ namespace TrashPlanet.Whitebox
         public void Refresh()
         {
             if (!Bind() || system == null) return;
-            if (txtTitle != null) txtTitle.text = "工具与技能书背包";
-            if (txtCapacity != null) txtCapacity.text = "格子 " + system.UsedSlots + " / " + system.Capacity + "　（只放工具/技能书 · 垃圾按 G · I 关闭）";
+            if (txtTitle != null) txtTitle.text = "技能书背包";
+            if (txtCapacity != null) txtCapacity.text = "格子 " + system.UsedSlots + " / " + system.Capacity + "　（装技能书 · 金币按 B 买书 · 垃圾按 G · I 关闭）";
             WhiteboxGame game = GetGame();
             for (int i = 0; i < SlotCount; i++)
             {
@@ -292,7 +292,7 @@ namespace TrashPlanet.Whitebox
             {
                 int pending = system.StorageCandidates().Length;
                 if (selected < 0 || string.IsNullOrEmpty(system.SlotId(selected)))
-                    txtDetail.text = "仓库待放入 " + pending + " 件（去抽奖或交易获得）。\n【放入】装进空格　【取出】放回仓库不影响加成。\n【装备/卸下】工具装备后才生效并拿手上；【使用书】消耗书叠效果。\n数字键 1~9 快速切换手上显示的工具。";
+                    txtDetail.text = "仓库待放入 " + pending + " 件（按 B 用金币买技能书）。\n【放入】装进空格　【取出】放回仓库。\n【使用书】消耗书叠效果（加工/制造/零耗时）。\n人物等级在中转站第 5 页升级，接管拾取与效率加成。";
                 else
                 {
                     string id = system.SlotId(selected);

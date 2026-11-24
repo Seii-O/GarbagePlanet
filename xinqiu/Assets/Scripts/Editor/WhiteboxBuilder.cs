@@ -51,6 +51,8 @@ namespace TrashPlanet.Whitebox.Editor
         static void AutoBuild()
         {
             if (Application.isBatchMode) return;
+            // 全局总闸：UI 定稿并锁定后，编译/重启不再自动构建/校验，保持场景完全静默。
+            if (UiAutoBuildGuard.Locked) return;
             if (SessionState.GetBool(SessionKey, false)) return;
             if (EditorApplication.isPlayingOrWillChangePlaymode) return;
             if (EditorApplication.isCompiling || EditorApplication.isUpdating)

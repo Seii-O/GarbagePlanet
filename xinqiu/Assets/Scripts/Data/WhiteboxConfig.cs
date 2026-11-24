@@ -89,6 +89,32 @@ namespace TrashPlanet.Whitebox
         [SerializeField] int magnetFirstHitBonus = 1;    // T-07
         [SerializeField] int purifierChargesMax = 2;     // T-08
 
+        // 人物等级接管原工具加成线（C27）：经验由既有计数推导，等级驱动拾取/效率/零耗时。
+        [Header("人物等级（工具下线后接管加成）")]
+        [SerializeField, Tooltip("人物等级上限；每级加成见下列数组，数组长度不足时按最后一项取值")]
+        int playerLevelMax = 5;
+        [SerializeField, Tooltip("各级升级所需历史累计经验（索引=等级-1；到顶级用最后一项）")]
+        int[] playerLevelExp = { 0, 20, 55, 110, 190 };
+        [SerializeField, Tooltip("行为转经验的系数：拾取 / 拆解 / 加工 / 制造 / 修复阶段")]
+        int expPerCollect = 1;
+        [SerializeField] int expPerDismantle = 2;
+        [SerializeField] int expPerProcess = 2;
+        [SerializeField] int expPerCraft = 3;
+        [SerializeField] int expPerRepair = 10;
+        [SerializeField, Tooltip("各级拾取范围（米）")]
+        float[] playerPickRange = { 4f, 5f, 6f, 7f, 8f };
+        [SerializeField] int[] playerDismantleDamage = { 1, 1, 1, 2, 2 };
+        [SerializeField, Range(0.5f, 1f), Tooltip("各级加工耗时乘区（取对应级，钳到 efficiencyFloor）")]
+        float[] playerProcessMult = { 1f, 0.97f, 0.94f, 0.91f, 0.88f };
+        [SerializeField, Range(0.5f, 1f)] float[] playerCraftMult = { 1f, 0.97f, 0.94f, 0.91f, 0.88f };
+        [SerializeField, Tooltip("达到该等级起每级白送的零耗时次数")]
+        int playerFreeChargeFromLevel = 3;
+        [SerializeField] int playerFreeChargePerLevel = 1;
+        [SerializeField, Tooltip("从当前级升到下一级消耗的金属零件（索引=当前等级-1）")]
+        int[] playerUpgradeMetalCost = { 8, 12, 18, 26, 36 };
+        [SerializeField, Tooltip("从当前级升到下一级消耗的电子元件（索引=当前等级-1）")]
+        int[] playerUpgradeElectronicCost = { 4, 6, 10, 15, 20 };
+
         [Header("加工 / 制造 [待拍板 C2 C3 C7]")]
         [SerializeField] float[] conversionRate = { 0.5f, 0.5f, 1f, 0.5f };
         [SerializeField] int[] minProcessBatch = { 2, 2, 1, 2 };
@@ -243,6 +269,41 @@ namespace TrashPlanet.Whitebox
         public float[] LightAngle => lightAngle;
         public float PurifyBaseRadius => Mathf.Max(0f, purifyBaseRadius);
         public bool PurifyShowBoundary => purifyShowBoundary;
+
+        // ---- 人物等级（C27）----
+        public const int PlayerLevelHardCap = 20;
+        public int PlayerLevelMax => Mathf.Clamp(playerLevelMax, 1, PlayerLevelHardCap);
+        public int ExpPerCollect => Mathf.Max(0, expPerCollect);
+        public int ExpPerDismantle => Mathf.Max(0, expPerDismantle);
+        public int ExpPerProcess => Mathf.Max(0, expPerProcess);
+        public int ExpPerCraft => Mathf.Max(0, expPerCraft);
+        public int ExpPerRepair => Mathf.Max(0, expPerRepair);
+        public int PlayerFreeChargeFromLevel => Mathf.Max(1, playerFreeChargeFromLevel);
+        public int PlayerFreeChargePerLevel => Mathf.Max(0, playerFreeChargePerLevel);
+        public int PlayerUpgradeMetalCostAt(int level) => At(playerUpgradeMetalCost, level, 8);
+        public int PlayerUpgradeElectronicCostAt(int level) => At(playerUpgradeElectronicCost, level, 4);
+        /// <summary>升到 level 级所需的历史累计经验；数组越界取最后一项（顶级封顶）。</summary>
+        public int PlayerLevelExpAt(int level)
+        {
+            int i = Mathf.Clamp(level - 1, 0, PlayerLevelMax - 1);
+            if (playerLevelExp == null || playerLevelExp.Length == 0) return 0;
+            return Mathf.Max(0, playerLevelExp[Mathf.Min(i, playerLevelExp.Length - 1)]);
+        }
+        static float At(float[] arr, int level, float fallback)
+        {
+            if (arr == null || arr.Length == 0) return fallback;
+            return arr[Mathf.Clamp(level - 1, 0, arr.Length - 1)];
+        }
+        static int At(int[] arr, int level, int fallback)
+        {
+            if (arr == null || arr.Length == 0) return fallback;
+            return arr[Mathf.Clamp(level - 1, 0, arr.Length - 1)];
+        }
+        public float PlayerPickRangeAt(int level) => Mathf.Max(0.1f, At(playerPickRange, level, 4f));
+        public int PlayerDismantleDamageAt(int level) => Mathf.Max(1, At(playerDismantleDamage, level, 1));
+        public float PlayerProcessMultAt(int level) => Mathf.Clamp(At(playerProcessMult, level, 1f), 0.5f, 1f);
+        public float PlayerCraftMultAt(int level) => Mathf.Clamp(At(playerCraftMult, level, 1f), 0.5f, 1f);
+
         public float StageFadeSeconds => stageFadeSeconds;
         public float StageFlashSeconds => stageFlashSeconds;
         public float PickupFloatSeconds => pickupFloatSeconds;
@@ -302,6 +363,22 @@ namespace TrashPlanet.Whitebox
             Ensure(ref craftSeconds, 3, 5f);
             Ensure(ref dogFetchRadius, 3, 1.5f);
             Ensure(ref dogFetchCooldown, 3, 4f);
+            // 人物等级（C27）：旧资产缺字段时补默认，再钳制
+            playerLevelMax = Mathf.Clamp(playerLevelMax <= 0 ? 5 : playerLevelMax, 1, PlayerLevelHardCap);
+            Ensure(ref playerLevelExp, PlayerLevelMax, 20);
+            Ensure(ref playerPickRange, PlayerLevelMax, 4f);
+            Ensure(ref playerDismantleDamage, PlayerLevelMax, 1);
+            Ensure(ref playerProcessMult, PlayerLevelMax, 1f);
+            Ensure(ref playerCraftMult, PlayerLevelMax, 1f);
+            Ensure(ref playerUpgradeMetalCost, PlayerLevelMax, 8);
+            Ensure(ref playerUpgradeElectronicCost, PlayerLevelMax, 4);
+            for (int i = 0; i < playerLevelExp.Length; i++) playerLevelExp[i] = Mathf.Max(0, playerLevelExp[i]);
+            for (int i = 1; i < playerLevelExp.Length; i++)
+                if (playerLevelExp[i] <= playerLevelExp[i - 1]) playerLevelExp[i] = playerLevelExp[i - 1] + 10; // 确保严格递增
+            for (int i = 0; i < playerPickRange.Length; i++) playerPickRange[i] = Mathf.Max(0.1f, playerPickRange[i]);
+            for (int i = 0; i < playerDismantleDamage.Length; i++) playerDismantleDamage[i] = Mathf.Max(1, playerDismantleDamage[i]);
+            for (int i = 0; i < playerProcessMult.Length; i++) playerProcessMult[i] = Mathf.Clamp(playerProcessMult[i], 0.5f, 1f);
+            for (int i = 0; i < playerCraftMult.Length; i++) playerCraftMult[i] = Mathf.Clamp(playerCraftMult[i], 0.5f, 1f);
             // MECH-017 / ART-014：旧资产缺字段时补默认，再钳制；确保值 0 是用户主动关闭而非缺字段
             if (dogScoutInterval <= 0f) dogScoutInterval = 18f;
             if (dogScoutHold <= 0f) dogScoutHold = 2.5f;

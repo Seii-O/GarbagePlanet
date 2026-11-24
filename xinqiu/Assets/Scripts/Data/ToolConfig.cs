@@ -56,6 +56,8 @@ namespace TrashPlanet.Whitebox
         public bool gachaOnly = true;
         public bool activeInPhaseA = true;   // 史诗书工具集齐前不入池
         public int overflowMaterialCat = 0;  // 满层后折算的材料类别 0..3
+        public int price = 0;               // 金币购买价（C27：>0 表示可用金币购买，0 表示不可买）
+        public int Price => Mathf.Max(0, price);
     }
 
     /// <summary>多池预留；本轮只有一个 scrap 池，默认不启用第二池。</summary>
@@ -240,10 +242,10 @@ namespace TrashPlanet.Whitebox
             };
             c.books = new[]
             {
-                Book("book_sorting", "快分拣", GachaRarity.Rare, 5, 5, BookEffect.ProcessTime, 0.99f, 0, true, 0),
-                Book("book_handwork", "熟手工", GachaRarity.Rare, 5, 5, BookEffect.CraftTime, 0.99f, 0, true, 0),
-                Book("book_flow", "一气呵成", GachaRarity.Epic, 2, 3, BookEffect.CraftTime, 0.98f, 0, false, 3),
-                Book("book_tireless", "不知疲倦", GachaRarity.Epic, 2, 4, BookEffect.FreeCharge, 1f, 1, false, 2)
+                Book("book_sorting", "快分拣", GachaRarity.Rare, 5, 5, BookEffect.ProcessTime, 0.99f, 0, true, 0, 120),
+                Book("book_handwork", "熟手工", GachaRarity.Rare, 5, 5, BookEffect.CraftTime, 0.99f, 0, true, 0, 120),
+                Book("book_flow", "一气呵成", GachaRarity.Epic, 2, 3, BookEffect.CraftTime, 0.98f, 0, false, 3, 260),
+                Book("book_tireless", "不知疲倦", GachaRarity.Epic, 2, 4, BookEffect.FreeCharge, 1f, 1, false, 2, 260)
             };
             c.pools = new[] { new GachaPoolConfig { poolId = "scrap", enabled = true } };
             return c;
@@ -269,14 +271,15 @@ namespace TrashPlanet.Whitebox
         }
 
         static SkillBookDef Book(string rewardId, string name, GachaRarity rarity, int weight,
-            int maxStacks, BookEffect effect, float perStack, int chargesAtFull, bool phaseA, int overflowCat)
+            int maxStacks, BookEffect effect, float perStack, int chargesAtFull, bool phaseA, int overflowCat,
+            int price = 0)
         {
             return new SkillBookDef
             {
                 rewardId = rewardId, displayName = name, rarity = rarity, weight = weight,
                 maxStacks = maxStacks, effect = effect, perStackMult = perStack,
-                chargesAtFull = chargesAtFull, gachaOnly = true, activeInPhaseA = phaseA,
-                overflowMaterialCat = overflowCat
+                chargesAtFull = chargesAtFull, gachaOnly = price <= 0, activeInPhaseA = phaseA,
+                overflowMaterialCat = overflowCat, price = price
             };
         }
     }

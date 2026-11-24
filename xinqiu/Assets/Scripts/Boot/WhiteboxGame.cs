@@ -38,6 +38,7 @@ namespace TrashPlanet.Whitebox
         [SerializeField] WhiteboxHud hud;
         [SerializeField] GachaSystem gacha; // 新增玩法：转盘（由 GachaBuilder 写入）
         [SerializeField] ToolSystem tool;   // 工具系统（运行时自动补建，无需改场景 YAML）
+        [SerializeField] PlayerLevelSystem playerLevel; // 人物等级（C27，运行时自动补建）
         [SerializeField] ToolBagSystem bag;       // 独立工具/技能书背包（I 键，运行时补建）
         [SerializeField] GarbageBagSystem garbageBag; // 独立垃圾背包（G 键，运行时补建；只存废弃物）
         [SerializeField] CoinTradeSystem coinTrade;// 独立金币交易（B 键，运行时补建）
@@ -77,6 +78,7 @@ namespace TrashPlanet.Whitebox
         public WhiteboxHud Hud => hud;
         public GachaSystem Gacha => gacha;
         public ToolSystem Tool => tool;
+        public PlayerLevelSystem PlayerLevel => playerLevel;
         public ToolBagSystem Bag => bag;
         public GarbageBagSystem GarbageBag => garbageBag;
         public CoinTradeSystem CoinTrade => coinTrade;
@@ -120,6 +122,7 @@ namespace TrashPlanet.Whitebox
 
         /// <summary>单独注入工具系统（ToolBuilder / GachaBuilder 生成后调用）。</summary>
         public void WireTool(ToolSystem t) { tool = t; }
+        public void WirePlayerLevel(PlayerLevelSystem p) { playerLevel = p; }
 
         /// <summary>单独注入独立背包（InventoryBuilder 生成后调用）。</summary>
         public void WireBag(ToolBagSystem b) { bag = b; }
@@ -245,6 +248,9 @@ namespace TrashPlanet.Whitebox
             // 垃圾背包只读 State.bag/bagItems，排在三者之后只为统一旧档补齐时机。
             if (tool == null) tool = gameObject.AddComponent<ToolSystem>();
             tool.Init(this);
+            // C27：人物等级在工具之后、表现之前初始化，加成查询从此时起可用
+            if (playerLevel == null) playerLevel = gameObject.AddComponent<PlayerLevelSystem>();
+            playerLevel.Init(this);
             if (bag == null) bag = gameObject.AddComponent<ToolBagSystem>();
             bag.Init(this);
             // 手持视图：按迁移后的 activeToolId 刷新手上显示（纯视觉，排在工具/背包之后）
@@ -569,6 +575,8 @@ namespace TrashPlanet.Whitebox
 
         public void OnWorldEvent()
         {
+            // C27：经验复用既有计数，世界事件后重算人物等级（纯计算，仅升级时落盘）
+            if (playerLevel != null) playerLevel.Recalculate();
             if (quest != null) quest.Evaluate();
             if (eco != null) eco.Refresh(true);
             if (purification != null) purification.Refresh(); // 进度推进后即时回收净化区内垃圾、扩张边界

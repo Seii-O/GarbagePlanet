@@ -146,9 +146,13 @@ namespace TrashPlanet.Whitebox
                     Color c = sel ? new Color(0.17f, 0.66f, 0.60f, 1f) : new Color(0.42f, 0.36f, 0.28f, 1f);
                     if (no != null) no.color = c;
                     if (name != null) { name.color = c; name.fontStyle = sel ? FontStyle.Bold : FontStyle.Normal; }
+                    // C27：场景里烘焙的旧页签名「工具升级」运行时覆盖为「人物升级」
+                    if (i == TabCount - 1 && name != null && name.text != PlayerLevelTabName)
+                        name.text = PlayerLevelTabName;
                 }
             }
         }
+        const string PlayerLevelTabName = "人物升级";
 
         // ---------------- 动态数值刷新 ----------------
         void RefreshValues()
@@ -279,47 +283,72 @@ namespace TrashPlanet.Whitebox
                     SetText(row, "Txt_Count", "× " + finished[i]);
                 }
             }
-            // ---- 05 工具升级 ----
+            // ---- 05 人物升级（C27：工具下线，等级接管加成；经验达标 + 材料消耗才升级）----
             else if (currentTab == 4)
             {
-                float[] pick = cfg != null ? cfg.PickRange : new[] { 2f, 3f, 4f };
-                int[] dmg = cfg != null ? cfg.DismantleDamage : new[] { 1, 1, 2 };
+                PlayerLevelSystem pl = game != null ? game.PlayerLevel : null;
+                int lv = pl != null ? pl.Level : Mathf.Max(1, s.playerLevel);
+                int maxLv = pl != null ? pl.MaxLevel : (cfg != null ? cfg.PlayerLevelMax : 5);
+
+                // 标题等级徽章 + 经验条（累计 / 下一级门槛，进度按 PlayerLevelSystem.Progress）
+                SetText(panel.transform, "Txt_Level", "Lv." + lv);
+                int needTotal = (pl != null && !pl.IsMax && cfg != null) ? cfg.PlayerLevelExpAt(lv + 1) : s.playerExpTotal;
+                SetText(panel.transform, "Txt_ExpValue", s.playerExpTotal + " / " + needTotal);
+                Image expFill = FindImage(panel.transform, "Img_ExpFill");
+                if (expFill != null) expFill.fillAmount = pl != null ? pl.Progress : 0f;
+
+                // 三张卡展示：当前级 / 下一级 / 满级的加成摘要
+                string[] cardTitles = { "当前等级", "下一等级", "满级目标" };
+                string[] labels = { "拾取距离", "拆解效率", "加工耗时", "零耗时次数" };
                 for (int i = 0; i < 3; i++)
                 {
-                    int lv = i + 1;
+                    int showLv = i == 0 ? lv : (i == 1 ? Mathf.Min(lv + 1, maxLv) : maxLv);
                     Transform card = FindDeep(panel.transform, "Card_Tool_" + i);
                     if (card != null)
                     {
-                        SetText(FindDeep(card, "Row_Spec_" + i + "_0"), "Txt_Value", pick[Mathf.Clamp(lv - 1, 0, pick.Length - 1)].ToString("0") + " 米");
-                        SetText(FindDeep(card, "Row_Spec_" + i + "_1"), "Txt_Value", (lv - 1) + " 米");
-                        SetText(FindDeep(card, "Row_Spec_" + i + "_2"), "Txt_Value", dmg[Mathf.Clamp(lv - 1, 0, dmg.Length - 1)] + " 点/次");
-                        SetText(FindDeep(card, "Row_Spec_" + i + "_3"), "Txt_Value", i == 2 ? "升级后开启" : "—");
+                        SetText(card, "Txt_ToolName_" + i, cardTitles[i] + "  Lv." + showLv);
+                        float range = cfg != null ? cfg.PlayerPickRangeAt(showLv) : 4f;
+                        int dmg = cfg != null ? cfg.PlayerDismantleDamageAt(showLv) : 1;
+                        float proc = cfg != null ? cfg.PlayerProcessMultAt(showLv) : 1f;
+                        int free = pl != null ? pl.FreeChargeAt(showLv) : 0;
+                        string[] values = {
+                            range.ToString("0.0") + " 米",
+                            dmg + " 点/次",
+                            Mathf.RoundToInt(proc * 100) + "% 耗时",
+                            free > 0 ? ("零耗时 +" + free) : "—"
+                        };
+                        for (int r = 0; r < 4; r++)
+                        {
+                            Transform row = FindDeep(card, "Row_Spec_" + i + "_" + r);
+                            SetText(row, "Txt_Label", labels[r]);
+                            SetText(row, "Txt_Value", values[r]);
+                        }
                     }
-                    string btn = lv <= s.toolLevel ? (lv == s.toolLevel ? "当前装备" : "已解锁") : "待解锁";
-                    SetButtonLabel(panel.transform, "Btn_Tool_" + i, btn);
                 }
 
-                SetText(panel.transform, "Txt_UpPath", "升级路径 / lv." + s.toolLevel + " → lv." + Mathf.Min(3, s.toolLevel + 1) + " → lv.3");
-                if (s.toolLevel >= 3)
+                if (pl == null || pl.IsMax)
                 {
                     SetText(panel.transform, "Txt_UpState", "已满级");
-                    SetText(panel.transform, "Txt_UpHint", "工具已达到最高等级 Lv.3");
-                    SetText(panel.transform, "Txt_CostMat", "金属零件 — / —");
-                    SetText(panel.transform, "Txt_CostElec", "电子元件 — / —");
+                    SetText(panel.transform, "Txt_UpHint", "人物已达最高等级 Lv." + maxLv);
+                    SetText(panel.transform, "Txt_CostMat", "需 — / 持有 " + s.materials[1]);
+                    SetText(panel.transform, "Txt_CostElec", "需 — / 持有 " + s.materials[3]);
+                    SetText(panel.transform, "Txt_BottomLeft", "人物已达最高等级 Lv." + maxLv);
                     SetButtonLabel(panel.transform, "Btn_Upgrade", "已满级");
                     SetButtonSprite("Btn_Upgrade", art?.btnDisabled);
                 }
-                else if (cfg != null)
+                else
                 {
-                    int ci = Mathf.Clamp(s.toolLevel - 1, 0, cfg.UpgradeMetalCost.Length - 1);
-                    int metal = cfg.UpgradeMetalCost[ci], elec = cfg.UpgradeElectronicCost[ci];
-                    SetText(panel.transform, "Txt_CostMat", "金属零件 " + s.materials[1] + " / " + metal);
-                    SetText(panel.transform, "Txt_CostElec", "电子元件 " + s.materials[3] + " / " + elec);
-                    bool enough = s.materials[1] >= metal && s.materials[3] >= elec && s.stationRepaired;
-                    SetText(panel.transform, "Txt_UpState", enough ? "可升级" : "材料不足");
-                    SetText(panel.transform, "Txt_UpHint", enough ? "点击右侧按钮升级回收器" : "返回星球上收集更多材料");
-                    SetButtonLabel(panel.transform, "Btn_Upgrade", "升级");
-                    SetButtonSprite("Btn_Upgrade", enough ? art?.btnSecondary : art?.btnDisabled);
+                    int metal = pl.UpgradeMetalCost, elec = pl.UpgradeElectronicCost;
+                    string why;
+                    bool can = pl.CanLevelUp(out why);
+                    SetText(panel.transform, "Txt_CostMat", "需 " + metal + " / 持有 " + s.materials[1]);
+                    SetText(panel.transform, "Txt_CostElec", "需 " + elec + " / 持有 " + s.materials[3]);
+                    SetText(panel.transform, "Txt_UpState", can ? "可升级" : "条件不足");
+                    SetText(panel.transform, "Txt_UpHint", can ? "点击下方按钮升级人物" : why);
+                    SetText(panel.transform, "Txt_BottomLeft", "等级 Lv." + lv + " / Lv." + maxLv
+                            + "　累计经验 " + s.playerExpTotal + " → " + cfg.PlayerLevelExpAt(lv + 1));
+                    SetButtonLabel(panel.transform, "Btn_Upgrade", "升级到 Lv." + (lv + 1));
+                    SetButtonSprite("Btn_Upgrade", can ? art?.btnPrimary : art?.btnDisabled);
                 }
             }
         }
@@ -361,7 +390,9 @@ namespace TrashPlanet.Whitebox
         }
         void UpgradeTool()
         {
-            if (game != null && game.StationLogic != null) game.StationLogic.UpgradeTool();
+            // C27：升级按钮改为人物升级（经验达标 + 消耗金属/电子）
+            if (game != null && game.PlayerLevel != null) game.PlayerLevel.TryLevelUp();
+            else if (game != null && game.StationLogic != null) game.StationLogic.UpgradeTool();
         }
         void GoRepair()
         {

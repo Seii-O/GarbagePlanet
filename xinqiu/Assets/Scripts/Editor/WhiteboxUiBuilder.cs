@@ -87,6 +87,8 @@ namespace TrashPlanet.Whitebox.Editor
         static void AutoEnsure()
         {
             if (Application.isBatchMode || EditorApplication.isPlayingOrWillChangePlaymode) return;
+            // 全局总闸：UI 定稿并锁定后，编译/重启不再自动补齐/重建 UI，保护手调布局。
+            if (UiAutoBuildGuard.Locked) return;
             if (SessionState.GetBool(SessionKey, false))
             {
                 EditorApplication.update -= AutoEnsure;

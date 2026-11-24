@@ -23,6 +23,15 @@ namespace TrashPlanet.Whitebox
         float tradeFee = 0f;
         [SerializeField, Tooltip("新局起始金币（默认 0；金币只能靠出售获得，不新增产出渠道）")]
         int startingCoins = 0;
+        [SerializeField, Tooltip("四种加工产物的出售单价（再生塑料/金属零件/有机原料/电子元件）；C27 材料出售换金币")]
+        int[] materialSellPrices = { 12, 18, 10, 25 };
+
+        /// <summary>按材料类别取出售单价；越界或缺失回退 10。</summary>
+        public int MaterialSellPrice(int cat)
+        {
+            if (materialSellPrices == null || cat < 0 || cat >= materialSellPrices.Length) return 10;
+            return Mathf.Max(1, materialSellPrices[cat]);
+        }
 
         public bool Enabled => enabled;
         public float SellRatio => Mathf.Clamp01(sellRatio);
@@ -52,6 +61,19 @@ namespace TrashPlanet.Whitebox
                 basePriceByRarity = fixedArr;
             }
             for (int i = 0; i < 3; i++) basePriceByRarity[i] = Mathf.Max(1, basePriceByRarity[i]);
+            EnsureMaterialPrices();
+        }
+
+        void EnsureMaterialPrices()
+        {
+            if (materialSellPrices == null || materialSellPrices.Length != 4)
+            {
+                int[] fixedArr = { 12, 18, 10, 25 };
+                if (materialSellPrices != null)
+                    System.Array.Copy(materialSellPrices, fixedArr, Mathf.Min(materialSellPrices.Length, 4));
+                materialSellPrices = fixedArr;
+            }
+            for (int i = 0; i < 4; i++) materialSellPrices[i] = Mathf.Max(1, materialSellPrices[i]);
         }
 
         public static CoinTradeConfig CreateDefault()
@@ -63,6 +85,7 @@ namespace TrashPlanet.Whitebox
             c.trinketBasePrice = 20;
             c.tradeFee = 0f;
             c.startingCoins = 0;
+            c.materialSellPrices = new[] { 12, 18, 10, 25 };
             return c;
         }
     }

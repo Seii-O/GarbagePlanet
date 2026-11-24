@@ -68,7 +68,26 @@ namespace TrashPlanet.Whitebox.Editor
                     errors, checks);
                 Check(cfg.PlanetRadius > 1f && cfg.PlanetRadius < 60f,
                     "星球半径在可玩区间（" + cfg.PlanetRadius + " m）", errors, checks);
+                // C27 人物等级配置
+                Check(cfg.PlayerLevelMax >= 1 && cfg.PlayerLevelExpAt(cfg.PlayerLevelMax) > cfg.PlayerLevelExpAt(1),
+                    "人物等级经验阈值随等级递增（上限 Lv." + cfg.PlayerLevelMax + "）", errors, checks);
+                Check(cfg.PlayerPickRangeAt(1) > 0f && cfg.PlayerProcessMultAt(cfg.PlayerLevelMax) <= cfg.PlayerProcessMultAt(1),
+                    "人物等级加成随等级提升（拾取距离/效率）", errors, checks);
+                Check(cfg.PlayerUpgradeMetalCostAt(1) > 0 && cfg.PlayerUpgradeElectronicCostAt(1) > 0,
+                    "人物升级消耗材料已配置", errors, checks);
             }
+            // C27 技能书购买价与材料出售价
+            ToolConfig tc = AssetDatabase.LoadAssetAtPath<ToolConfig>("Assets/Data/ToolConfig.asset");
+            if (tc != null)
+            {
+                int priced = 0;
+                for (int i = 0; i < tc.Books.Length; i++) if (tc.Books[i] != null && tc.Books[i].Price > 0) priced++;
+                Check(priced == tc.Books.Length && priced > 0,
+                    "全部技能书已配置金币购买价（" + priced + "/" + tc.Books.Length + "）", errors, checks);
+            }
+            CoinTradeConfig ctc = AssetDatabase.LoadAssetAtPath<CoinTradeConfig>("Assets/Data/CoinTradeConfig.asset");
+            Check(ctc != null && ctc.MaterialSellPrice(0) > 0 && ctc.MaterialSellPrice(3) > 0,
+                "四种加工产物出售价已配置", errors, checks);
 
             for (int i = 0; i < TrashPrefabNames.Length; i++)
             {
