@@ -84,6 +84,7 @@ namespace TrashPlanet.Whitebox.Editor
                 "Assets/Prefabs/Whitebox/chr_dog_whitebox.prefab");
             Check(dogPrefab != null && dogPrefab.GetComponent<CompanionDog>() != null,
                 "伙伴狗预制体与组件存在", errors, checks);
+            ValidateDogExtras(cfg, dogPrefab, errors, checks);
             Check(AssetDatabase.LoadAssetAtPath<GameObject>(
                       "Assets/Prefabs/Whitebox/env_station_whitebox.prefab") != null,
                 "中转站预制体存在", errors, checks);
@@ -285,6 +286,53 @@ namespace TrashPlanet.Whitebox.Editor
             }
             Check(eventSystem != null && eventSystem.GetComponent<StandaloneInputModule>() != null,
                 "EventSystem + StandaloneInputModule（旧 Input Manager）", errors, checks);
+        }
+
+        /// <summary>
+        /// MECH-017 / ART-014：探路站位可见性、固定材质、体高红线、部件引用与动画幅度。
+        /// 注意只检查配置与预制体的静态事实，不依赖运行时状态。
+        /// </summary>
+        static void ValidateDogExtras(WhiteboxConfig cfg, GameObject dogPrefab,
+            List<string> errors, List<string> checks)
+        {
+            if (cfg != null)
+            {
+                float forward = cfg.DogScoutForward;
+                float side = cfg.DogScoutSide;
+                float ratio = side / Mathf.Max(0.01f, forward);
+                float distance = Mathf.Sqrt(forward * forward + side * side);
+                Check(forward > 0f && Mathf.Abs(ratio) < 1f && distance >= 1.9f,
+                    "MECH-017 探路站位在可见锥体内（前 " + forward.ToString("0.##")
+                    + " m / 右 " + side.ToString("0.##") + " m）", errors, checks);
+
+                float height = cfg.DogHeight + cfg.DogBobMeters;
+                Check(height <= 0.6f,
+                    "ART-011 狗体高含起伏不越红线（" + height.ToString("0.###") + " m）", errors, checks);
+
+                Check(cfg.DogTailWagDeg <= 30f && cfg.DogTailBoostDeg <= 45f
+                      && cfg.DogLegGaitDeg <= 25f && cfg.DogHeadLookDeg <= 20f,
+                    "ART-014 部件动画幅度在保守区间", errors, checks);
+            }
+
+            Material m = AssetDatabase.LoadAssetAtPath<Material>("Assets/Art/Materials/M_Dog_Whitebox.mat");
+            if (dogPrefab != null && m != null)
+            {
+                CompanionDog dog = dogPrefab.GetComponent<CompanionDog>();
+                Renderer[] rs = dog != null ? dog.FixedColorRenderers : null;
+                bool allFixed = rs != null && rs.Length > 0;
+                if (allFixed)
+                    foreach (Renderer r in rs)
+                        if (r == null || r.sharedMaterial != m) allFixed = false;
+                Check(allFixed, "ART-012 狗所有 Renderer 仍绑定固定材质", errors, checks);
+
+                bool parts = dogPrefab.transform.Find("Tail") != null
+                             && dogPrefab.transform.Find("Head") != null
+                             && dogPrefab.transform.Find("Leg_0") != null
+                             && dogPrefab.transform.Find("Leg_1") != null
+                             && dogPrefab.transform.Find("Leg_2") != null
+                             && dogPrefab.transform.Find("Leg_3") != null;
+                Check(parts, "ART-014 狗部件子物体命名齐全（Tail/Head/Leg_0..3）", errors, checks);
+            }
         }
 
         static void ValidateDogColor(WhiteboxConfig cfg, List<string> errors, List<string> checks)

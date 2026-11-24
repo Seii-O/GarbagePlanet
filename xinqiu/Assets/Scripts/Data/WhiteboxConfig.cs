@@ -1,4 +1,4 @@
-// @trace ART-003, ART-004, ART-005, ART-008, NUM-007, PLAT-005, NUM-012, NUM-013
+// @trace ART-003, ART-004, ART-005, ART-008, NUM-007, PLAT-005, NUM-012, NUM-013, MECH-017, ART-014
 using System;
 using System.Globalization;
 using UnityEngine;
@@ -107,6 +107,22 @@ namespace TrashPlanet.Whitebox
         [SerializeField] float dogHeight = 0.55f;                      // ART-011 体高 ≤ 0.6
         [SerializeField] string dogColorHex = "#D8C3A0";               // ART-012 全程唯一固有色
 
+        // MECH-017 / ART-014 狗加戏：周期性探路入画 + 程序化动作。
+        // 注意：这里只动 transform，不改 fixedMaterial / Renderer，ART-012 固定外观仍然成立。
+        [SerializeField, Tooltip("两次探路之间的最小间隔（秒）")] float dogScoutInterval = 18f;
+        [SerializeField, Tooltip("一次探路在身前停留的时长（秒）")] float dogScoutHold = 2.5f;
+        [SerializeField, Tooltip("探路站位：玩家前方距离（米）")] float dogScoutForward = 2.2f;
+        [SerializeField, Tooltip("探路站位：玩家右侧偏移（米）")] float dogScoutSide = 0.9f;
+        [SerializeField, Tooltip("玩家静止多久触发一次探路（秒）")] float dogScoutIdleTrigger = 1.2f;
+        [SerializeField, Tooltip("小跑时根物体沿法线的起伏幅度（米）")] float dogBobMeters = 0.01f;
+        [SerializeField, Tooltip("叼回成功瞬间根物体的前探距离（米）")] float dogFetchLunge = 0.12f;
+        [SerializeField, Tooltip("尾巴摆动频率（Hz）")] float dogTailWagHz = 2.2f;
+        [SerializeField, Tooltip("尾巴常态摆幅（度）")] float dogTailWagDeg = 14f;
+        [SerializeField, Tooltip("叼回成功后尾巴瞬时摆幅（度）")] float dogTailBoostDeg = 26f;
+        [SerializeField, Tooltip("四肢步态频率（Hz，移动时）")] float dogLegGaitHz = 4.5f;
+        [SerializeField, Tooltip("四肢步态摆幅（度）")] float dogLegGaitDeg = 12f;
+        [SerializeField, Tooltip("看向垃圾时头部附加偏航（度）")] float dogHeadLookDeg = 12f;
+
         [Header("功能色 ART-004")]
         [SerializeField] string highlightHex = "#FFFFFF"; // 白色描边（去旧蓝环）
         [SerializeField] string bagWarningHex = "#E2603C";
@@ -124,7 +140,7 @@ namespace TrashPlanet.Whitebox
         [SerializeField, Min(0f), Tooltip("中转站周围初始已净化半径（球面弧长·米），progress=0 时即生效")]
         float purifyBaseRadius = 5f;
         [SerializeField, Tooltip("是否显示净化区边界标记（一圈小点，随进度沿球面张开）；纯视觉，无碰撞")]
-        bool purifyShowBoundary = true;
+        bool purifyShowBoundary = false;
 
         [Header("动效时长 ART-008 / 9.5")]
         [SerializeField] float stageFadeSeconds = 3f;
@@ -203,6 +219,19 @@ namespace TrashPlanet.Whitebox
         public float DogFollowDistance => dogFollowDistance;
         public float DogHeight => dogHeight;
         public Color DogColor => Hex(dogColorHex);
+        public float DogScoutInterval => dogScoutInterval;
+        public float DogScoutHold => dogScoutHold;
+        public float DogScoutForward => dogScoutForward;
+        public float DogScoutSide => dogScoutSide;
+        public float DogScoutIdleTrigger => dogScoutIdleTrigger;
+        public float DogBobMeters => dogBobMeters;
+        public float DogFetchLunge => dogFetchLunge;
+        public float DogTailWagHz => dogTailWagHz;
+        public float DogTailWagDeg => dogTailWagDeg;
+        public float DogTailBoostDeg => dogTailBoostDeg;
+        public float DogLegGaitHz => dogLegGaitHz;
+        public float DogLegGaitDeg => dogLegGaitDeg;
+        public float DogHeadLookDeg => dogHeadLookDeg;
         public Color HighlightColor => Hex(highlightHex);
         public Color BagWarningColor => Hex(bagWarningHex);
         public Color DurabilityColor => Hex(durabilityHex);
@@ -273,6 +302,33 @@ namespace TrashPlanet.Whitebox
             Ensure(ref craftSeconds, 3, 5f);
             Ensure(ref dogFetchRadius, 3, 1.5f);
             Ensure(ref dogFetchCooldown, 3, 4f);
+            // MECH-017 / ART-014：旧资产缺字段时补默认，再钳制；确保值 0 是用户主动关闭而非缺字段
+            if (dogScoutInterval <= 0f) dogScoutInterval = 18f;
+            if (dogScoutHold <= 0f) dogScoutHold = 2.5f;
+            if (dogScoutForward <= 0f) dogScoutForward = 2.2f;
+            if (dogScoutSide <= 0f) dogScoutSide = 0.9f;
+            if (dogScoutIdleTrigger <= 0f) dogScoutIdleTrigger = 1.2f;
+            if (dogBobMeters < 0f) dogBobMeters = 0.01f;
+            if (dogFetchLunge < 0f) dogFetchLunge = 0.12f;
+            if (dogTailWagHz <= 0f) dogTailWagHz = 2.2f;
+            if (dogTailWagDeg < 0f) dogTailWagDeg = 14f;
+            if (dogTailBoostDeg < 0f) dogTailBoostDeg = 26f;
+            if (dogLegGaitHz <= 0f) dogLegGaitHz = 4.5f;
+            if (dogLegGaitDeg < 0f) dogLegGaitDeg = 12f;
+            if (dogHeadLookDeg < 0f) dogHeadLookDeg = 12f;
+            dogScoutInterval = Mathf.Clamp(dogScoutInterval, 5f, 120f);
+            dogScoutHold = Mathf.Clamp(dogScoutHold, 0.5f, 10f);
+            dogScoutForward = Mathf.Clamp(dogScoutForward, 1.5f, 4f);
+            dogScoutSide = Mathf.Clamp(dogScoutSide, 0.2f, 2f);
+            dogScoutIdleTrigger = Mathf.Clamp(dogScoutIdleTrigger, 0.3f, 10f);
+            dogBobMeters = Mathf.Clamp(dogBobMeters, 0f, 0.03f);
+            dogFetchLunge = Mathf.Clamp(dogFetchLunge, 0f, 0.3f);
+            dogTailWagHz = Mathf.Clamp(dogTailWagHz, 0.1f, 8f);
+            dogTailWagDeg = Mathf.Clamp(dogTailWagDeg, 0f, 30f);
+            dogTailBoostDeg = Mathf.Clamp(dogTailBoostDeg, 0f, 45f);
+            dogLegGaitHz = Mathf.Clamp(dogLegGaitHz, 0.5f, 10f);
+            dogLegGaitDeg = Mathf.Clamp(dogLegGaitDeg, 0f, 25f);
+            dogHeadLookDeg = Mathf.Clamp(dogHeadLookDeg, 0f, 20f);
             Ensure(ref fogDistance, 3, 40f);
             Ensure(ref lightAngle, 3, 25f);
             Ensure(ref upgradeMetalCost, 2, 5);

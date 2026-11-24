@@ -1,4 +1,4 @@
-// @trace LEV-003, ART-001, ART-007, ART-011, ART-012, PLAT-005
+// @trace LEV-003, ART-001, ART-007, ART-011, ART-012, ART-014, MECH-017, PLAT-005
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -226,10 +226,48 @@ namespace TrashPlanet.Whitebox.Editor
         static WhiteboxConfig CreateConfig()
         {
             WhiteboxConfig cfg = AssetDatabase.LoadAssetAtPath<WhiteboxConfig>(ConfigPath);
-            if (cfg != null) return cfg; // 不覆盖用户改过的数值
-            cfg = ScriptableObject.CreateInstance<WhiteboxConfig>();
-            AssetDatabase.CreateAsset(cfg, ConfigPath);
+            if (cfg == null)
+            {
+                cfg = ScriptableObject.CreateInstance<WhiteboxConfig>();
+                AssetDatabase.CreateAsset(cfg, ConfigPath);
+            }
+            EnsureDogSpotlightConfig(cfg); // 幂等补齐：只写缺失字段，不覆盖用户调过的数值
             return cfg;
+        }
+
+        /// <summary>
+        /// MECH-017 / ART-014：用 Editor API 给旧配置资产补齐狗加戏字段，绝不手写 .asset YAML。
+        /// 只在序列化值为 0（缺字段的典型表现）时写入脚本默认值；用户设为 0 关闭功能时保持 0。
+        /// </summary>
+        static void EnsureDogSpotlightConfig(WhiteboxConfig cfg)
+        {
+            var so = new SerializedObject(cfg);
+            WriteIfMissing(so, "dogScoutInterval", 18f);
+            WriteIfMissing(so, "dogScoutHold", 2.5f);
+            WriteIfMissing(so, "dogScoutForward", 2.2f);
+            WriteIfMissing(so, "dogScoutSide", 0.9f);
+            WriteIfMissing(so, "dogScoutIdleTrigger", 1.2f);
+            WriteIfMissing(so, "dogBobMeters", 0.01f, false);
+            WriteIfMissing(so, "dogFetchLunge", 0.12f, false);
+            WriteIfMissing(so, "dogTailWagHz", 2.2f);
+            WriteIfMissing(so, "dogTailWagDeg", 14f, false);
+            WriteIfMissing(so, "dogTailBoostDeg", 26f, false);
+            WriteIfMissing(so, "dogLegGaitHz", 4.5f);
+            WriteIfMissing(so, "dogLegGaitDeg", 12f, false);
+            WriteIfMissing(so, "dogHeadLookDeg", 12f, false);
+            if (so.ApplyModifiedPropertiesWithoutUndo())
+            {
+                EditorUtility.SetDirty(cfg);
+                AssetDatabase.SaveAssets();
+            }
+        }
+
+        static void WriteIfMissing(SerializedObject so, string name, float fallback, bool zeroMeansMissing = true)
+        {
+            SerializedProperty p = so.FindProperty(name);
+            if (p == null) return;
+            float v = p.floatValue;
+            if (zeroMeansMissing ? v <= 0f : v < 0f) p.floatValue = fallback;
         }
 
         static TrashItem[] CreateTrashPrefabs(Mats mats, WhiteboxConfig cfg)

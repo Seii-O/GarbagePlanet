@@ -399,7 +399,9 @@ namespace TrashPlanet.Whitebox
             bool debugOn = Proxy == null || Proxy.DebugVisible;
             bool stationVisible = Game.StationOpen && !Game.IsPaused && !s.finished;
             SetActive(DebugPanel, debugOn && !block);
-            SetActive(StationPanel, stationVisible);
+            // UI-007：旧美术版 Panel_Station 已被五页签 Panel_StationFiveTabs 替代，
+            // 不再显示，避免两层中转站面板叠加。对象与引用保留，供校验器与旧场景兼容。
+            SetActive(StationPanel, false);
             SetActive(PausePanel, Game.IsPaused && !settlement);
             SetActive(SettlementPanel, settlement);
             SetActive(TxtHint == null ? null : TxtHint.gameObject, hintLeft > 0f && !block);

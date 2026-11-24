@@ -311,7 +311,6 @@ namespace TrashPlanet.Whitebox
         {
             if (config == null || state == null) return;
 
-            if (Input.GetKeyDown(KeyCode.F1)) hud.DebugVisible = !hud.DebugVisible;
             // 重开优先且独占本帧：命中后不再处理任何面板输入，避免场景卸载前又开/关一次面板。
             if (Input.GetKeyDown(KeyCode.F5)) { Restart(); return; }
             // F9：打开局内存档面板（可选任意槽）；没有面板时退回"保存到当前激活槽"。

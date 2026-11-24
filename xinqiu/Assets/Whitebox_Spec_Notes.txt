@@ -27,6 +27,13 @@
 - @trace ART-012
   狗固定外观：CompanionDog.Init 一次性写入 M_Dog_Whitebox.mat（#D8C3A0），EcoStage 只接触地表/水材质；
   阶段切换不改狗的任何 Renderer，无 UpdateLook、无角色状态色板。
+- @trace MECH-017
+  周期性探路入画：CompanionDog 用 Follow/Scout/Return 三态，默认仍在玩家身后 1.8m；
+  间隔 18s 或玩家静止 1.2s 时走到玩家前方 2.2m / 右侧 0.9m（第一人称可见区），停留 2.5s 后回位；
+  探路期间暂停叼回，避免视野内突然消失的垃圾；暂停/面板打开时随 IsUiBlocking 冻结计时。
+- @trace ART-014
+  程序化动作：根物体只做小跑起伏、回望朝向与叼回前探；子物体 Tail/Leg_0..3/Head 只改 localRotation，
+  幅度由 WhiteboxConfig 钳制；不写任何 material/Renderer，体高含起伏仍 ≤ 0.6m，ART-012 固定外观不变。
 
 背包与 UI
 - @trace BAG-002

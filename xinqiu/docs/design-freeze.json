@@ -1,5 +1,5 @@
 {
-  "version": 25,
+  "version": 26,
   "status": "frozen",
   "frozenAt": "2026-11-23",
   "project": "垃圾星球",
@@ -363,10 +363,22 @@
       "type": "art",
       "name": "场景装饰生态联动：枯树/广告牌/水塘/垃圾山随阶段复绿，垃圾山纯装饰",
       "confirmed": true
+    },
+    {
+      "id": "MECH-017",
+      "type": "mechanic",
+      "name": "伙伴狗周期性探路入画与站位切换：Follow/Scout/Return 状态机，探路期间暂停叼回，站位前2.2m右0.9m",
+      "confirmed": true
+    },
+    {
+      "id": "ART-014",
+      "type": "art",
+      "name": "伙伴狗程序化动作表现：根物体小跑起伏/回望/叼回前探与子部件尾巴/四肢/头部动画，保持固定色与体高红线",
+      "confirmed": true
     }
   ],
-  "scopeNote": "v18: 应用户需求实现 5 槽 JSON 多存档系统。新增 SAVE-001/002/003。核心 SaveSlotSystem 管理 5 个独立槽文件（trash_planet_save_slot_N.json），写保存时间、原子写入、旧单文件档自动迁移到槽 1。WhiteboxState 增加玩家位置/视角字段并抽出 NormalizeLoaded 统一归一口径；所有既有 Save(s) 调用改为写当前激活槽，新增 Save(s,slot) 写指定槽。WhiteboxGame 进场景注册 CapturePoseHook 保存前写位置、Awake 还原位置并 ResolvePlanetGeometry，F9 打开局内存档面板（ToggleInGameSave，并入 IsUiBlocking 与 ESC 链）。TitleController 开始新游戏=ActiveSlot=0 不删槽，继续游戏=打开 ContinueGameUI 选槽面板；SaveSlotMenuView 列出 5 槽（有档亮+时间/无档灰+空字），点有档按钮设 ActiveSlot 并进游戏。InGameSaveView（F9）5 按钮保存/覆盖任意槽。Editor SaveSlotBuilder（菜单⑮）用 Editor API 生成面板并接线，不手写场景 YAML。",
-  "deferredNote": "deferred 为待拍板项（策划案 v1.2 第16章 C1-C13），保持 confirmed:false，工程以可配置默认值实现但不视为定稿；新增 ART-013 对应 C13。拍板后须递增 version 并把条目移回 items 且置 confirmed:true。",
+  "scopeNote": "v26: 应用户需求给伙伴狗加戏。新增 MECH-017（周期性探路：Follow/Scout/Return 状态机，玩家静止或间隔到点时狗走到玩家侧前方进入第一人称视野，探路期间暂停叼回）与 ART-014（程序化动作：根物体小跑起伏/回望/叼回前探 + 子部件尾巴/四肢/头部 localRotation 动画）。ART-012 固定外观仍然成立：全程不改材质/Renderer 色，只改 transform。数值全部在 WhiteboxConfig 新增 13 个字段，WhiteboxBuilder 用 Editor API 幂等补齐旧资产；WhiteboxValidator 增加 5 项校验（41→46）。同步把 deferred 里与 items 重号的 ART-013（C13 狗色号）改为 ART-015。 v18: 应用户需求实现 5 槽 JSON 多存档系统。新增 SAVE-001/002/003。核心 SaveSlotSystem 管理 5 个独立槽文件（trash_planet_save_slot_N.json），写保存时间、原子写入、旧单文件档自动迁移到槽 1。WhiteboxState 增加玩家位置/视角字段并抽出 NormalizeLoaded 统一归一口径；所有既有 Save(s) 调用改为写当前激活槽，新增 Save(s,slot) 写指定槽。WhiteboxGame 进场景注册 CapturePoseHook 保存前写位置、Awake 还原位置并 ResolvePlanetGeometry，F9 打开局内存档面板（ToggleInGameSave，并入 IsUiBlocking 与 ESC 链）。TitleController 开始新游戏=ActiveSlot=0 不删槽，继续游戏=打开 ContinueGameUI 选槽面板；SaveSlotMenuView 列出 5 槽（有档亮+时间/无档灰+空字），点有档按钮设 ActiveSlot 并进游戏。InGameSaveView（F9）5 按钮保存/覆盖任意槽。Editor SaveSlotBuilder（菜单⑮）用 Editor API 生成面板并接线，不手写场景 YAML。",
+  "deferredNote": "deferred 为待拍板项（策划案 v1.2 第16章 C1-C13），保持 confirmed:false，工程以可配置默认值实现但不视为定稿；C13 狗固定色号候选对应 ART-015（v26 从与 items 重号的 ART-013 改编号）。拍板后须递增 version 并把条目移回 items 且置 confirmed:true。",
   "deferred": [
     {
       "id": "MECH-003",
@@ -537,7 +549,7 @@
       "status": "待拍板"
     },
     {
-      "id": "ART-013",
+      "id": "ART-015",
       "type": "art",
       "name": "狗固定形象色号取哪一款（C13）",
       "confirmed": false,
