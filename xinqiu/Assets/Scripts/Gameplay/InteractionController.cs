@@ -153,6 +153,7 @@ namespace TrashPlanet.Whitebox
                 int n = state.Collect(cfg, cat, 1); // NUM-001
                 if (n <= 0) { game.Notice("背包已满"); return; }
                 WorldPickupPopup.Show(target, game.ViewCamera, game.PlanetCenter, target.Category, n);
+                Sfx.Play(SfxId.Pickup);
                 game.Spawner.Despawn(target);
                 Clear();
                 game.OnWorldEvent();
@@ -172,6 +173,7 @@ namespace TrashPlanet.Whitebox
             if (gain <= 0) { game.Notice("背包已满，无法拆解"); return; }
             state.dismantled += 1;
             WorldPickupPopup.Show(target, game.ViewCamera, game.PlanetCenter, target.Category, gain);
+            Sfx.Play(SfxId.Pickup);
             game.Spawner.Despawn(target);
             Clear();
             game.OnWorldEvent();

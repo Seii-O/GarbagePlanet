@@ -9,12 +9,20 @@ namespace TrashPlanet.Whitebox.Editor
     /// <summary>
     /// 给已换成 RobotPuppy.fbx 的伙伴狗接骨骼动画（ART-014 由程序化改为骨骼驱动）。
     ///
+    /// 动画来源：Assets/Art/Characters/DogAnims/ 下四个单独导出的动作文件
+    ///   RobotPuppy_Walk.fbx / RobotPuppy_TailWag.fbx / RobotPuppy_HeadTilt.fbx / RobotPuppy_Jump.fbx
+    /// 每个文件只含一条 take，片段名与文件名后缀一致；若某个文件缺失，自动回退到
+    /// RobotPuppy.fbx 里内嵌的同名 take，保证缺一个也不影响其它动作可用。
+    ///
     /// 做什么：
-    /// 1. 给 FBX 设好循环标记：Walk / TailWag 循环，Jump / HeadTilt 单次；
-    ///    同时把根位移 XZ 与根旋转锁进 pose，动画只驱动骨骼，不抢 CompanionDog 的球面跟随；
-    /// 2. 生成 AnimatorController（Assets/Art/Animators/DogAnimator.controller）：
+    /// 1. 给动作 FBX 设导入参数：Generic、只导动画（关相机/灯光/可见性/形态键/材质）、
+    ///    移除常量缩放曲线（关键：MechaPuppy_Rig bind pose 缩放是 100，否则狗会被缩成 1/100）；
+    /// 2. 片段标记：Walk / TailWag 循环，Jump / HeadTilt 单次；根位移 XZ 与根旋转锁进 pose，
+    ///    动画只驱动骨骼，不抢 CompanionDog 的球面跟随；
+    /// 3. 生成 AnimatorController（Assets/Art/Animators/DogAnimator.controller）：
     ///    Idle_Wag(尾摆) ⇄ Walk，任意状态可被 Jump / HeadTilt 打断后回 Idle；
-    /// 3. 把 Animator 挂到预制体的 Model 子物体上（骨骼路径相对 Model 根，能正确绑定）。
+    /// 4. 把 Animator 挂到预制体的 Model 子物体上，模型自带 Avatar 就一并挂上（拿不到也能按
+    ///    transform 路径绑定，动作照样播）。
     ///
     /// 不做什么：不动 CompanionDog 的跟随/探路/叼回逻辑，不动体高与其它数值。
     /// 没接动画（没有 Animator 或控制器为空）时，CompanionDog 仍按原来的程序化动作跑。
@@ -24,19 +32,25 @@ namespace TrashPlanet.Whitebox.Editor
     public static class DogAnimatorSetup
     {
         const string FbxPath = "Assets/Art/Characters/RobotPuppy.fbx";
+        const string AnimFolder = "Assets/Art/Characters/DogAnims";
         const string PrefabPath = "Assets/Prefabs/Whitebox/chr_dog_whitebox.prefab";
         const string AnimatorFolder = "Assets/Art/Animators";
         const string ControllerPath = AnimatorFolder + "/DogAnimator.controller";
         const string ModelName = "Model";
-        const string SessionKey = "TrashPlanet.DogAnimatorInstalled.v1";
+        const string SessionKey = "TrashPlanet.DogAnimatorInstalled.v2";
 
-        // FBX 里的 take 名形如 "MechaPuppy_Rig|Walk"，按关键字匹配，不写死前缀
+        // take 名形如 "MechaPuppy_Rig|Walk"，按关键字匹配，不写死前缀；也是动作文件名后缀
         const string ClipWalk = "Walk";
         const string ClipWag = "TailWag";
         const string ClipJump = "Jump";
         const string ClipTilt = "HeadTilt";
 
+        static readonly string[] ClipKeys = { ClipWalk, ClipWag, ClipJump, ClipTilt };
+
         static int retry;
+
+        /// <summary>单独导出的动作文件路径（约定：RobotPuppy_&lt;关键字&gt;.fbx）。</summary>
+        static string AnimFbx(string keyword) => AnimFolder + "/RobotPuppy_" + keyword + ".fbx";
 
         [InitializeOnLoadMethod]
         static void AutoInstallOnce()
@@ -50,7 +64,7 @@ namespace TrashPlanet.Whitebox.Editor
             if (SessionState.GetBool(SessionKey, false)) return;
             if (EditorApplication.isPlayingOrWillChangePlaymode) return;
 
-            // 刚编译完时资源可能还在导入，稍后再来：延时回调按帧重试，最多 60 帧
+            // 刚编译完时资源可能还在导入，稍后再来：延时回调按帧重试
             if (EditorApplication.isCompiling || EditorApplication.isUpdating)
             {
                 Retry();
@@ -74,6 +88,12 @@ namespace TrashPlanet.Whitebox.Editor
                 Retry();
                 return;
             }
+            // 刚复制进来的动作 FBX 可能还在导入：等导完再接线，否则会退回内嵌片段
+            if (!AnimFilesReady())
+            {
+                Retry();
+                return;
+            }
 
             SessionState.SetBool(SessionKey, true);
             try
@@ -88,13 +108,32 @@ namespace TrashPlanet.Whitebox.Editor
 
         static void Retry()
         {
-            if (++retry > 60)
+            if (++retry > 300)
             {
                 Debug.Log("[DogAnimator] 编辑器一直没就绪，先跳过自动接动画；需要时手动点菜单 ㉕ 给小狗接骨骼动画");
                 SessionState.SetBool(SessionKey, true);
                 return;
             }
             EditorApplication.delayCall += TryAutoInstall;
+        }
+
+        /// <summary>动作 FBX 是否都已就绪（磁盘上没有的按「缺失」处理，走内嵌片段回退）。</summary>
+        static bool AnimFilesReady()
+        {
+            for (int i = 0; i < ClipKeys.Length; i++)
+            {
+                string path = AnimFbx(ClipKeys[i]);
+                if (AssetDatabase.LoadAssetAtPath<GameObject>(path) != null) continue;
+                if (!FileOnDisk(path)) continue;      // 文件本身不存在 → 认为「没有这个动作」
+                return false;                          // 文件在、但 Unity 还没导完
+            }
+            return true;
+        }
+
+        static bool FileOnDisk(string assetPath)
+        {
+            string projectRoot = System.IO.Directory.GetParent(Application.dataPath).FullName;
+            return System.IO.File.Exists(System.IO.Path.Combine(projectRoot, assetPath));
         }
 
         [MenuItem("Tools/垃圾星球白膜/㉕ 给小狗接骨骼动画")]
@@ -119,15 +158,51 @@ namespace TrashPlanet.Whitebox.Editor
             }
 
             AnimatorController controller = BuildController(walk, wag, jump, tilt);
+            VerifyBindings(walk);
+            VerifyBindings(wag);
             Avatar avatar = FindAvatar();
             ApplyToPrefab(controller, avatar);
 
             Debug.Log("[DogAnimator] 完成：控制器 " + ControllerPath
-                      + "；片段 Walk=" + walk.name + " / Idle=" + wag.name
-                      + (jump != null ? " / Jump=" + jump.name : " / Jump=缺")
-                      + (tilt != null ? " / HeadTilt=" + tilt.name : " / HeadTilt=缺")
-                      + "；Avatar=" + (avatar != null ? avatar.name : "无")
+                      + "；Walk=" + Describe(walk) + " / Idle=" + Describe(wag)
+                      + " / Jump=" + (jump != null ? Describe(jump) : "缺")
+                      + " / HeadTilt=" + (tilt != null ? Describe(tilt) : "缺")
+                      + "；Avatar=" + (avatar != null ? avatar.name : "无（按 transform 路径绑定）")
                       + "；Animator 已挂到 " + PrefabPath + " 的 " + ModelName + " 上");
+        }
+
+        static string Describe(AnimationClip c)
+        {
+            return c.name + "(" + c.length.ToString("0.00") + "s)";
+        }
+
+        /// <summary>
+        /// 核对片段曲线路径在 Model 下是否存在。动作文件与模型骨架路径不一致时，
+        /// 播放不会报错、但对不上的骨骼就是不动（腿不迈、尾巴不摇），提前在 Console 说清楚。
+        /// </summary>
+        static void VerifyBindings(AnimationClip clip)
+        {
+            if (clip == null) return;
+            GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(PrefabPath);
+            Transform model = prefab != null ? prefab.transform.Find(ModelName) : null;
+            if (model == null) return;
+
+            EditorCurveBinding[] binds = AnimationUtility.GetCurveBindings(clip);
+            int missing = 0;
+            string sample = null;
+            for (int i = 0; i < binds.Length; i++)
+            {
+                string path = binds[i].path;
+                if (string.IsNullOrEmpty(path)) continue;
+                if (model.Find(path) != null) continue;
+                missing++;
+                if (sample == null) sample = path;
+            }
+
+            if (missing > 0)
+                Debug.LogWarning("[DogAnimator] " + clip.name + " 有 " + missing + "/" + binds.Length
+                                 + " 条曲线在 " + ModelName + " 下找不到对应节点（例：" + sample
+                                 + "）——动作文件与模型骨架路径不一致，这些骨骼不会动");
         }
 
         /// <summary>批量入口（-executeMethod 用）。</summary>
@@ -142,51 +217,103 @@ namespace TrashPlanet.Whitebox.Editor
 
         static void ConfigureClips()
         {
-            ModelImporter importer = AssetImporter.GetAtPath(FbxPath) as ModelImporter;
-            if (importer == null) return;
+            // 模型本体：还要当「动作文件缺失」时的回退来源，导入动画但不动外观相关设置
+            ModelImporter model = AssetImporter.GetAtPath(FbxPath) as ModelImporter;
+            if (model != null)
+            {
+                bool changed = false;
+                if (!model.importAnimation) { model.importAnimation = true; changed = true; }
+                if (model.animationType != ModelImporterAnimationType.Generic)
+                {
+                    model.animationType = ModelImporterAnimationType.Generic;
+                    changed = true;
+                }
+                if (!model.removeConstantScaleCurves) { model.removeConstantScaleCurves = true; changed = true; }
+                if (ApplyClipFlags(model)) changed = true;
 
-            // 这条很关键：FBX 里 MechaPuppy_Rig 的 bind pose 缩放是 100（cm→m），
-            // 若动画里带一条常量缩放曲线（常见是 1），播放时整只狗会被缩成 1/100。
-            // 去掉常量缩放曲线后，缩放只由 bind pose 决定。
+                if (changed)
+                {
+                    model.SaveAndReimport();
+                    Debug.Log("[DogAnimator] 模型包含的片段已打上循环/锁根标记：" + FbxPath);
+                }
+            }
+
+            for (int i = 0; i < ClipKeys.Length; i++)
+                ConfigureClipFbx(AnimFbx(ClipKeys[i]));
+        }
+
+        /// <summary>动作 FBX：只导动画，尽量不产生多余的网格/材质负担。</summary>
+        static void ConfigureClipFbx(string path)
+        {
+            ModelImporter importer = AssetImporter.GetAtPath(path) as ModelImporter;
+            if (importer == null) return;   // 文件不存在或还没导入：交给回退逻辑
+
             bool changed = false;
+
+            if (importer.animationType != ModelImporterAnimationType.Generic)
+            {
+                importer.animationType = ModelImporterAnimationType.Generic;
+                changed = true;
+            }
+            if (!importer.importAnimation) { importer.importAnimation = true; changed = true; }
+            if (importer.importCameras) { importer.importCameras = false; changed = true; }
+            if (importer.importLights) { importer.importLights = false; changed = true; }
+            if (importer.importVisibility) { importer.importVisibility = false; changed = true; }
+            if (importer.importBlendShapes) { importer.importBlendShapes = false; changed = true; }
+
+            // 动作文件里自带一套网格/20 个材质槽，工程里只用动画，别跟着导入材质
+            if (importer.materialImportMode != ModelImporterMaterialImportMode.None)
+            {
+                importer.materialImportMode = ModelImporterMaterialImportMode.None;
+                changed = true;
+            }
+
+            // 关键：bind pose 缩放 100（cm→m），常量缩放曲线会让整只狗缩成 1/100
             if (!importer.removeConstantScaleCurves)
             {
                 importer.removeConstantScaleCurves = true;
                 changed = true;
             }
 
-            ModelImporterClipAnimation[] clips = importer.defaultClipAnimations;
-            if (clips == null || clips.Length == 0)
+            if (ApplyClipFlags(importer)) changed = true;
+
+            if (changed)
             {
-                if (changed) importer.SaveAndReimport();
-                return;
+                importer.SaveAndReimport();
+                Debug.Log("[DogAnimator] 动作文件导入设置已更新：" + path);
             }
+        }
 
-            ModelImporterClipAnimation[] existing = importer.clipAnimations;
-            if (existing == null || existing.Length != clips.Length) changed = true;
+        /// <summary>给 FBX 里的每条 take 打循环/锁根标记，返回是否与已存设置不同。</summary>
+        static bool ApplyClipFlags(ModelImporter importer)
+        {
+            ModelImporterClipAnimation[] want = importer.defaultClipAnimations;
+            if (want == null || want.Length == 0) return false;
 
-            for (int i = 0; i < clips.Length; i++)
+            ModelImporterClipAnimation[] have = importer.clipAnimations;
+            bool changed = have == null || have.Length != want.Length;
+
+            for (int i = 0; i < want.Length; i++)
             {
-                string label = string.IsNullOrEmpty(clips[i].name) ? clips[i].takeName : clips[i].name;
+                string label = string.IsNullOrEmpty(want[i].name) ? want[i].takeName : want[i].name;
                 bool loop = IsLoopClip(label);
 
-                if (clips[i].loopTime != loop) { clips[i].loopTime = loop; changed = true; }
-                if (loop && !clips[i].loopPose) { clips[i].loopPose = true; changed = true; }
-
+                want[i].loopTime = loop;
+                want[i].loopPose = loop;
                 // 动画只驱动骨骼：根位移 XZ 与根旋转烘焙进 pose，避免与球面跟随打架
-                if (!clips[i].lockRootPositionXZ) { clips[i].lockRootPositionXZ = true; changed = true; }
-                if (!clips[i].lockRootRotation) { clips[i].lockRootRotation = true; changed = true; }
+                want[i].lockRootPositionXZ = true;
+                want[i].lockRootRotation = true;
 
-                if (existing != null && i < existing.Length && existing[i].loopTime != clips[i].loopTime)
-                    changed = true;
+                if (!changed && i < have.Length)
+                {
+                    if (have[i].loopTime != loop || have[i].loopPose != loop
+                        || !have[i].lockRootPositionXZ || !have[i].lockRootRotation)
+                        changed = true;
+                }
             }
 
-            if (changed) importer.clipAnimations = clips;
-            if (!changed) return;
-
-            importer.SaveAndReimport();
-            Debug.Log("[DogAnimator] 片段导入设置已更新：Walk/TailWag 循环，Jump/HeadTilt 单次，"
-                      + "根位移已锁，常量缩放曲线已移除");
+            if (changed) importer.clipAnimations = want;
+            return changed;
         }
 
         static bool IsLoopClip(string clipName)
@@ -200,9 +327,18 @@ namespace TrashPlanet.Whitebox.Editor
         // 资源查找
         // ---------------------------------------------------------------
 
+        /// <summary>优先取单独导出的动作文件，缺失时回退到 RobotPuppy.fbx 内嵌 take。</summary>
         static AnimationClip FindClip(string keyword)
         {
-            UnityEngine.Object[] all = AssetDatabase.LoadAllAssetsAtPath(FbxPath);
+            AnimationClip clip = LoadClip(AnimFbx(keyword), keyword);
+            if (clip != null && clip.length > 0.0001f) return clip;
+            return LoadClip(FbxPath, keyword);
+        }
+
+        static AnimationClip LoadClip(string path, string keyword)
+        {
+            UnityEngine.Object[] all = AssetDatabase.LoadAllAssetsAtPath(path);
+            if (all == null) return null;
             for (int i = 0; i < all.Length; i++)
             {
                 AnimationClip c = all[i] as AnimationClip;
@@ -213,9 +349,20 @@ namespace TrashPlanet.Whitebox.Editor
             return null;
         }
 
+        /// <summary>
+        /// 只用模型本体（RobotPuppy.fbx）的 Avatar：它和 Model 实例是同一份骨架，绑定一定成立。
+        /// 动作文件里也有 Avatar，但那是另一份导入产物，挂上来反而可能触发「Avatar 不匹配」；
+        /// 拿不到就留空 —— Generic 模式下没有 Avatar 也会按 transform 路径绑定，动作照样播。
+        /// </summary>
         static Avatar FindAvatar()
         {
-            UnityEngine.Object[] all = AssetDatabase.LoadAllAssetsAtPath(FbxPath);
+            return FindAvatarAt(FbxPath);
+        }
+
+        static Avatar FindAvatarAt(string path)
+        {
+            UnityEngine.Object[] all = AssetDatabase.LoadAllAssetsAtPath(path);
+            if (all == null) return null;
             for (int i = 0; i < all.Length; i++)
             {
                 Avatar a = all[i] as Avatar;
@@ -234,7 +381,7 @@ namespace TrashPlanet.Whitebox.Editor
             if (!AssetDatabase.IsValidFolder(AnimatorFolder))
                 AssetDatabase.CreateFolder("Assets/Art", "Animators");
 
-            // 每次重建，保证状态机与代码一致（预制体里引用的是路径，不受重建影响）
+            // 每次重建，保证状态机与代码一致（预制体里引用的是路径，重建后由 ApplyToPrefab 重新挂上）
             if (AssetDatabase.LoadAssetAtPath<AnimatorController>(ControllerPath) != null)
                 AssetDatabase.DeleteAsset(ControllerPath);
 

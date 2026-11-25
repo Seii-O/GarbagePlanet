@@ -54,6 +54,7 @@ namespace TrashPlanet.Whitebox
 
         WhiteboxState state;
         MonoBehaviour playerMovement;
+        PlayerFootsteps footsteps;   // 脚步音效（运行时补建，无需改场景）
         Vector3 lastPlayerPos;
         float saveTimer;
         bool paused;
@@ -263,6 +264,9 @@ namespace TrashPlanet.Whitebox
             spawner.Init(this);
             interaction.Init(this);
             dog.Init(this);
+            // 脚步：只读玩家位移，不碰 PlayerController（在 PlanetCleaner 程序集里）
+            if (footsteps == null) footsteps = gameObject.AddComponent<PlayerFootsteps>();
+            footsteps.Init(this);
             stationSystem.Init(this);
             quest.Init(this);
             quest.Evaluate();
@@ -510,11 +514,13 @@ namespace TrashPlanet.Whitebox
                 }
                 state.visitedStation = true; // 任务链第 4 步（QuestChain case 3）依赖，保持不变
                 stationOpen = true;
+                Sfx.Play(SfxId.UiOpen);
                 Notice("中转站已打开；后台加工/制造计时继续走");
             }
             else
             {
                 stationOpen = false; // 再按一次 M / ESC / 关闭按钮只关闭，不会重复打开
+                Sfx.Play(SfxId.UiClose);
                 if (stationSystem != null) stationSystem.ClearPending(); // 关面板即放弃待确认的批量操作
             }
             ApplyUiState();

@@ -1,8 +1,8 @@
 {
-  "projectDir": "C:\\Users\\cj\\Documents\\GitHub\\GarbagePlanet\\xinqiu1",
-  "generatedAt": "2026-11-20 19:40:29",
+  "projectDir": "C:\\Users\\cj\\Documents\\GitHub\\GarbagePlanet\\xinqiu",
+  "generatedAt": "2026-11-25 22:32:06",
   "generator": "Tools/check_project.py",
-  "errorCount": 1,
+  "errorCount": 2,
   "warningCount": 1,
   "items": [
     {
@@ -46,17 +46,48 @@
       "files": []
     },
     {
-      "level": "info",
+      "level": "error",
       "check": "metaPairing",
-      "message": "524 个文件与 98 个目录的元数据配对完整",
+      "message": "43 个资产缺 .meta",
       "path": "",
-      "hint": "",
-      "files": []
+      "hint": "先运行 Tools/ensure_meta.py 补齐",
+      "files": [
+        "Assets/Resources/Audio/BGM/amb_01_wind.wav",
+        "Assets/Resources/Audio/BGM/amb_02_gear.mp3",
+        "Assets/Resources/Audio/BGM/bgm_01_sweet.mp3",
+        "Assets/Resources/Audio/BGM/bgm_02_workshop.mp3",
+        "Assets/Resources/Audio/SFX/Deposit/deposit_01.wav",
+        "Assets/Resources/Audio/SFX/DogBark/bark_01.wav",
+        "Assets/Resources/Audio/SFX/DogBark/bark_02.wav",
+        "Assets/Resources/Audio/SFX/DogBark/bark_03.wav",
+        "Assets/Resources/Audio/SFX/DogBark/bark_04.wav",
+        "Assets/Resources/Audio/SFX/DogBark/bark_05.wav",
+        "Assets/Resources/Audio/SFX/DogBark/bark_06.wav",
+        "Assets/Resources/Audio/SFX/DogFetch/dog_fetch.mp3",
+        "Assets/Resources/Audio/SFX/DogPant/dog_pant.mp3",
+        "Assets/Resources/Audio/SFX/DogSniff/dog_sniff.wav",
+        "Assets/Resources/Audio/SFX/DogWhine/dog_whine.mp3",
+        "Assets/Resources/Audio/SFX/Error/error_01.wav",
+        "Assets/Resources/Audio/SFX/Error/error_02_bagfull.mp3",
+        "Assets/Resources/Audio/SFX/GachaWin/gacha_win.mp3",
+        "Assets/Resources/Audio/SFX/Pickup/pickup_01.wav",
+        "Assets/Resources/Audio/SFX/Pickup/pickup_02.wav",
+        "Assets/Resources/Audio/SFX/Pickup/pickup_03.wav",
+        "Assets/Resources/Audio/SFX/Pickup/pickup_04.wav",
+        "Assets/Resources/Audio/SFX/Pickup/pickup_05.wav",
+        "Assets/Resources/Audio/SFX/Pickup/pickup_06.wav",
+        "Assets/Resources/Audio/SFX/Pickup/pickup_07.wav",
+        "Assets/Resources/Audio/SFX/Pickup/pickup_08.wav",
+        "Assets/Resources/Audio/SFX/Pickup/pickup_09.mp3",
+        "Assets/Resources/Audio/SFX/Pickup/pickup_10.wav",
+        "Assets/Resources/Audio/SFX/Pickup/pickup_11.wav",
+        "Assets/Resources/Audio/SFX/Run/run_01.mp3"
+      ]
     },
     {
       "level": "info",
       "check": "guidUnique",
-      "message": "622 个 GUID 全部唯一",
+      "message": "1095 个 GUID 全部唯一",
       "path": "",
       "hint": "",
       "files": []
@@ -109,7 +140,7 @@
     {
       "level": "info",
       "check": "csharp",
-      "message": "94 个 C# 文件括号与字面量配平",
+      "message": "128 个 C# 文件括号与字面量配平",
       "path": "",
       "hint": "",
       "files": []
@@ -117,10 +148,12 @@
     {
       "level": "warn",
       "check": "danglingGuid",
-      "message": "17/315 个被引用 GUID 无法解析（扫描 152 个资源文件）",
+      "message": "19/500 个被引用 GUID 无法解析（扫描 214 个资源文件）",
       "path": "",
       "hint": "",
       "files": [
+        "874e27cf6ed04564c87c8e05daa760cb <- Assets/Scenes/WhiteboxPrototype.unity",
+        "38c636efc3bbd1140b21be6ae19caf31 <- Assets/Scenes/WhiteboxPrototype.unity",
         "8b8c8a10edf94ddc8cc4cc4fcd5696a9 <- Assets/TextMesh Pro/Examples & Extras/Materials/Ground - Logo Scene.mat, Assets/TextMesh Pro/Examples & Extras/Resources/Fonts & Materials/Bangers SDF Logo.mat",
         "c45cd05946364f32aba704f0853a975b <- Assets/TextMesh Pro/Examples & Extras/Materials/Ground - Surface Shader Scene.mat",
         "f5f67c52d1564df4a8936ccd202a3bd8 <- Assets/TextMesh Pro/Examples & Extras/Prefabs/Text Popup.prefab, Assets/TextMesh Pro/Examples & Extras/Prefabs/Text Popup.prefab, Assets/TextMesh Pro/Examples & Extras/Prefabs/Text Popup.prefab",
@@ -133,9 +166,7 @@
         "6a9165d4abc743c469f4e1f2ee39605c <- Assets/TextMesh Pro/Examples & Extras/Scenes/05 - Style Tags.unity, Assets/TextMesh Pro/Examples & Extras/Scenes/05 - Style Tags.unity, Assets/TextMesh Pro/Examples & Extras/Scenes/06 - Extra Rich Text Examples.unity",
         "955cc2a4737565a4293837beb489fb59 <- Assets/TextMesh Pro/Examples & Extras/Scenes/07 - Superscript & Subscript Example.unity",
         "500878462c972a14d87cb770d2b59923 <- Assets/TextMesh Pro/Examples & Extras/Scenes/12a - Text Interactions.unity",
-        "6b9a46634d3f3f0498640b1a019d5853 <- Assets/TextMesh Pro/Examples & Extras/Scenes/14 - Multi Font & Sprites.unity",
-        "a9df86876be30af4e9b5f5975d8ee7d8 <- Assets/TextMesh Pro/Examples & Extras/Scenes/15 - Inline Graphics & Sprites.unity",
-        "0b4bdfba56924184bbe7c948f934fb70 <- Assets/TextMesh Pro/Examples & Extras/Scenes/17 - Old Computer Terminal.unity"
+        "6b9a46634d3f3f0498640b1a019d5853 <- Assets/TextMesh Pro/Examples & Extras/Scenes/14 - Multi Font & Sprites.unity"
       ]
     },
     {
@@ -149,9 +180,9 @@
     {
       "level": "warning",
       "check": "trace",
-      "message": "可追溯覆盖率 53/55 = 96%",
+      "message": "可追溯覆盖率 60/63 = 95%",
       "path": "",
-      "hint": "未覆盖：PLAT-003, PLAT-004",
+      "hint": "未覆盖：PLAT-003, PLAT-004, MECH-018",
       "files": []
     },
     {

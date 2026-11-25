@@ -284,6 +284,7 @@ namespace TrashPlanet.Whitebox
                     lookTarget = t;
                     lookTimer = LookDuration;
                     if (animator != null) animator.SetTrigger(DogAnimatorParams.Tilt);
+                    Sfx.PlayAt(SfxId.DogSniff, transform.position); // 发现垃圾先闻一下
                 }
                 if (t == null) lookTarget = null;
             }
@@ -292,11 +293,18 @@ namespace TrashPlanet.Whitebox
             if (cooldown > 0f || t == null) return;
 
             int cat = (int)t.Category;
-            if (!game.State.CanCollect(cfg, cat)) return;
+            if (!game.State.CanCollect(cfg, cat))
+            {
+                // 背包满：叼不回来，委屈一下（用 cooldown 节流，别一直叫）
+                Sfx.PlayAt(SfxId.DogWhine, transform.position);
+                cooldown = 2f;
+                return;
+            }
             if (game.State.Collect(cfg, cat, 1) <= 0) return;
 
             game.Spawner.Despawn(t);
             game.Hud.FloatText("狗 +1");
+            Sfx.PlayAt(SfxId.DogFetch, transform.position);
             game.OnWorldEvent();
             cooldown = cfg.DogFetchCooldown[stage];
             pulseTimer = PulseDuration;

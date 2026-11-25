@@ -3,7 +3,7 @@
   "scene": "Assets/Scenes/WhiteboxPrototype.unity",
   "pass": false,
   "checkCount": 73,
-  "errorCount": 2,
+  "errorCount": 3,
   "checks": [
     "PASS 配置资产存在",
     "PASS 全局垃圾总量 ≥ 地表并发上限（2000 ≥ 1000）",
@@ -80,6 +80,7 @@
     "PASS ART-012 狗固定色号一致（期望 #D8C3A0，实际 #D8C3A0）"
   ],
   "errors": [
+    "FAIL ART-014 小狗已接骨骼动画（Model 上挂 Animator + DogAnimator 状态机）",
     "FAIL 场景无缺失脚本组件（missing=4）",
     "FAIL uGUI 视图引用绑定齐全"
   ]

@@ -461,14 +461,14 @@ namespace TrashPlanet.Whitebox
             if (b == null) return;
             int idx = index;
             b.onClick.RemoveAllListeners();
-            b.onClick.AddListener(() => SelectTab(idx));
+            b.onClick.AddListener(() => { Sfx.Play(SfxId.UiClick); SelectTab(idx); });
         }
         void BindClick(string name, Action call)
         {
             Button b = FindButton(panel.transform, name);
             if (b == null) return;
             b.onClick.RemoveAllListeners();
-            b.onClick.AddListener(() => call());
+            b.onClick.AddListener(() => { Sfx.Play(SfxId.UiClick); call(); });
         }
 
         /// <summary>
@@ -487,7 +487,7 @@ namespace TrashPlanet.Whitebox
                 Button b = all[i].GetComponent<Button>();
                 if (b == null) continue;
                 b.onClick.RemoveAllListeners();
-                b.onClick.AddListener(() => call());
+                b.onClick.AddListener(() => { Sfx.Play(SfxId.UiClick); call(); });
                 hit++;
             }
             return hit;

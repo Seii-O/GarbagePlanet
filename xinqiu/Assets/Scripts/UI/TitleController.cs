@@ -139,12 +139,13 @@ namespace TrashPlanet.Whitebox
         }
 
         /// <summary>
-        /// 当前工程只有 AudioListener、无独立 BGM/SFX 音源，两个滑块合并为全局音量：取二者较小值，
-        /// 任一拉到 0 即静音。后续接入分轨音频时，把这里替换成 AudioMixer.SetFloat 即可，接口不变。
+        /// 分轨音量交给 音效管理：SFX / BGM 各走一条独立通道，AudioListener 保持 1，
+        /// 避免「总音量 × 通道音量」二次衰减。接口不变，滑块仍只写 PlayerPrefs。
         /// </summary>
         static void ApplyVolume(float sfx, float music)
         {
-            AudioListener.volume = Mathf.Clamp01(Mathf.Min(sfx, music));
+            AudioListener.volume = 1f;
+            Sfx.ApplyVolumePrefs();
         }
     }
 }

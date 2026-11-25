@@ -342,6 +342,10 @@ namespace TrashPlanet.Whitebox.Editor
                     float modelHeight = MeasureModelHeight(dogPrefab.transform.Find("Model"));
                     Check(modelHeight <= 0.6001f,
                         "ART-011 真模型渲染高度不越红线（" + modelHeight.ToString("0.###") + " m）", errors, checks);
+
+                    Animator dogAnimator = dogPrefab.transform.Find("Model").GetComponent<Animator>();
+                    Check(dogAnimator != null && dogAnimator.runtimeAnimatorController != null,
+                        "ART-014 小狗已接骨骼动画（Model 上挂 Animator + DogAnimator 状态机）", errors, checks);
                     return;
                 }
 

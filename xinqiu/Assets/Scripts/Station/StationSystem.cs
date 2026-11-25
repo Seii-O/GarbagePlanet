@@ -134,6 +134,7 @@ namespace TrashPlanet.Whitebox
                 }
             }
             if (sum <= 0) { game.Notice("背包是空的"); return false; }
+            Sfx.Play(SfxId.Deposit);
             game.Notice("已投放 " + sum + " 件垃圾进中转站");
             game.Hud.ShowDeposit(game.Config.DepositSeconds);
             game.OnWorldEvent();
@@ -159,6 +160,7 @@ namespace TrashPlanet.Whitebox
                 s.bagItems[a] = 0;
                 s.bagItems[a + 1] = 0;
             }
+            Sfx.Play(SfxId.Deposit);
             game.Notice("已投放 " + n + " 件" + CategoryNames[cat] + "垃圾进中转站");
             game.Hud.ShowDeposit(game.Config.DepositSeconds);
             game.OnWorldEvent();
@@ -269,6 +271,7 @@ namespace TrashPlanet.Whitebox
             if (game.Tool != null) seconds *= game.Tool.ProcessMultiplier(cat);
 
             s.raw[cat] -= consumed;
+            Sfx.Play(SfxId.ProcessStart);
             StartJob("加工" + CategoryNames[cat] + (n > 1 ? " ×" + n : ""), seconds, () =>
             {
                 s.materials[cat] += output;
@@ -277,6 +280,7 @@ namespace TrashPlanet.Whitebox
                 s.processedMask |= 1 << cat;
                 plannedInput[cat] = -1; // 加工完复位为「未初始化」，下次读取自动回到默认 1 批
                 if (game.Tool != null) game.Tool.UnlockCheck();
+                Sfx.Play(SfxId.ProcessDone);
                 game.Notice("加工完成：+" + output + " " + MaterialNames[cat]
                             + (n > 1 ? "（" + n + " 批）" : ""));
             }, cat);
@@ -361,6 +365,7 @@ namespace TrashPlanet.Whitebox
             // 批量耗时：与数量无关，做多少件都只用一件的时长（batchFixedDuration = false 时才线性叠加）
             float craftSeconds = cfg.BatchFixedDuration ? cfg.CraftSeconds[recipe] : cfg.CraftSeconds[recipe] * n;
             if (game.Tool != null) craftSeconds *= game.Tool.CraftMultiplier(recipe);
+            Sfx.Play(SfxId.CraftStart);
             StartJob("制造" + RecipeNames[recipe] + (n > 1 ? " ×" + n : ""), craftSeconds, () =>
             {
                 s.crafted += n;
@@ -385,6 +390,7 @@ namespace TrashPlanet.Whitebox
                     s.waterProgress = WhiteboxState.AddProgress(cfg, s.waterProgress, n);
                     game.Eco.Refresh(true);
                 }
+                Sfx.Play(SfxId.CraftDone);
                 game.Notice("制造完成：" + RecipeNames[recipe] + (n > 1 ? " ×" + n : ""));
             });
             return true;
@@ -438,6 +444,7 @@ namespace TrashPlanet.Whitebox
             s.materials[1] -= metal;
             s.materials[3] -= elec;
             s.toolLevel += 1;
+            Sfx.Play(SfxId.Upgrade);
             game.Notice("工具升级到 Lv." + s.toolLevel + "，拾取范围 " + cfg.PickRange[s.toolLevel - 1] + " m");
             game.OnWorldEvent();
             return true;
@@ -474,6 +481,7 @@ namespace TrashPlanet.Whitebox
             if (cat != 1) s.materials[cat] -= materialCost;
             s.toolLevels[cat] = 2;
             string name = game.Tool != null ? game.Tool.SpecToolName(cat) : CategoryNames[cat] + "专精";
+            Sfx.Play(SfxId.Upgrade);
             game.Notice(name + " 升级到 Lv.2");
             WhiteboxState.Save(s);
             game.OnWorldEvent();
@@ -518,6 +526,7 @@ namespace TrashPlanet.Whitebox
             s.materials[1] -= cost;
             s.bagLevel = Mathf.Min(WhiteboxConfig.BagMaxLevel, s.bagLevel + 1);
             s.ClampBagToCap(cfg);
+            Sfx.Play(SfxId.Upgrade);
             game.Notice("背包升级到 Lv." + s.bagLevel + "，总容量 " + cfg.BackpackTotalCap(s.bagLevel)
                         + "，每类 " + CapsText(cfg, s.bagLevel));
             game.OnWorldEvent();

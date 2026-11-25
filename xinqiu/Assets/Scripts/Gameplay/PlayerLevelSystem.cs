@@ -100,6 +100,7 @@ namespace TrashPlanet.Whitebox
             string reason;
             if (!CanLevelUp(out reason))
             {
+                Sfx.Play(SfxId.Error);
                 if (game != null && game.Hud != null) game.Hud.Notice(reason);
                 return false;
             }
@@ -110,6 +111,7 @@ namespace TrashPlanet.Whitebox
             s.playerLevel = Mathf.Clamp(s.playerLevel + 1, 1, cfg.PlayerLevelMax);
             s.playerExp = Mathf.Max(0, s.playerExpTotal - cfg.PlayerLevelExpAt(s.playerLevel));
             WhiteboxState.Save(s);
+            Sfx.Play(SfxId.LevelUp);
             if (game != null && game.Hud != null)
                 game.Hud.Notice("人物升级到 Lv." + s.playerLevel + "！拾取与效率提升");
             Debug.Log("[PlayerLevel] 升级到 Lv." + s.playerLevel);
