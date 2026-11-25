@@ -8,7 +8,10 @@ using UnityEngine.SceneManagement;
 namespace TrashPlanet.Whitebox.Editor
 {
     /// <summary>
-    /// 五页签中转站界面的一键生成 + 接线（菜单㉑）。
+    /// 中转站界面的一键生成 + 接线（菜单㉑）。
+    ///
+    /// v5（2026-11-25 按新 UI 定稿）：02 垃圾分类整块下线，面板改为四页签；
+    /// 菜单改为「重建（覆盖手改）」并带二次确认，避免代码版把手工调好的界面顶掉。
     ///
     /// 红线：
     /// 1. 全部用 Editor API 生成，不手写 .unity / .prefab YAML；
@@ -17,7 +20,7 @@ namespace TrashPlanet.Whitebox.Editor
     ///    每个元素具名可在 Inspector 修改，不用静态整页图；
     /// 4. 布局与运行时兜底共用 StationFiveTabsUiFactory，避免两处结构漂移。
     ///
-    /// 菜单：Tools/垃圾星球白膜/㉑ 生成五页签中转站界面（M）
+    /// 菜单：Tools/垃圾星球白膜/㉑ 重建中转站界面（四页签·覆盖手改）
     /// 批处理：-executeMethod TrashPlanet.Whitebox.Editor.StationFiveTabsBuilder.BuildBatch
     /// </summary>
     [InitializeOnLoad]
@@ -69,7 +72,7 @@ namespace TrashPlanet.Whitebox.Editor
                 EditorSceneManager.MarkSceneDirty(scene);
                 EditorSceneManager.SaveScene(scene);
                 AssetDatabase.SaveAssets();
-                Debug.Log(Tag + "首次载入已自动补齐五页签中转站界面（真实控件版）");
+                Debug.Log(Tag + "首次载入已自动补齐中转站界面（四页签·真实控件版）");
             }
             catch (Exception e)
             {
@@ -78,7 +81,7 @@ namespace TrashPlanet.Whitebox.Editor
             }
         }
 
-        [MenuItem("Tools/垃圾星球白膜/㉑ 生成五页签中转站界面（M）", false, 21)]
+        [MenuItem("Tools/垃圾星球白膜/㉑ 重建中转站界面（四页签·覆盖手改）", false, 21)]
         public static void BuildMenu()
         {
             if (EditorApplication.isPlayingOrWillChangePlaymode)
@@ -92,13 +95,22 @@ namespace TrashPlanet.Whitebox.Editor
                 Debug.LogWarning(Tag + "请先打开白膜场景 " + WhiteboxBuilder.ScenePath + " 再执行本菜单");
                 return;
             }
+            // 本菜单是「存在即删重建」：手调过的层级/位置/颜色/文案会被代码版整块替换，先确认
+            if (!EditorUtility.DisplayDialog("重建中转站界面？",
+                    "这会删掉现有的 " + StationFiveTabsView.PanelName + "，按代码重新生成四页签面板。\n\n"
+                    + "你在 Hierarchy / Inspector 里手调过的层级、位置、尺寸、颜色、文案都会丢失。\n"
+                    + "只是想保留现状的话，点「取消」。", "重建（会覆盖手改）", "取消"))
+            {
+                Debug.Log(Tag + "已取消重建，场景中的面板保持手改现状");
+                return;
+            }
             BuildInScene(scene, false);
             EditorSceneManager.MarkSceneDirty(scene);
             EditorSceneManager.SaveScene(scene);
             AssetDatabase.SaveAssets();
         }
 
-        /// <summary>批处理：打开场景 → 应用贴图导入 → 生成五页签面板 → 校验。</summary>
+        /// <summary>批处理：打开场景 → 应用贴图导入 → 生成四页签面板 → 校验。</summary>
         public static void BuildBatch()
         {
             try

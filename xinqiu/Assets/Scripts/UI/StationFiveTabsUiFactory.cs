@@ -5,7 +5,9 @@ using UnityEngine.UI;
 namespace TrashPlanet.Whitebox
 {
     /// <summary>
-    /// 五页签中转站面板的真实 uGUI 结构工厂（运行时可用，Editor 构建脚本复用同一份布局）。
+    /// 中转站面板的真实 uGUI 结构工厂（运行时可用，Editor 构建脚本复用同一份布局）。
+    ///
+    /// v2（2026-11-25 按新 UI 定稿）：原「02 垃圾分类」整块下线，改为四页签，页签索引前移一位。
     ///
     /// 视觉严格对齐 04~08 五张参考图：米白面板 / 深棕字 / 青绿主按钮 / 琥珀次按钮 /
     /// 白色幽灵关闭键 / 紧凑页签 / 分类色点。每个元素都是独立、具名、Inspector 可改的真实控件。
@@ -14,12 +16,12 @@ namespace TrashPlanet.Whitebox
     ///   Panel_StationFiveTabs
     ///     ├ Img_Panel               面板大底
     ///     ├ Txt_Title / 徽章 / 关闭
-    ///     ├ TabBar / Btn_Tab_0..4   紧凑页签
-    ///     └ Pages / Page_0..4       五个内容页（真实控件）
+    ///     ├ TabBar / Btn_Tab_0..3   紧凑页签
+    ///     └ Pages / Page_0..3       四个内容页（真实控件）
     /// </summary>
     public static class StationFiveTabsUiFactory
     {
-        public const int TabCount = 5;
+        public const int TabCount = 4;
 
         // 参考图配色（浅色米白主题）
         static readonly Color Ink = new Color(0.16f, 0.13f, 0.09f, 1f);        // 深棕主字
@@ -29,7 +31,7 @@ namespace TrashPlanet.Whitebox
         static readonly Color Teal = new Color(0.17f, 0.66f, 0.60f, 1f);       // 青绿强调
         static readonly Color OnPrimary = new Color(0.04f, 0.11f, 0.10f, 1f);  // 主按钮上的字
 
-        static readonly string[] TabNames = { "垃圾接收", "垃圾分类", "材料加工", "产品制造", "人物升级" };
+        static readonly string[] TabNames = { "垃圾接收", "材料加工", "产品制造", "人物升级" };
         static readonly string[] CatNames = { "塑料", "金属", "有机", "电子" };
         static readonly string[] ItemNames = { "塑料瓶", "塑料袋", "易拉罐", "铁片", "苹果核", "枯叶", "电池", "电路板" };
         static readonly string[] MaterialNames = { "再生塑料", "金属零件", "有机原料", "电子元件" };
@@ -61,7 +63,7 @@ namespace TrashPlanet.Whitebox
                 art?.btnCloseSquare, InkSoft, 24, TextAnchor.MiddleCenter, false, font);
             Img(close.transform, "Img_CloseIcon", 14f, 14f, 24f, 24f, art?.icClose, InkSoft, false, Image.Type.Simple, true);
 
-            // 紧凑页签条：五个页签集中在左上，而非铺满整行
+            // 紧凑页签条：四个页签集中在左上，而非铺满整行
             Img(panel, "Img_TabBar", 30f, 84f, 1740f, 52f, art?.tabBar, new Color(1f, 1f, 1f, 0.35f), false, Image.Type.Sliced);
             for (int i = 0; i < TabCount; i++)
             {
@@ -80,7 +82,7 @@ namespace TrashPlanet.Whitebox
                     i == 0 ? Teal : InkSoft, TextAnchor.MiddleLeft, i == 0, font);
             }
 
-            // 五个内容页
+            // 四个内容页（原 02 垃圾分类整块已下线）
             RectTransform pages = Node(panel, "Pages", 0f, 0f, PW, PH);
             for (int i = 0; i < TabCount; i++)
             {
@@ -88,10 +90,9 @@ namespace TrashPlanet.Whitebox
                 switch (i)
                 {
                     case 0: BuildReceive(page, art, font); break;
-                    case 1: BuildSort(page, art, font); break;
-                    case 2: BuildProcess(page, art, font); break;
-                    case 3: BuildCraft(page, art, font); break;
-                    case 4: BuildUpgrade(page, art, font); break;
+                    case 1: BuildProcess(page, art, font); break;
+                    case 2: BuildCraft(page, art, font); break;
+                    case 3: BuildUpgrade(page, art, font); break;
                 }
                 page.gameObject.SetActive(i == 0);
             }
@@ -167,7 +168,10 @@ namespace TrashPlanet.Whitebox
         }
 
         // =====================================================================
-        // 02 垃圾分类（2×2 分类卡）
+        // 【已下线】02 垃圾分类（2×2 分类卡）
+        // 2026-11-25 按新 UI 定稿：该页整块移除，Build 不再调用本方法。
+        // 保留方法体仅为需要回滚时能快速恢复；真要恢复，记得同时改 TabCount、TabNames、
+        // switch 分支、StationFiveTabsView 的 TabCount 与 RefreshValues 索引、以及自检数量。
         // =====================================================================
         static void BuildSort(RectTransform page, StationArtSet art, Font font)
         {

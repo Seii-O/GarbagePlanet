@@ -220,7 +220,8 @@ namespace TrashPlanet.Whitebox.Editor
                 Check(view != null && view.HasRequiredRefs, "uGUI 视图引用绑定齐全", errors, checks);
                 Check(uiRoot.GetComponent<WhiteboxUiActions>() != null,
                     "按钮回调目标 WhiteboxUiActions 存在", errors, checks);
-                string[] panels = { "Hud_Debug", "Panel_Station", "Panel_Pause", "Panel_Settlement" };
+                // 旧美术版 Panel_Station 已被 Panel_StationFiveTabs 取代，不再列为必备面板
+                string[] panels = { "Hud_Debug", "Panel_Pause", "Panel_Settlement" };
                 for (int i = 0; i < panels.Length; i++)
                     Check(uiRoot.transform.Find(panels[i]) != null,
                         "面板在 Hierarchy 中可见 " + panels[i], errors, checks);
@@ -234,27 +235,25 @@ namespace TrashPlanet.Whitebox.Editor
                     "弹窗含数量滑块 Slider", errors, checks);
                 Check(qtyPanel != null && qtyPanel.GetComponentInChildren<InputField>(true) != null,
                     "弹窗含数字输入框 InputField", errors, checks);
-                GameObject stationPanel = uiRoot.transform.Find("Panel_Station")?.gameObject;
-                Check(stationPanel != null && stationPanel.transform.Find("Btn_BagUpgrade") != null,
-                    "中转站含 ⑤ 升级背包按钮", errors, checks);
+                // 升级入口随四页签改到 Btn_Upgrade（旧 Panel_Station 的 Btn_BagUpgrade 已随面板下线）
+                Check(FindDeep(uiRoot.transform, "Btn_Upgrade") != null,
+                    "中转站含人物升级按钮 Btn_Upgrade", errors, checks);
 
                 Check(uiRoot.transform.Find("Panel_GarbageBag") == null, "独立垃圾背包界面已移除", errors, checks);
 
-                // UI-007：五页签中转站（真实 uGUI 控件：5 个内容 Page + 5 个具名页签按钮 + 控制器）
+                // UI-007：四页签中转站（真实 uGUI 控件：4 个内容 Page + 4 个具名页签按钮 + 控制器）
                 GameObject fiveTabPanel = FindDeep(uiRoot.transform, StationFiveTabsView.PanelName)?.gameObject;
-                Check(fiveTabPanel != null, "五页签中转站面板 Panel_StationFiveTabs 存在", errors, checks);
+                Check(fiveTabPanel != null, "中转站面板 Panel_StationFiveTabs 存在", errors, checks);
                 Check(uiRoot.GetComponent<StationFiveTabsView>() != null,
-                    "五页签控制器 StationFiveTabsView 已挂载", errors, checks);
-                int pageCount = 0, tabCount = 0;
-                for (int i = 0; i < 5; i++)
-                {
-                    if (fiveTabPanel != null && FindDeep(fiveTabPanel.transform, "Page_" + i) != null) pageCount++;
-                    if (fiveTabPanel != null && FindDeep(fiveTabPanel.transform, "Btn_Tab_" + i) != null) tabCount++;
-                }
-                Check(pageCount == 5, "五页签含 5 个内容 Page（" + pageCount + "/5）", errors, checks);
-                Check(tabCount == 5, "五页签含 5 个具名页签按钮（" + tabCount + "/5）", errors, checks);
+                    "中转站控制器 StationFiveTabsView 已挂载", errors, checks);
+                // 按「prefix+数字」统计而不是写死 Page_0..4：场景里手改过命名也能正确计数
+                int pageCount = CountIndexed(fiveTabPanel != null ? fiveTabPanel.transform : null, "Page_");
+                int tabCount = CountIndexed(fiveTabPanel != null ? fiveTabPanel.transform : null, "Btn_Tab_");
+                int wantTabs = StationFiveTabsView.TabCount;
+                Check(pageCount == wantTabs, "四页签含 " + wantTabs + " 个内容 Page（" + pageCount + "/" + wantTabs + "）", errors, checks);
+                Check(tabCount == wantTabs, "四页签含 " + wantTabs + " 个具名页签按钮（" + tabCount + "/" + wantTabs + "）", errors, checks);
                 Transform artSetProbe = fiveTabPanel != null ? FindDeep(uiRoot.transform, "Card_Bag") : null;
-                Check(artSetProbe != null, "五页签含真实控件卡片 Card_Bag（非静态整页图）", errors, checks);
+                Check(artSetProbe != null, "中转站含真实控件卡片 Card_Bag（非静态整页图）", errors, checks);
 
                 // UI-008：独立任务日志（真实控件 + HUD 常驻入口按钮）
                 GameObject questLogPanel = FindDeep(uiRoot.transform, QuestLogPanelView.PanelName)?.gameObject;
@@ -324,6 +323,28 @@ namespace TrashPlanet.Whitebox.Editor
             if (dogPrefab != null && m != null)
             {
                 CompanionDog dog = dogPrefab.GetComponent<CompanionDog>();
+                bool realModel = dogPrefab.transform.Find("Model") != null;
+
+                if (realModel)
+                {
+                    // 已换成 FBX 真模型：程序化图元与固定色覆盖都已下线，按真模型口径校验
+                    Check(dog != null, "伙伴狗根节点仍挂 CompanionDog（真模型模式）", errors, checks);
+                    Check(dog == null || (dog.FixedMaterial == null
+                                          && (dog.FixedColorRenderers == null || dog.FixedColorRenderers.Length == 0)),
+                        "ART-012 真模型不再被固定色覆盖（fixedMaterial 已清空）", errors, checks);
+
+                    string[] oldNames = { "Body", "Head", "Tail", "Leg_0", "Leg_1", "Leg_2", "Leg_3" };
+                    bool oldPartsGone = true;
+                    for (int i = 0; i < oldNames.Length; i++)
+                        if (dogPrefab.transform.Find(oldNames[i]) != null) oldPartsGone = false;
+                    Check(oldPartsGone, "ART-014 旧白膜图元已移除（避免与骨骼模型双份显示）", errors, checks);
+
+                    float modelHeight = MeasureModelHeight(dogPrefab.transform.Find("Model"));
+                    Check(modelHeight <= 0.6001f,
+                        "ART-011 真模型渲染高度不越红线（" + modelHeight.ToString("0.###") + " m）", errors, checks);
+                    return;
+                }
+
                 Renderer[] rs = dog != null ? dog.FixedColorRenderers : null;
                 bool allFixed = rs != null && rs.Length > 0;
                 if (allFixed)
@@ -339,6 +360,19 @@ namespace TrashPlanet.Whitebox.Editor
                              && dogPrefab.transform.Find("Leg_3") != null;
                 Check(parts, "ART-014 狗部件子物体命名齐全（Tail/Head/Leg_0..3）", errors, checks);
             }
+        }
+
+        /// <summary>量真模型的渲染高度；测不出（无 Renderer / 包围盒为 0）时返回 0，不误报。</summary>
+        static float MeasureModelHeight(Transform model)
+        {
+            if (model == null) return 0f;
+            Renderer[] rs = model.GetComponentsInChildren<Renderer>(true);
+            if (rs.Length == 0) return 0f;
+            Bounds b = rs[0].bounds;
+            if (b.size == Vector3.zero) return 0f;
+            for (int i = 1; i < rs.Length; i++)
+                if (rs[i].bounds.size != Vector3.zero) b.Encapsulate(rs[i].bounds);
+            return b.size.y;
         }
 
         static void ValidateDogColor(WhiteboxConfig cfg, List<string> errors, List<string> checks)
@@ -399,6 +433,25 @@ namespace TrashPlanet.Whitebox.Editor
             Transform[] all = root.GetComponentsInChildren<Transform>(true);
             for (int i = 0; i < all.Length; i++) if (all[i].name == name) return all[i];
             return null;
+        }
+
+        /// <summary>
+        /// 统计「prefix + 纯数字」命名的后代数量（Page_0/2/3/4、Btn_Tab_0/2/3/4 都算）。
+        /// 用计数而不是写死 Page_0..4，场景里手工改名/删页后自检才不会误报。
+        /// </summary>
+        static int CountIndexed(Transform root, string prefix)
+        {
+            if (root == null) return 0;
+            int n = 0;
+            Transform[] all = root.GetComponentsInChildren<Transform>(true);
+            for (int i = 0; i < all.Length; i++)
+            {
+                Transform t = all[i];
+                if (t == root || !t.name.StartsWith(prefix, StringComparison.Ordinal)) continue;
+                int num;
+                if (int.TryParse(t.name.Substring(prefix.Length), out num)) n++;
+            }
+            return n;
         }
     }
 }

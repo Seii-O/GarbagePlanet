@@ -4,6 +4,16 @@ using UnityEngine;
 namespace TrashPlanet.Whitebox
 {
     /// <summary>
+    /// 骨骼动画参数名（ART-014）：Editor 端建控制器与运行时驱动共用同一份常量，改名不会对不上。
+    /// </summary>
+    public static class DogAnimatorParams
+    {
+        public const string Speed = "Speed";
+        public const string Jump = "Jump";
+        public const string Tilt = "Tilt";
+    }
+
+    /// <summary>
     /// 伙伴狗（B 档，功能伙伴）：球面跟随 + 冷却到点自动叼回范围内普通垃圾。
     /// ART-012 / v1.2 D6：外观全程恒定。材质只在 Init 写入一次，之后本类与 EcoStage
     /// 都不会改写狗的任何 Renderer；没有 UpdateLook、没有阶段色、没有姿态变色。
@@ -11,11 +21,16 @@ namespace TrashPlanet.Whitebox
     ///           跟随/探路/回位只改根物体 transform，不碰材质与 Renderer。
     /// ART-014：程序化动作——尾巴、四肢、头部只改子物体 localRotation；
     ///           幅度受 WhiteboxConfig 钳制，体高仍 ≤ 0.6 m（ART-011）。
+    /// ART-014 v2：换成 RobotPuppy.fbx 真模型后，Model 子物体上挂 Animator，
+    ///           走 Idle_Wag / Walk / Jump / HeadTilt 四条骨骼动画；
+    ///           取不到 Animator 时自动退回程序化动作，旧预制体行为不变。
     /// [待拍板 C13] 固定色号取干净米黄作为默认值，改 WhiteboxConfig.dogColorHex 即可换。
     /// </summary>
     public sealed class CompanionDog : MonoBehaviour
     {
         enum DogMotion { Follow, Scout, Return }
+
+        const string ModelName = "Model";
 
         [SerializeField] Renderer[] fixedColorRenderers;
         [SerializeField] Material fixedMaterial;
@@ -52,6 +67,10 @@ namespace TrashPlanet.Whitebox
         float gaitClock;
         float gaitAmp;
 
+        // ART-014 v2 骨骼动画：有 Animator 时由状态机驱动，程序化动作让位
+        Animator animator;
+        float animSpeed;
+
         public Renderer[] FixedColorRenderers { get => fixedColorRenderers; set => fixedColorRenderers = value; }
         public Material FixedMaterial { get => fixedMaterial; set => fixedMaterial = value; }
 
@@ -72,6 +91,12 @@ namespace TrashPlanet.Whitebox
             legs = new Transform[4];
             for (int i = 0; i < 4; i++) legs[i] = FindChild(transform, "Leg_" + i);
 
+            // ART-014 v2：真模型走骨骼动画；控制器为空视为没接动画，继续用程序化动作
+            Transform model = FindChild(transform, ModelName);
+            animator = model != null ? model.GetComponent<Animator>() : null;
+            if (animator != null && animator.runtimeAnimatorController == null) animator = null;
+            if (animator != null) animator.applyRootMotion = false;
+
             if (g.Player != null)
             {
                 lastPlayerPos = g.Player.position;
@@ -79,7 +104,8 @@ namespace TrashPlanet.Whitebox
             }
 
             Debug.Log("[WhiteboxDog] 固定外观已写入，色号=" + ColorUtility.ToHtmlStringRGB(g.Config.DogColor)
-                      + "；后续阶段切换不会再改狗的材质（MECH-017 探路 / ART-014 动作只改 transform）");
+                      + "；后续阶段切换不会再改狗的材质（MECH-017 探路 / ART-014 动作只改 transform）"
+                      + "；动画=" + (animator != null ? "骨骼（" + animator.runtimeAnimatorController.name + "）" : "程序化"));
         }
 
         static Transform FindChild(Transform root, string name)
@@ -106,6 +132,7 @@ namespace TrashPlanet.Whitebox
             Follow(dt);
             Fetch(dt);
             AnimateParts(dt);
+            UpdateAnimator(dt);
         }
 
         void UpdateSpeed(float dt)
@@ -256,6 +283,7 @@ namespace TrashPlanet.Whitebox
                 {
                     lookTarget = t;
                     lookTimer = LookDuration;
+                    if (animator != null) animator.SetTrigger(DogAnimatorParams.Tilt);
                 }
                 if (t == null) lookTarget = null;
             }
@@ -275,14 +303,33 @@ namespace TrashPlanet.Whitebox
             wagBoost = 0.6f;
             lookTarget = null;
             lookTimer = 0f;
+            if (animator != null) animator.SetTrigger(DogAnimatorParams.Jump);
+        }
+
+        // ---------------------------------------------------------------
+        // ART-014 v2 骨骼动画驱动（只喂参数，不碰骨骼 Transform）
+        // ---------------------------------------------------------------
+
+        /// <summary>
+        /// 只做一件事：把「在不在动」平滑成 0~1 的 Speed 参数喂给状态机，
+        /// 由控制器决定 Idle_Wag / Walk。回滞区间（0.35 起步 / 0.15 收步）在控制器里。
+        /// </summary>
+        void UpdateAnimator(float dt)
+        {
+            if (animator == null) return;
+            bool moving = playerSpeed > 0.05f || motion == DogMotion.Scout;
+            animSpeed = Mathf.MoveTowards(animSpeed, moving ? 1f : 0f, dt * 4f);
+            animator.SetFloat(DogAnimatorParams.Speed, animSpeed);
         }
 
         // ---------------------------------------------------------------
         // ART-014 程序化部件动画（只改 localRotation，永不碰材质）
+        // 仅在没有骨骼动画时生效，白膜图元与旧预制体仍按这套跑
         // ---------------------------------------------------------------
 
         void AnimateParts(float dt)
         {
+            if (animator != null) return;      // 已由骨骼动画接管
             WhiteboxConfig cfg = game.Config;
 
             // 尾巴：常态轻摆，叼回成功后 0.6 s 内放大摆幅

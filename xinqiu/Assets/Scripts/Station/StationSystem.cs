@@ -26,6 +26,7 @@ namespace TrashPlanet.Whitebox
         WhiteboxGame game;
         Action onDone;
         string jobLabel = "";
+        int jobCat = -1;      // 当前加工任务对应的垃圾类别（-1 = 制造 / 无类别），供进度条归属判断
         float jobLeft;
         float jobTotal = 1f;
 
@@ -36,6 +37,8 @@ namespace TrashPlanet.Whitebox
 
         public bool HasJob => onDone != null;
         public string JobLabel => jobLabel;
+        /// <summary>当前加工任务的类别索引（0..3）；制造任务或空闲为 -1。</summary>
+        public int JobCategory => jobCat;
         public float JobLeft => jobLeft;
         public float JobTotal => jobTotal;
         public float JobProgress => HasJob ? 1f - Mathf.Clamp01(jobLeft / jobTotal) : 0f;
@@ -76,6 +79,8 @@ namespace TrashPlanet.Whitebox
             game = g;
             onDone = null;
             jobLabel = "";
+            jobCat = -1;
+            plannedInput = new[] { -1, -1, -1, -1 };
             ClearPending();
         }
 
@@ -87,11 +92,12 @@ namespace TrashPlanet.Whitebox
             Action done = onDone;
             onDone = null;
             jobLabel = "";
+            jobCat = -1;
             done?.Invoke();
             game.OnWorldEvent();
         }
 
-        void StartJob(string label, float seconds, Action done)
+        void StartJob(string label, float seconds, Action done, int cat = -1)
         {
             if (HasJob) { game.Notice("同一时间只允许 1 个制造/加工任务"); return; }
             bool free = false;
@@ -101,6 +107,7 @@ namespace TrashPlanet.Whitebox
                 free = true;
             }
             jobLabel = label;
+            jobCat = cat;
             jobTotal = Mathf.Max(0.1f, seconds);
             jobLeft = jobTotal;
             onDone = done;
@@ -133,7 +140,74 @@ namespace TrashPlanet.Whitebox
             return true;
         }
 
+        /// <summary>
+        /// 按类别投放：只把这一个类别的背包垃圾移进中转站，其他类别原样不动。
+        /// BAG-003：同类单品明细必须一并清空，保持 bagItems 两项之和 == bag[cat]。
+        /// </summary>
+        public bool DepositCategory(int cat)
+        {
+            if (game == null || game.State == null) return false;
+            if (cat < 0 || cat > 3) return false;
+            WhiteboxState s = game.State;
+            int n = s.bag[cat];
+            if (n <= 0) { game.Notice(CategoryNames[cat] + "背包是空的"); return false; }
+            s.raw[cat] += n;
+            s.bag[cat] = 0;
+            int a = GarbageBagCatalog.FirstItemOf(cat);
+            if (s.bagItems != null && a + 1 < s.bagItems.Length)
+            {
+                s.bagItems[a] = 0;
+                s.bagItems[a + 1] = 0;
+            }
+            game.Notice("已投放 " + n + " 件" + CategoryNames[cat] + "垃圾进中转站");
+            game.Hud.ShowDeposit(game.Config.DepositSeconds);
+            game.OnWorldEvent();
+            return true;
+        }
+
         // ---------------- ② 加工：可执行次数 / 待确认 / 执行 ----------------
+
+        /// <summary>
+        /// 02 材料加工页「投入数量」草稿（单位：件，按类独立）。
+        /// -1 = 未初始化，首次读取时自动取 1 批的件数；0 是合法值（玩家手动减到 0）。
+        /// 加工按整批折算，不足一批的零头留在库存不扣。
+        /// </summary>
+        int[] plannedInput = { -1, -1, -1, -1 };
+
+        /// <summary>当前计划投入的件数（0 = 玩家减到 0 或库存为空），上限为库存。</summary>
+        public int PlannedInput(int cat)
+        {
+            if (game == null || game.Config == null || game.State == null) return 0;
+            if (cat < 0 || cat > 3) return 0;
+            int batch = Mathf.Max(1, game.Config.MinProcessBatch[cat]);
+            int stock = Mathf.Max(0, game.State.raw[cat]);
+            if (stock <= 0) { plannedInput[cat] = 0; return 0; }
+            if (plannedInput[cat] < 0) plannedInput[cat] = Mathf.Min(batch, stock); // 首次给 1 批
+            plannedInput[cat] = Mathf.Clamp(plannedInput[cat], 0, stock);
+            return plannedInput[cat];
+        }
+
+        /// <summary>计划投入件数折算成整批次数（不足一批返回 0）。</summary>
+        public int PlannedBatches(int cat)
+        {
+            if (game == null || game.Config == null) return 0;
+            if (cat < 0 || cat > 3) return 0;
+            int batch = Mathf.Max(1, game.Config.MinProcessBatch[cat]);
+            return PlannedInput(cat) / batch;
+        }
+
+        /// <summary>加减计划投入件数：每点一次 ±1 件，钳在 [0, 库存]；返回调整后的件数。</summary>
+        public int AdjustPlannedInput(int cat, int delta)
+        {
+            if (game == null || game.Config == null || game.State == null) return 0;
+            if (cat < 0 || cat > 3) return 0;
+            int stock = Mathf.Max(0, game.State.raw[cat]);
+            if (stock <= 0) { plannedInput[cat] = 0; return 0; }
+            int cur = PlannedInput(cat);
+            int next = Mathf.Clamp(cur + delta, 0, stock); // 最低 0 件
+            plannedInput[cat] = next;
+            return next;
+        }
 
         /// <summary>当前库存最多能连续加工几次（按 minProcessBatch 折算）。</summary>
         public int MaxProcessBatches(int cat)
@@ -181,6 +255,11 @@ namespace TrashPlanet.Whitebox
                 return false;
             }
             if (HasJob) { game.Notice("同一时间只允许 1 个加工任务"); return false; }
+            if (batches <= 0)
+            {
+                game.Notice("投入数量不足 1 批（单批 " + batch + " 件），请点 + 增加");
+                return false;
+            }
 
             int n = Mathf.Clamp(batches, 1, max);
             int consumed = batch * n;
@@ -196,10 +275,11 @@ namespace TrashPlanet.Whitebox
                 s.processed += consumed;
                 s.processedByCat[Mathf.Clamp(cat, 0, 3)] += n; // 专精解锁按本次批次次数累计
                 s.processedMask |= 1 << cat;
+                plannedInput[cat] = -1; // 加工完复位为「未初始化」，下次读取自动回到默认 1 批
                 if (game.Tool != null) game.Tool.UnlockCheck();
                 game.Notice("加工完成：+" + output + " " + MaterialNames[cat]
                             + (n > 1 ? "（" + n + " 批）" : ""));
-            });
+            }, cat);
             return true;
         }
 

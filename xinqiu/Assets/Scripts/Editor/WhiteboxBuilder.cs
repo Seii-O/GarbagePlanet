@@ -81,6 +81,19 @@ namespace TrashPlanet.Whitebox.Editor
         [MenuItem("Tools/垃圾星球白膜/① 生成场景与预制体", false, 10)]
         public static void BuildAllMenu()
         {
+            // ① 是「整场景重建」：会把手调过的 UI 一起覆盖掉，先二次确认
+            if (!Application.isBatchMode && AssetDatabase.LoadAssetAtPath<SceneAsset>(ScenePath) != null)
+            {
+                if (!EditorUtility.DisplayDialog("重建白膜场景？",
+                        "① 会用代码版整块重建 " + ScenePath + " 与 10 个预制体。\n\n"
+                        + "你在 Hierarchy / Inspector 里手调过的 UI 布局、颜色、文案都会被覆盖。\n"
+                        + "只是改 UI 的话，请点「取消」，直接在场景里改就好。",
+                        "仍然重建（会覆盖手改）", "取消"))
+                {
+                    Debug.Log(LogTag + "已取消 ①，场景保持手改现状");
+                    return;
+                }
+            }
             bool ok = BuildAll();
             if (!Application.isBatchMode)
                 EditorUtility.DisplayDialog("白膜工程骨架",

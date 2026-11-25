@@ -6,16 +6,20 @@ using UnityEngine.UI;
 namespace TrashPlanet.Whitebox
 {
     /// <summary>
-    /// 五页签中转站面板控制器（01 垃圾接收 / 02 垃圾分类 / 03 材料加工 / 04 产品制造 / 05 工具升级）。
+    /// 中转站面板控制器（四页签：01 垃圾接收 / 02 材料加工 / 03 产品制造 / 04 人物升级）。
     ///
-    /// 视觉：五个 Page 全由真实 uGUI 控件拼成（Image 拆件 / Text / Button），页签选中态真实切换。
+    /// v2（2026-11-25 按新 UI 定稿）：原「02 垃圾分类」整块下线，页签索引全部前移一位。
+    /// 解析页/页签时用 <see cref="IndexedChild"/>：先精确匹配 Page_1，再按「前缀+序号」排序取第 n 个，
+    /// 这样场景里手改过命名（例如只剩 Page_0/2/3/4）也能按视觉顺序正确对应，不会被旧结构顶掉。
+    ///
+    /// 视觉：四个 Page 全由真实 uGUI 控件拼成（Image 拆件 / Text / Button），页签选中态真实切换。
     /// 数据：面板打开时每帧把 Game.State / StationLogic / WhiteboxConfig 的实时数值刷到具名 Text/Image。
     /// 边界：只读 State / StationLogic / Config，不写玩法数据；按钮转发到现有 StationSystem API。
     /// </summary>
     public sealed class StationFiveTabsView : MonoBehaviour
     {
         public const string PanelName = "Panel_StationFiveTabs";
-        public const int TabCount = 5;
+        public const int TabCount = 4;
 
         static readonly string[] CatNames = { "塑料", "金属", "有机", "电子" };
         static readonly string[] ItemNames = { "塑料瓶", "塑料袋", "易拉罐", "铁片", "苹果核", "枯叶", "电池", "电路板" };
@@ -90,34 +94,40 @@ namespace TrashPlanet.Whitebox
             Transform pagesRoot = FindDeep(panel.transform, "Pages");
             for (int i = 0; i < TabCount; i++)
             {
-                pages[i] = pagesRoot != null ? FindChild(pagesRoot, "Page_" + i) : FindChild(panel.transform, "Page_" + i);
-                tabObjs[i] = FindChild(panel.transform, "Btn_Tab_" + i);
+                pages[i] = pagesRoot != null ? IndexedChild(pagesRoot, "Page_", i) : IndexedChild(panel.transform, "Page_", i);
+                tabObjs[i] = IndexedChild(panel.transform, "Btn_Tab_", i);
                 tabs[i] = tabObjs[i] != null ? tabObjs[i].GetComponent<Button>() : null;
             }
 
-            for (int i = 0; i < TabCount; i++) BindTab("Btn_Tab_" + i, i);
+            for (int i = 0; i < TabCount; i++) BindTab(i);
             BindClick("Btn_StationClose", Close);
-            BindClick("Btn_ClosePage", Close);
+            // 每页底部栏各有一个「取消/关闭」（Page_0/2/3/4 下同名 Btn_ClosePage）。
+            // FindDeep 只返回第一个匹配，只绑第一个会让 02 材料加工 / 03 产品制造 / 04 人物升级 的取消完全没反应，
+            // 所以这里按名字逐个绑定全部实例；名字被手工改成 Btn_Cancel* 之类也能兜住。
+            int closeBound = BindEveryButton(IsCloseButton, Close);
+            Debug.Log("[Station5Tab] 关闭/取消按钮已绑定 " + closeBound + " 个（含顶栏 Btn_StationClose 与各页 BottomBar）");
 
-            // 01 垃圾接收
-            for (int i = 0; i < 4; i++) BindClick("Btn_Deposit_" + i, Deposit);
-            BindClick("Btn_DepositAll", Deposit);
-            BindClick("Btn_ConfirmIn", Deposit);
-            // 02 垃圾分类
-            for (int i = 0; i < 4; i++) BindCategory("Btn_Sort_" + i, i);
-            BindClick("Btn_SortAll", ProcessAll);
-            // 03 材料加工
+            // 01 垃圾接收：逐类存入只动该类别，一键存入才全部投放
             for (int i = 0; i < 4; i++)
             {
+                int cat = i;
+                BindClick("Btn_Deposit_" + i, () => DepositCategory(cat));
+            }
+            BindClick("Btn_DepositAll", DepositAll);
+            BindClick("Btn_ConfirmIn", DepositAll);
+            // 02 材料加工
+            for (int i = 0; i < 4; i++)
+            {
+                int cat = i;
                 BindCategory("Btn_Process_" + i, i);
-                BindClick("Btn_Minus_" + i, () => AdjustInput(0, -1));
-                BindClick("Btn_Plus_" + i, () => AdjustInput(0, +1));
+                BindClick("Btn_Minus_" + i, () => AdjustInput(cat, -1));
+                BindClick("Btn_Plus_" + i, () => AdjustInput(cat, +1));
             }
             BindClick("Btn_ProcessAll", ProcessAll);
-            // 04 产品制造
+            // 03 产品制造
             for (int i = 0; i < 3; i++) BindRecipe("Btn_Craft_" + i, i);
             BindClick("Btn_GoRepair", GoRepair);
-            // 05 工具升级
+            // 04 人物升级
             BindClick("Btn_Upgrade", UpgradeTool);
 
             panel.SetActive(false);
@@ -146,6 +156,14 @@ namespace TrashPlanet.Whitebox
                     Color c = sel ? new Color(0.17f, 0.66f, 0.60f, 1f) : new Color(0.42f, 0.36f, 0.28f, 1f);
                     if (no != null) no.color = c;
                     if (name != null) { name.color = c; name.fontStyle = sel ? FontStyle.Bold : FontStyle.Normal; }
+                    // 旧场景删过一页后页码会跳号（01/03/04/05），运行时按当前顺序校正；
+                    // 只在文本是纯数字且不等于期望值时改，非数字写法（一/二/三…）保持你手写的样子
+                    if (no != null)
+                    {
+                        string want = (i + 1).ToString("00");
+                        int parsed;
+                        if (no.text != want && int.TryParse(no.text, out parsed)) no.text = want;
+                    }
                     // C27：场景里烘焙的旧页签名「工具升级」运行时覆盖为「人物升级」
                     if (i == TabCount - 1 && name != null && name.text != PlayerLevelTabName)
                         name.text = PlayerLevelTabName;
@@ -183,23 +201,8 @@ namespace TrashPlanet.Whitebox
                 SetText(panel.transform, "Txt_RawTotal", rawSum.ToString());
                 SetText(panel.transform, "Txt_BottomLeft", "本次可接收 " + used + " 件 · 仓库合计 " + rawSum + " 件");
             }
-            // ---- 02 垃圾分类 ----
+            // ---- 02 材料加工 ----
             else if (currentTab == 1)
-            {
-                for (int c = 0; c < 4; c++)
-                {
-                    Transform card = FindDeep(panel.transform, "Card_Cat_" + c);
-                    SetText(card, "Txt_CatSum", s.raw[c].ToString());
-                    for (int k = 0; k < 2; k++)
-                    {
-                        int item = c * 2 + k;
-                        Transform row = FindDeep(panel.transform, "Row_Item_" + item);
-                        SetText(row, "Txt_ItemCount", s.GarbageItemCount(item).ToString());
-                    }
-                }
-            }
-            // ---- 03 材料加工 ----
-            else if (currentTab == 2)
             {
                 float seconds = cfg != null ? cfg.ProcessSeconds : 5f;
                 for (int i = 0; i < 4; i++)
@@ -209,14 +212,18 @@ namespace TrashPlanet.Whitebox
 
                     int batch = cfg != null ? cfg.MinProcessBatch[Mathf.Clamp(i, 0, 3)] : 5;
                     int input = batch;
-                    if (st != null && st.HasPending && st.PendingAction == StationAction.Process && st.PendingIndex == i)
-                        input = st.PendingCount * batch;
+                    int batches = 1;
+                    if (st != null)
+                    {
+                        input = st.PlannedInput(i);
+                        batches = st.PlannedBatches(i);
+                    }
                     SetText(row, "Txt_Input_" + i, input.ToString());
                     int gain = Mathf.Max(1, Mathf.FloorToInt(batch * (i == 2 ? 1f : 0.5f)));
-                    SetText(row, "Txt_ProductGain", "× " + gain);
+                    SetText(row, "Txt_ProductGain", "× " + (gain * Mathf.Max(0, batches)));
 
                     Image fill = FindImage(row, "Img_ProgFill");
-                    if (st != null && st.HasJob && st.PendingIndex == i)
+                    if (st != null && st.HasJob && st.JobCategory == i)
                     {
                         if (fill != null) fill.fillAmount = st.JobProgress;
                         SetText(row, "Txt_Prog", st.JobLabel + " " + st.JobLeft.ToString("0.0") + "s / " + st.JobTotal.ToString("0.0") + "s");
@@ -224,7 +231,10 @@ namespace TrashPlanet.Whitebox
                     else
                     {
                         if (fill != null) fill.fillAmount = 0f;
-                        SetText(row, "Txt_Prog", "待机 · 0.0s / " + seconds.ToString("0.0") + "s");
+                        int plan = Mathf.Max(0, batches);
+                        float total = cfg != null && !cfg.BatchFixedDuration ? seconds * Mathf.Max(1, plan) : seconds;
+                        SetText(row, "Txt_Prog", "待机 · 计划 " + plan + " 批 / 消耗 " + (plan * batch)
+                                + " 件 · " + total.ToString("0.0") + "s");
                     }
                     SetText(row, "Txt_Ratio", "转化比例 " + (i == 2 ? "1 : 1" : "2 : 1"));
                     SetText(row, "Txt_Ratio2", "单批 " + batch + " 件 · " + seconds.ToString("0") + "秒");
@@ -233,8 +243,8 @@ namespace TrashPlanet.Whitebox
                 for (int i = 0; i < 4; i++)
                     SetText(stock, "Txt_Mat_" + i, MaterialNames[i] + " " + s.materials[i]);
             }
-            // ---- 04 产品制造 ----
-            else if (currentTab == 3)
+            // ---- 03 产品制造 ----
+            else if (currentTab == 2)
             {
                 for (int i = 0; i < 3; i++)
                 {
@@ -283,8 +293,8 @@ namespace TrashPlanet.Whitebox
                     SetText(row, "Txt_Count", "× " + finished[i]);
                 }
             }
-            // ---- 05 人物升级（C27：工具下线，等级接管加成；经验达标 + 材料消耗才升级）----
-            else if (currentTab == 4)
+            // ---- 04 人物升级（C27：工具下线，等级接管加成；经验达标 + 材料消耗才升级）----
+            else if (currentTab == 3)
             {
                 PlayerLevelSystem pl = game != null ? game.PlayerLevel : null;
                 int lv = pl != null ? pl.Level : Mathf.Max(1, s.playerLevel);
@@ -366,15 +376,34 @@ namespace TrashPlanet.Whitebox
         }
 
         // ---------------- 功能转发 ----------------
-        void Deposit()
+        /// <summary>逐类存入：只投这一类，其余类别保持不动。</summary>
+        void DepositCategory(int cat)
+        {
+            if (game != null && game.StationLogic != null) game.StationLogic.DepositCategory(cat);
+        }
+        /// <summary>一键存入：四类全部投放。</summary>
+        void DepositAll()
         {
             if (game != null && game.StationLogic != null) game.StationLogic.DepositAll();
         }
         void Process(int cat)
         {
             if (game == null || game.StationLogic == null) return;
-            if (game.HasQuantityDialog) game.StationLogic.BeginProcess(cat);
-            else game.StationLogic.StartProcessAll(cat);
+            StationSystem st = game.StationLogic;
+            int batches = st.PlannedBatches(cat);
+            int batch = game.Config != null ? Mathf.Max(1, game.Config.MinProcessBatch[Mathf.Clamp(cat, 0, 3)]) : 1;
+            if (st.PlannedInput(cat) <= 0)
+            {
+                game.Notice(StationSystem.CategoryNames[cat] + "投入数量为 0，请点 + 增加");
+                return;
+            }
+            if (batches <= 0)
+            {
+                game.Notice(StationSystem.CategoryNames[cat] + "投入数量不满 1 批（单批 " + batch + " 件），请点 + 增加");
+                return;
+            }
+            if (game.HasQuantityDialog) st.BeginProcess(cat, batches);
+            else st.ExecuteProcess(cat, batches);
         }
         void ProcessAll()
         {
@@ -400,7 +429,23 @@ namespace TrashPlanet.Whitebox
         }
         void AdjustInput(int cat, int delta)
         {
-            if (game != null) game.Notice("投入数量：" + (delta > 0 ? "+" : "-") + "1（详细数量请在加工弹窗调整）");
+            if (game == null || game.StationLogic == null) return;
+            StationSystem st = game.StationLogic;
+            if (game.State == null || game.State.raw[Mathf.Clamp(cat, 0, 3)] <= 0)
+            {
+                game.Notice(StationSystem.CategoryNames[cat] + "库存为 0，请先到 01 垃圾接收存入");
+                return;
+            }
+            int before = st.PlannedInput(cat);
+            int after = st.AdjustPlannedInput(cat, delta);
+            if (after == before)
+            {
+                if (delta > 0) game.Notice(StationSystem.CategoryNames[cat] + "库存已全部投入（" + after + " 件）");
+                else game.Notice(StationSystem.CategoryNames[cat] + "投入数量已是最低（0 件）");
+                return;
+            }
+            game.Notice(StationSystem.CategoryNames[cat] + "投入数量 " + after + " 件（"
+                        + st.PlannedBatches(cat) + " 批）");
         }
         void Close()
         {
@@ -408,9 +453,11 @@ namespace TrashPlanet.Whitebox
         }
 
         // ---------------- 绑定 / 查找辅助 ----------------
-        void BindTab(string name, int index)
+        void BindTab(int index)
         {
-            Button b = FindButton(panel.transform, name);
+            if (index < 0 || index >= tabObjs.Length) return;
+            GameObject go = tabObjs[index];
+            Button b = go != null ? go.GetComponent<Button>() : null;
             if (b == null) return;
             int idx = index;
             b.onClick.RemoveAllListeners();
@@ -422,6 +469,37 @@ namespace TrashPlanet.Whitebox
             if (b == null) return;
             b.onClick.RemoveAllListeners();
             b.onClick.AddListener(() => call());
+        }
+
+        /// <summary>
+        /// 同名按钮在多个页面各有一份时（如每页底部栏的 Btn_ClosePage），按条件逐个绑定全部实例。
+        /// FindDeep 只返回第一个匹配，所以同名按钮不能走 BindClick。
+        /// 返回实际绑定成功的个数，调用方据此判断是否有漏绑。
+        /// </summary>
+        int BindEveryButton(Func<string, bool> match, Action call)
+        {
+            if (panel == null || match == null) return 0;
+            Transform[] all = panel.GetComponentsInChildren<Transform>(true);
+            int hit = 0;
+            for (int i = 0; i < all.Length; i++)
+            {
+                if (!match(all[i].name)) continue;
+                Button b = all[i].GetComponent<Button>();
+                if (b == null) continue;
+                b.onClick.RemoveAllListeners();
+                b.onClick.AddListener(() => call());
+                hit++;
+            }
+            return hit;
+        }
+
+        /// <summary>页脚「取消/关闭」按钮识别：Btn_ClosePage 优先，名字里带 Close/Cancel 的也认（抗手工改名）。</summary>
+        static bool IsCloseButton(string name)
+        {
+            if (string.IsNullOrEmpty(name)) return false;
+            if (name == "Btn_ClosePage") return true;
+            return name.IndexOf("Close", StringComparison.OrdinalIgnoreCase) >= 0
+                   || name.IndexOf("Cancel", StringComparison.OrdinalIgnoreCase) >= 0;
         }
         void BindCategory(string name, int cat)
         {
@@ -472,6 +550,55 @@ namespace TrashPlanet.Whitebox
         {
             Transform t = FindDeep(root, name);
             return t != null ? t.gameObject : null;
+        }
+
+        /// <summary>
+        /// 按「前缀 + 序号」取子物体，抗手工改名与跳号：
+        /// 先找出同一父物体下所有「prefix + 纯数字」的节点（取数量最多的那一组，
+        /// Page_* 在 Pages 下、Btn_Tab_* 在 Img_Panel 下，各取各的），再按数字升序取第 index 个。
+        /// 所以 Page_0/2/3/4、Btn_Tab_0/2/3/4 这种删过一页的跳号命名，也能按视觉顺序正确对应。
+        /// </summary>
+        static GameObject IndexedChild(Transform root, string prefix, int index)
+        {
+            if (root == null || index < 0) return null;
+
+            Transform[] all = root.GetComponentsInChildren<Transform>(true);
+            var groups = new System.Collections.Generic.Dictionary<Transform, System.Collections.Generic.List<Transform>>();
+            for (int i = 0; i < all.Length; i++)
+            {
+                Transform t = all[i];
+                if (t.parent == null || !HasIndexSuffix(t.name, prefix)) continue;
+                System.Collections.Generic.List<Transform> list;
+                if (!groups.TryGetValue(t.parent, out list))
+                {
+                    list = new System.Collections.Generic.List<Transform>();
+                    groups[t.parent] = list;
+                }
+                list.Add(t);
+            }
+            if (groups.Count == 0) return null;
+
+            // 同一父物体下数量最多的那组才是页/页签集合，避免把别的面板里的同名节点混进来
+            System.Collections.Generic.List<Transform> best = null;
+            foreach (var kv in groups)
+                if (best == null || kv.Value.Count > best.Count) best = kv.Value;
+            if (best == null) return null;
+
+            best.Sort((a, b) => SuffixIndex(a.name, prefix).CompareTo(SuffixIndex(b.name, prefix)));
+            return index < best.Count ? best[index].gameObject : null;
+        }
+
+        static bool HasIndexSuffix(string name, string prefix)
+        {
+            if (string.IsNullOrEmpty(name) || !name.StartsWith(prefix, StringComparison.Ordinal)) return false;
+            int num;
+            return int.TryParse(name.Substring(prefix.Length), out num);
+        }
+
+        static int SuffixIndex(string name, string prefix)
+        {
+            int num;
+            return int.TryParse(name.Substring(prefix.Length), out num) ? num : int.MaxValue;
         }
         static Transform FindDeep(Transform root, string name)
         {
