@@ -317,6 +317,13 @@ namespace TrashPlanet.Whitebox.Editor
                 result[i] = prefab != null ? prefab.GetComponent<TrashItem>() : null;
                 if (result[i] == null) Debug.LogWarning(LogTag + "垃圾预制体缺少 TrashItem：" + name);
             }
+            TrashItem apple = AssetDatabase.LoadAssetAtPath<GameObject>(
+                PrefabFolder + "/prop_trash_organic_apple.prefab")?.GetComponent<TrashItem>();
+            if (apple != null)
+            {
+                Array.Resize(ref result, result.Length + 1);
+                result[result.Length - 1] = apple;
+            }
             return result;
         }
 
@@ -520,7 +527,6 @@ namespace TrashPlanet.Whitebox.Editor
             cam.fieldOfView = 72f;
             cam.nearClipPlane = 0.03f;
             cam.farClipPlane = Mathf.Max(200f, radius * 8f);
-            camGo.AddComponent<AudioListener>();
             PlayerCameraRig rig = camGo.AddComponent<PlayerCameraRig>();
             SetPrivateFloat(rig, "pitchLimit", 60f);
 

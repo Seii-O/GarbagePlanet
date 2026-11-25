@@ -35661,7 +35661,6 @@ GameObject:
   m_Component:
   - component: {fileID: 1452210904}
   - component: {fileID: 1452210901}
-  - component: {fileID: 1452210903}
   - component: {fileID: 1452210902}
   - component: {fileID: 1452210905}
   m_Layer: 0
@@ -35746,14 +35745,6 @@ MonoBehaviour:
   eyeHeight: 1.62
   fov: 72
   fovLerpSpeed: 10
---- !u!81 &1452210903
-AudioListener:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1452210900}
-  m_Enabled: 1
 --- !u!4 &1452210904
 Transform:
   m_ObjectHideFlags: 0

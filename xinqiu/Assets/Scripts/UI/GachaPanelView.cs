@@ -196,7 +196,6 @@ namespace TrashPlanet.Whitebox
         {
             if (!Bind() || result == null) return;
             if (spinRoutine != null) StopCoroutine(spinRoutine);
-            Sfx.Play(SfxId.GachaSpin);
             pendingRefresh = true;
             spinRoutine = StartCoroutine(Spin(result));
         }
@@ -267,7 +266,6 @@ namespace TrashPlanet.Whitebox
             pendingRefresh = false;
 
             // 转完再显示完整结算（Draw 里已写入 lastResult）
-            Sfx.Play(SfxId.GachaWin);
             if (system != null) system.RefreshPanel();
         }
 

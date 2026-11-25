@@ -19,15 +19,16 @@ namespace TrashPlanet.Whitebox
         public int version = 1;
         public int[] bag = new int[4];        // 垃圾背包：按类别的汇总数；容量/投放/任务仍以它为准
         public int[] bagItems = new int[GarbageBagCatalog.ItemCount]; // BAG-003：8 种单品的展示数量，每类两项之和恒等于 bag[cat]
-        public int bagLevel = 1;              // 背包等级 1..2（总容量 50 → 100），在中转站升级
+        public int bagLevel = 1;              // 保留旧存档字段；人物 Lv.2 自动解锁扩容
         public int[] raw = new int[4];        // 中转站：已存入待加工的垃圾
         public int[] materials = new int[4];  // 再生塑料 / 金属零件 / 有机原料 / 电子元件
         public int toolLevel = 1;
         public float landProgress;
         public float waterProgress;
         public int collected;
-        /// <summary>累计生成过的垃圾件数（含开局铺设、含玩家已捡走/拆掉的）：全局总量 2000 的计数。</summary>
-        public int totalSpawned;
+        public int clearedTrash;
+        public bool finalTrashTracked;
+        public int finalTrashRemaining;
         public int processed;
         public int crafted;
         public int dismantled;
@@ -490,9 +491,6 @@ namespace TrashPlanet.Whitebox
         /// <summary>当前等级下背包总容量（4 类相加），HUD / 升级提示共用。</summary>
         public int BagCapTotal(WhiteboxConfig cfg) => cfg.BackpackTotalCap(bagLevel);
 
-        /// <summary>全局垃圾总量是否已经用尽（累计生成 ≥ 配置上限 → 地表不再出现新垃圾）。</summary>
-        public bool TrashBudgetSpent(WhiteboxConfig cfg) =>
-            cfg != null && totalSpawned >= cfg.TotalTrashBudget;
 
         /// <summary>当前背包已装总数。</summary>
         public int BagTotal()
@@ -527,7 +525,8 @@ namespace TrashPlanet.Whitebox
             s.materials = Fix(s.materials);
             // 旧存档没有 bagLevel 字段（JsonUtility 反序列化为 0），统一归一到 1..2
             s.bagLevel = Mathf.Clamp(s.bagLevel <= 0 ? 1 : s.bagLevel, 1, WhiteboxConfig.BagMaxLevel);
-            s.totalSpawned = Mathf.Max(0, s.totalSpawned);
+            s.clearedTrash = Mathf.Max(0, s.clearedTrash);
+            s.finalTrashRemaining = Mathf.Max(0, s.finalTrashRemaining);
             // 新增玩法字段：旧档反序列化为 0/null，这里归一到安全默认值
             s.gachaTickets = Mathf.Max(0, s.gachaTickets);
             s.gachaHiddenFound = Mathf.Max(0, s.gachaHiddenFound);
@@ -541,6 +540,7 @@ namespace TrashPlanet.Whitebox
                 s.ownedRewardCounts[i] = Mathf.Max(0, s.ownedRewardCounts[i]);
             // 人物等级字段：旧档反序列化为 0，归一到 Lv.1 / 经验 0；version 仍为 1
             s.playerLevel = Mathf.Clamp(s.playerLevel <= 0 ? 1 : s.playerLevel, 1, WhiteboxConfig.PlayerLevelHardCap);
+            if (s.playerLevel >= 2) s.bagLevel = WhiteboxConfig.BagMaxLevel;
             s.playerExp = Mathf.Max(0, s.playerExp);
             s.playerExpTotal = Mathf.Max(0, s.playerExpTotal);
             s.NormalizeTools();     // 工具系统字段：旧档缺失时补位/钳制，version 仍为 1

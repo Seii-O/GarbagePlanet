@@ -57,7 +57,6 @@ namespace TrashPlanet.Whitebox
         public Text[] ProcessLabels;
         public Text[] CraftLabels;
         public Text TxtUpgrade;
-        public Text TxtBagUpgrade;
         public GameObject JobGroup;
         public Image JobFill;
         public Text TxtJob;
@@ -89,7 +88,6 @@ namespace TrashPlanet.Whitebox
         string notice = "";
         float noticeLeft;
         float depositLeft;
-        float hintLeft = 12f;
         int durabilityLeft;
         int durabilityMax;
         bool settlement;
@@ -181,7 +179,6 @@ namespace TrashPlanet.Whitebox
             notice = "";
             noticeLeft = 0f;
             depositLeft = 0f;
-            hintLeft = 12f;
             settlement = g != null && g.State != null && g.State.finished;
             // 注意：这里不能立刻 Refresh()。WhiteboxGame.Start() 里 hud.Init 早于
             // quest.Init / stationSystem.Init，此时读 Game.Quest.CurrentText 会 NRE 并中断整个 Start。
@@ -241,7 +238,8 @@ namespace TrashPlanet.Whitebox
             ProcessLabels = FillArray(ProcessLabels, root, "Btn_Process_", 4);
             CraftLabels = FillArray(CraftLabels, root, "Btn_Craft_", 3);
             TxtUpgrade = Fill(TxtUpgrade, ButtonText(root, "Btn_Upgrade"));
-            TxtBagUpgrade = Fill(TxtBagUpgrade, ButtonText(root, "Btn_BagUpgrade"));
+            Transform legacyBagUpgrade = root.Find("Btn_BagUpgrade");
+            if (legacyBagUpgrade != null) legacyBagUpgrade.gameObject.SetActive(false);
             QuantityDialog = Fill(QuantityDialog, Find<StationQuantityDialog>(root, "Panel_Quantity"));
         }
 
@@ -358,7 +356,6 @@ namespace TrashPlanet.Whitebox
             float dt = Time.deltaTime;
             if (noticeLeft > 0f) noticeLeft -= dt;
             if (depositLeft > 0f) depositLeft -= dt;
-            if (hintLeft > 0f) hintLeft -= dt;
 
             float duration = Game != null && Game.Config != null
                 ? Mathf.Max(0.05f, Game.Config.PickupFloatSeconds) : 0.8f;
@@ -404,7 +401,7 @@ namespace TrashPlanet.Whitebox
             SetActive(StationPanel, false);
             SetActive(PausePanel, Game.IsPaused && !settlement);
             SetActive(SettlementPanel, settlement);
-            SetActive(TxtHint == null ? null : TxtHint.gameObject, hintLeft > 0f && !block);
+            SetActive(TxtHint == null ? null : TxtHint.gameObject, TitleController.ShowControlHints);
             SetActive(TxtNotice == null ? null : TxtNotice.gameObject, noticeLeft > 0f);
             SetActive(TxtDeposit == null ? null : TxtDeposit.gameObject, depositLeft > 0f);
 
@@ -448,12 +445,12 @@ namespace TrashPlanet.Whitebox
             SetText(TxtTool, "工具 Lv." + s.toolLevel + " · 拾取 " + cfg.PickRange[lv - 1] + " m"
                              + (Game.Tool != null ? "｜" + Game.Tool.ActiveSpecText() : "")
                              + " · 地表 " + (Game.Spawner != null ? Game.Spawner.Active.Count : 0)
-                             + "/" + cfg.MapTrashCap);
-            // 累计生成量放在进度行（与「阶段」同一行），避免工具行过长被 Text 换行裁掉
+                             + (Game.Spawner == null ? "" : Game.Spawner.FinalCleanup
+                                 ? "（最终清理）" : "/" + Game.Spawner.SurfaceTarget));
             SetText(TxtProgress, "土地 " + (s.landProgress * 100f).ToString("0") + "% · 水源 "
                                  + (s.waterProgress * 100f).ToString("0") + "% · 阶段 "
                                  + ((Game.Eco != null ? Game.Eco.Stage : 0) + 1) + "/3"
-                                 + " · 累计 " + s.totalSpawned + "/" + cfg.TotalTrashBudget);
+                                 + " · 已清理 " + s.clearedTrash);
             SetText(TxtQuest, "任务 " + System.Math.Min(s.questStep + 1, 10) + "/10 ： "
                               + (Game.Quest != null ? Game.Quest.CurrentText : ""));
             SetText(TxtStats, "清理 " + s.collected + " · 加工 " + s.processed + " · 制造 "
@@ -482,7 +479,6 @@ namespace TrashPlanet.Whitebox
                         + Game.StationLogic.MaxCraftCount(i) + "次");
             SetText(TxtUpgrade, "④ 升级工具（Lv." + s.toolLevel + " → " + (s.toolLevel + 1) + "）"
                                 + (Game.Tool != null ? " · " + Game.Tool.ActiveSpecText() : ""));
-            SetText(TxtBagUpgrade, Game.StationLogic.BagUpgradeText());
 
             bool hasJob = Game.StationLogic != null && Game.StationLogic.HasJob;
             SetActive(JobGroup, hasJob);

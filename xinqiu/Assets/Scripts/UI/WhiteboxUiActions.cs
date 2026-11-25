@@ -47,11 +47,6 @@ namespace TrashPlanet.Whitebox
             if (Game != null && Game.StationLogic != null) Game.StationLogic.UpgradeSpecTool(category);
         }
 
-        public void UpgradeBackpack()
-        {
-            if (Game != null && Game.StationLogic != null) Game.StationLogic.UpgradeBackpack();
-        }
-
         public void CloseStation()
         {
             if (Game != null && Game.StationOpen) Game.ToggleStation();

@@ -1,19 +1,19 @@
 // @trace UI-005, MECH-001, SAVE-001
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 namespace TrashPlanet.Whitebox
 {
     /// <summary>
-    /// 标题场景控制器：把用户手搭的 Title.unity 上的按钮接到真实跳转/音量逻辑（菜单⑭ TitleBuilder 接线）。
+    /// 标题场景控制器：把用户手搭的 Title.unity 上的按钮接到真实跳转逻辑（菜单⑭ TitleBuilder 接线）。
     /// 红线：不手写场景 YAML；按钮引用由 Builder 通过 Wire() 注入。
     ///
     /// 按钮语义（按按钮子 Text 文字识别）：
     ///   - 开始新游戏 → ActiveSlot=0 + LoadScene(WhiteboxPrototype)，不删任何槽
     ///   - 继续游戏   → 打开 ContinueGameUI 选槽面板（SaveSlotMenuView 列出 5 槽，点有档按钮进游戏）
     ///   - 退出游戏   → Application.Quit / 编辑器内停止 Play
-    ///   - 音效音量 / 音乐音量 → PlayerPrefs 持久化 + AudioListener.volume（当前无独立音源，合并到主音量）
     ///
     /// 多槽存档由 SaveSlotSystem 管理；本控制器只负责主菜单跳转。
     /// </summary>
@@ -21,42 +21,214 @@ namespace TrashPlanet.Whitebox
     {
         public const string GameSceneName = "WhiteboxPrototype";
         public const string TitleSceneName = "Title";
+        const string ControlHintsKey = "tp.ui.controls";
+        public static bool ShowControlHints { get; private set; } = true;
 
-        const string KeyMusic = "tp.volume.music";
-        const string KeySfx = "tp.volume.sfx";
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void LoadInterfacePreferences()
+        {
+            ShowControlHints = PlayerPrefs.GetInt(ControlHintsKey, 1) != 0;
+        }
 
         [Header("按钮（由 TitleBuilder 按文字注入）")]
         [SerializeField] Button btnNewGame;
         [SerializeField] Button btnContinue;
         [SerializeField] Button btnQuit;
-
-        [Header("音量滑块（由 TitleBuilder 注入）")]
         [SerializeField] Slider sfxSlider;
         [SerializeField] Slider musicSlider;
 
-        /// <summary>供 Builder 注入按钮与滑块引用，不改场景 YAML。</summary>
-        public void Wire(Button newGame, Button cont, Button quit, Slider sfx, Slider music)
+        public void SetSfxVolume(float value) => SetVolume(GameAudio.EffectsKey, value);
+        public void SetMusicVolume(float value) => SetVolume(GameAudio.MusicKey, value);
+
+        static void SetVolume(string key, float value)
+        {
+            PlayerPrefs.SetFloat(key, Mathf.Clamp01(value));
+            PlayerPrefs.Save();
+            GameAudio.Current?.RefreshVolume();
+        }
+
+        /// <summary>供 Builder 注入按钮引用，不改场景 YAML。</summary>
+        public void Wire(Button newGame, Button cont, Button quit)
         {
             btnNewGame = newGame;
             btnContinue = cont;
             btnQuit = quit;
-            sfxSlider = sfx;
-            musicSlider = music;
         }
 
         void Start()
         {
-            // 恢复音量（滑块在 Builder 里已接 onValueChanged → SetSfxVolume/SetMusicVolume）
-            float sfx = PlayerPrefs.GetFloat(KeySfx, 1f);
-            float music = PlayerPrefs.GetFloat(KeyMusic, 1f);
-            if (sfxSlider != null) sfxSlider.SetValueWithoutNotify(sfx);
-            if (musicSlider != null) musicSlider.SetValueWithoutNotify(music);
-            ApplyVolume(sfx, music);
-
+            if (sfxSlider != null)
+                sfxSlider.SetValueWithoutNotify(Mathf.Clamp01(PlayerPrefs.GetFloat(GameAudio.EffectsKey, 1f)));
+            if (musicSlider != null)
+                musicSlider.SetValueWithoutNotify(Mathf.Clamp01(PlayerPrefs.GetFloat(GameAudio.MusicKey, 1f)));
+            BuildSettingsTabs();
+            BindSettingsButtons();
+            CloseSettings();
             // 标题界面释放鼠标，避免延续游戏里的锁定状态
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
             Time.timeScale = 1f;
+        }
+
+        void BindSettingsButtons()
+        {
+            GameObject settings = FindInScene("GameSettingUI");
+            if (settings == null) return;
+            foreach (GameObject root in gameObject.scene.GetRootGameObjects())
+                foreach (Button button in root.GetComponentsInChildren<Button>(true))
+                    for (int i = 0; i < button.onClick.GetPersistentEventCount(); i++)
+                    {
+                        if (button.onClick.GetPersistentTarget(i) != settings
+                            || button.onClick.GetPersistentMethodName(i) != nameof(GameObject.SetActive)) continue;
+                        button.onClick.SetPersistentListenerState(i, UnityEngine.Events.UnityEventCallState.Off);
+                        if (button.transform.IsChildOf(settings.transform))
+                            button.onClick.AddListener(CloseSettings);
+                        else
+                            button.onClick.AddListener(OpenSettings);
+                        break;
+                    }
+        }
+
+        public void OpenSettings()
+        {
+            GameObject settings = FindInScene("GameSettingUI");
+            if (settings == null || !(settings.transform is RectTransform rect)) return;
+            ConfigureTitleOverlay(rect, 110);
+            // 旧标题场景里，外层与实际装饰、按钮所在的内容层可以分别失活。
+            Transform content = rect.Find("GameObject");
+            if (content != null) content.gameObject.SetActive(true);
+            settings.SetActive(true);
+            SetMainMenuInput(false);
+        }
+
+        public void CloseSettings()
+        {
+            GameObject settings = FindInScene("GameSettingUI");
+            if (settings != null) settings.SetActive(false);
+            SetMainMenuInput(true);
+        }
+
+        void BuildSettingsTabs()
+        {
+            GameObject settings = FindInScene("GameSettingUI");
+            if (settings == null) return;
+            RectTransform host = settings.transform.Find("GameObject") as RectTransform;
+            if (host == null) host = (RectTransform)settings.transform;
+            if (host.Find("Interface Settings") != null) return;
+
+            var audioRows = new System.Collections.Generic.HashSet<RectTransform>();
+            foreach (Text label in host.GetComponentsInChildren<Text>(true))
+            {
+                if (label.text.Contains("音效音量") || label.text.Contains("音乐音量"))
+                    AddSettingsRow(host, label.rectTransform, audioRows);
+            }
+            if (sfxSlider != null) AddSettingsRow(host, (RectTransform)sfxSlider.transform, audioRows);
+            if (musicSlider != null) AddSettingsRow(host, (RectTransform)musicSlider.transform, audioRows);
+            foreach (RectTransform row in audioRows) row.anchoredPosition += Vector2.down * 78f;
+            MakeSliderHitArea(sfxSlider);
+            MakeSliderHitArea(musicSlider);
+            Graphic frame = host.Find("RockFrame")?.GetComponent<Graphic>();
+            if (frame != null) frame.raycastTarget = false;
+
+            Text source = settings.GetComponentInChildren<Text>(true);
+            Font font = source != null && source.font != null
+                ? source.font : Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            Button audioTab = SettingsButton(host, "Audio Tab", "音量", -90f, 69f, 164f, font);
+            Button interfaceTab = SettingsButton(host, "Interface Tab", "界面", 90f, 69f, 164f, font);
+            RectTransform page = SettingsRect(host, "Interface Settings", 0f, 0f, 550f, 180f);
+            SettingsLabel(page, "顶部操作提示", 0f, 5f, 460f, 28, font);
+            Button hints = SettingsButton(page, "Control Hints", "", 0f, -53f, 260f, font);
+            Text value = hints.GetComponentInChildren<Text>(true);
+            void RefreshToggle() => value.text = ShowControlHints ? "显示 · 点击关闭" : "隐藏 · 点击开启";
+            void SelectPage(bool showInterface)
+            {
+                EventSystem events = EventSystem.current;
+                GameObject selectedObject = events != null ? events.currentSelectedGameObject : null;
+                if (selectedObject != null && (showInterface
+                    ? System.Linq.Enumerable.Any(audioRows, row => selectedObject.transform.IsChildOf(row))
+                    : selectedObject.transform.IsChildOf(page)))
+                    events.SetSelectedGameObject(null);
+
+                if (!showInterface) page.gameObject.SetActive(false);
+                foreach (RectTransform row in audioRows)
+                {
+                    row.gameObject.SetActive(!showInterface);
+                    if (!showInterface) row.SetAsLastSibling();
+                }
+                if (showInterface) page.gameObject.SetActive(true);
+                audioTab.transform.SetAsLastSibling();
+                interfaceTab.transform.SetAsLastSibling();
+                Color selected = new Color(0.23f, 0.38f, 0.24f);
+                Color idle = new Color(0.30f, 0.26f, 0.20f);
+                audioTab.image.color = showInterface ? idle : selected;
+                interfaceTab.image.color = showInterface ? selected : idle;
+            }
+            audioTab.onClick.AddListener(() => SelectPage(false));
+            interfaceTab.onClick.AddListener(() => SelectPage(true));
+            hints.onClick.AddListener(() =>
+            {
+                ShowControlHints = !ShowControlHints;
+                PlayerPrefs.SetInt(ControlHintsKey, ShowControlHints ? 1 : 0);
+                PlayerPrefs.Save();
+                RefreshToggle();
+            });
+            RefreshToggle();
+            SelectPage(false);
+        }
+
+        static void MakeSliderHitArea(Slider slider)
+        {
+            if (slider == null) return;
+            Graphic hitArea = slider.GetComponent<Graphic>();
+            if (hitArea == null)
+            {
+                Image image = slider.gameObject.AddComponent<Image>();
+                image.color = Color.clear;
+                hitArea = image;
+            }
+            hitArea.raycastTarget = true;
+            slider.transform.SetAsLastSibling();
+        }
+
+        static void AddSettingsRow(RectTransform host, RectTransform item,
+            System.Collections.Generic.HashSet<RectTransform> rows)
+        {
+            while (item.parent != null && item.parent != host && item.parent is RectTransform parent)
+                item = parent;
+            if (item.parent == host) rows.Add(item);
+        }
+
+        static RectTransform SettingsRect(Transform parent, string name, float x, float y, float width, float height)
+        {
+            var rect = (RectTransform)new GameObject(name, typeof(RectTransform)).transform;
+            rect.SetParent(parent, false);
+            rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0.5f);
+            rect.anchoredPosition = new Vector2(x, y);
+            rect.sizeDelta = new Vector2(width, height);
+            return rect;
+        }
+
+        static Text SettingsLabel(Transform parent, string caption, float x, float y, float width, int size, Font font)
+        {
+            Text label = SettingsRect(parent, "Label", x, y, width, 42f).gameObject.AddComponent<Text>();
+            label.text = caption;
+            label.font = font;
+            label.fontSize = size;
+            label.alignment = TextAnchor.MiddleCenter;
+            label.color = new Color(1f, 0.95f, 0.84f);
+            label.raycastTarget = false;
+            return label;
+        }
+
+        static Button SettingsButton(Transform parent, string name, string caption, float x, float y, float width, Font font)
+        {
+            RectTransform rect = SettingsRect(parent, name, x, y, width, 44f);
+            Image image = rect.gameObject.AddComponent<Image>();
+            image.color = new Color(0.23f, 0.38f, 0.24f);
+            Button button = rect.gameObject.AddComponent<Button>();
+            button.targetGraphic = image;
+            SettingsLabel(rect, caption, 0f, 0f, width, 23, font);
+            return button;
         }
 
         // ------------------------------------------------------------------
@@ -79,17 +251,58 @@ namespace TrashPlanet.Whitebox
             GameObject slotPanel = FindInScene("ContinueGameUI");
             if (slotPanel == null)
             {
-                Debug.LogWarning("[TitleController] 未找到 ContinueGameUI 选槽面板；改按新游戏处理");
-                StartNewGame();
+                Debug.LogWarning("[TitleController] 未找到 ContinueGameUI 选槽面板，保留主菜单");
                 return;
             }
-            GameObject startPanel = FindInScene("GameStartUI");
-            if (startPanel != null) startPanel.SetActive(false);
+            if (!(slotPanel.transform is RectTransform))
+            {
+                // 兼容仍打开着旧版标题场景的编辑器会话：沿用原来的槽位美术和按钮。
+                Canvas legacy = slotPanel.GetComponentInChildren<Canvas>(true);
+                if (legacy == null)
+                {
+                    Debug.LogWarning("[TitleController] 旧选槽面板缺少 Canvas，保留主菜单");
+                    return;
+                }
+                slotPanel.SetActive(false);
+                slotPanel.name = SaveSlotMenuView.PanelName + "_Legacy";
+                slotPanel = new GameObject(SaveSlotMenuView.PanelName, typeof(RectTransform));
+                slotPanel.SetActive(false);
+                while (legacy.transform.childCount > 0)
+                {
+                    Transform content = legacy.transform.GetChild(0);
+                    content.SetParent(slotPanel.transform, false);
+                    Vector3 scale = content.localScale;
+                    content.localScale = new Vector3(scale.x * 0.8f, scale.y * 0.8f, scale.z);
+                }
+            }
+            // 标题有独立的封面 Canvas；普通同级顺序无法跨 Canvas 控制渲染层。
+            ConfigureTitleOverlay((RectTransform)slotPanel.transform, 100);
             slotPanel.SetActive(true);
+            if (!slotPanel.activeInHierarchy) return;
+            Canvas.ForceUpdateCanvases();
+            SetMainMenuInput(false);
             SaveSlotMenuView menu = slotPanel.GetComponent<SaveSlotMenuView>();
             if (menu == null) menu = slotPanel.AddComponent<SaveSlotMenuView>();
             menu.OnPanelOpened();
             Debug.Log("[TitleController] 继续游戏：打开选槽面板");
+        }
+
+        static void ConfigureTitleOverlay(RectTransform rect, int sortingOrder)
+        {
+            GameObject panel = rect.gameObject;
+            rect.SetParent(null, false);
+            rect.localScale = Vector3.one;
+            Canvas canvas = panel.GetComponent<Canvas>();
+            if (canvas == null) canvas = panel.AddComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            canvas.sortingOrder = sortingOrder;
+            CanvasScaler scaler = panel.GetComponent<CanvasScaler>();
+            if (scaler == null) scaler = panel.AddComponent<CanvasScaler>();
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = new Vector2(1920f, 1080f);
+            scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
+            scaler.matchWidthOrHeight = 0.5f;
+            if (panel.GetComponent<GraphicRaycaster>() == null) panel.AddComponent<GraphicRaycaster>();
         }
 
         /// <summary>选槽面板的"返回"按钮：回到主菜单面板。</summary>
@@ -99,6 +312,17 @@ namespace TrashPlanet.Whitebox
             GameObject startPanel = FindInScene("GameStartUI");
             if (slotPanel != null) slotPanel.SetActive(false);
             if (startPanel != null) startPanel.SetActive(true);
+            SetMainMenuInput(true);
+        }
+
+        static void SetMainMenuInput(bool enabled)
+        {
+            GameObject main = FindInScene("GameStartUI");
+            if (main == null) return;
+            CanvasGroup group = main.GetComponent<CanvasGroup>();
+            if (group == null) group = main.AddComponent<CanvasGroup>();
+            group.interactable = enabled;
+            group.blocksRaycasts = enabled;
         }
 
         /// <summary>在当前场景的全部根对象里按名字找（含失活对象）。</summary>
@@ -122,30 +346,6 @@ namespace TrashPlanet.Whitebox
 #else
             Application.Quit();
 #endif
-        }
-
-        public void SetSfxVolume(float value)
-        {
-            PlayerPrefs.SetFloat(KeySfx, Mathf.Clamp01(value));
-            PlayerPrefs.Save();
-            ApplyVolume(PlayerPrefs.GetFloat(KeySfx, 1f), PlayerPrefs.GetFloat(KeyMusic, 1f));
-        }
-
-        public void SetMusicVolume(float value)
-        {
-            PlayerPrefs.SetFloat(KeyMusic, Mathf.Clamp01(value));
-            PlayerPrefs.Save();
-            ApplyVolume(PlayerPrefs.GetFloat(KeySfx, 1f), PlayerPrefs.GetFloat(KeyMusic, 1f));
-        }
-
-        /// <summary>
-        /// 分轨音量交给 音效管理：SFX / BGM 各走一条独立通道，AudioListener 保持 1，
-        /// 避免「总音量 × 通道音量」二次衰减。接口不变，滑块仍只写 PlayerPrefs。
-        /// </summary>
-        static void ApplyVolume(float sfx, float music)
-        {
-            AudioListener.volume = 1f;
-            Sfx.ApplyVolumePrefs();
         }
     }
 }

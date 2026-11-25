@@ -22,6 +22,59 @@ namespace TrashPlanet.Whitebox.Editor
         const string SysRoot = "sys_whitebox";
         const string InvPanel = "Panel_Inventory";
         const string TradePanel = "Panel_CoinTrade";
+        const string TradePrefabPath = "Assets/Prefabs/Whitebox/Panel_CoinTrade.prefab";
+
+        [MenuItem("Tools/垃圾星球白膜/打开金币商城预制体", false, 20)]
+        static void OpenCoinShopPrefab()
+        {
+            GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(TradePrefabPath);
+            if (prefab != null) AssetDatabase.OpenAsset(prefab);
+        }
+
+        [MenuItem("Tools/垃圾星球白膜/定位金币商城", false, 19)]
+        static void LocateCoinShop()
+        {
+            if (EditorApplication.isPlayingOrWillChangePlaymode) return;
+            Scene scene = SceneManager.GetActiveScene();
+            GameObject shop = FindCoinShop(scene);
+            if (shop == null && scene.path == WhiteboxBuilder.ScenePath)
+            {
+                GameObject canvas = System.Array.Find(scene.GetRootGameObjects(), root => root.name == UiRoot);
+                GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(TradePrefabPath);
+                if (canvas != null && canvas.transform.Find(TradePanel) == null && prefab != null)
+                {
+                    shop = (GameObject)PrefabUtility.InstantiatePrefab(prefab, canvas.transform);
+                    Undo.RegisterCreatedObjectUndo(shop, "恢复金币商城");
+                    shop.SetActive(false);
+                    EditorSceneManager.MarkSceneDirty(scene);
+                }
+            }
+            if (shop == null && !scene.isDirty)
+            {
+                scene = EditorSceneManager.OpenScene(WhiteboxBuilder.ScenePath);
+                shop = FindCoinShop(scene);
+            }
+            if (shop == null)
+            {
+                Debug.LogWarning("当前打开的场景未找到新版金币商城。请先保留未保存的场景改动，再从 Project 窗口重新打开 WhiteboxPrototype。");
+                return;
+            }
+            Selection.activeGameObject = shop;
+            EditorGUIUtility.PingObject(shop);
+            EditorApplication.ExecuteMenuItem("Window/General/Hierarchy");
+        }
+
+        static GameObject FindCoinShop(Scene scene)
+        {
+            if (scene.path != WhiteboxBuilder.ScenePath) return null;
+            foreach (GameObject root in scene.GetRootGameObjects())
+            {
+                if (root.name != UiRoot) continue;
+                Transform shop = root.transform.Find(TradePanel);
+                if (shop != null && shop.Find("Buy Scroll") != null) return shop.gameObject;
+            }
+            return null;
+        }
         const string Tag = "[InventoryBuilder] ";
 
         static readonly Color PanelBg = new Color(0.06f, 0.12f, 0.11f, 0.97f);
@@ -68,9 +121,8 @@ namespace TrashPlanet.Whitebox.Editor
             GameObject invOld = FindChild(uiRoot.transform, InvPanel);
             if (invOld != null) { UnityEngine.Object.DestroyImmediate(invOld); changed = true; }
             GameObject tradeOld = FindChild(uiRoot.transform, TradePanel);
-            if (tradeOld != null) { UnityEngine.Object.DestroyImmediate(tradeOld); changed = true; }
             GameObject invPanel = BuildInventoryPanel(uiRoot.transform);
-            GameObject tradePanel = BuildTradePanel(uiRoot.transform);
+            GameObject tradePanel = tradeOld != null ? tradeOld : BuildTradePanel(uiRoot.transform);
             changed = true;
 
             Font font = UiFont.Load();
@@ -78,6 +130,7 @@ namespace TrashPlanet.Whitebox.Editor
             if (invView == null) { invView = uiRoot.AddComponent<InventoryPanelView>(); changed = true; }
             CoinTradePanelView tradeView = uiRoot.GetComponent<CoinTradePanelView>();
             if (tradeView == null) { tradeView = uiRoot.AddComponent<CoinTradePanelView>(); changed = true; }
+            tradeView.BakeLayout();
 
             ToolBagSystem bag = sysRoot.GetComponent<ToolBagSystem>();
             if (bag == null) { bag = sysRoot.AddComponent<ToolBagSystem>(); changed = true; }

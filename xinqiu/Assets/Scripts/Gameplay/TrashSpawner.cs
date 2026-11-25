@@ -8,8 +8,7 @@ namespace TrashPlanet.Whitebox
     /// 垃圾刷新 + 对象池（策划案 §12：上限全部走池，避免运行时反复 Instantiate）。
     ///
     /// 本次改动：
-    /// 1. 全局总量：累计生成 2000 件（含玩家已捡走的）后，地表不再出现任何新垃圾。
-    ///    计数落在 WhiteboxState.totalSpawned（随存档持久化），并发上限 MapTrashCap 仍然生效。
+    /// 1. 按净化阶段维持地表数量，全净化后停止补充。
     /// 2. 随机散落：不再按固定堆心成簇生成。每件垃圾在整颗球面上随机取点，
     ///    与已有垃圾保持最小间距、且不刷在玩家身边，于是垃圾分散在地表各处而不是攒成几座山。
     /// 3. 出现动画：从地表下沿法线升起 + 由小到大（带一点回弹），批内逐件错开，形成陆续冒出的观感。
@@ -36,20 +35,16 @@ namespace TrashPlanet.Whitebox
         Stack<TrashItem>[] pools;
         WhiteboxGame game;
         int trashLayer = -1; // Trash 层：PlayerController 会忽略与该层的碰撞（玩家可直接穿过垃圾）
-        float timer;
-        int batchIndex;
-        bool budgetAnnounced;
 
         public TrashItem[] Prefabs { get => prefabs; set => prefabs = value; }
         public Transform TrashRoot { get => trashRoot; set => trashRoot = value; }
         public List<TrashItem> Active => active;
 
-        /// <summary>累计生成件数（含已捡走）——HUD 展示「累计 x/2000」用。</summary>
-        public int TotalSpawned => game != null && game.State != null ? game.State.totalSpawned : 0;
-
-        /// <summary>全局总量是否已用尽：用尽后地表不再刷新新垃圾。</summary>
-        public bool BudgetSpent =>
-            game != null && game.Config != null && game.State != null && game.State.TrashBudgetSpent(game.Config);
+        public int SurfaceTarget => game != null && game.Config != null
+            ? game.Config.SurfaceTrashTarget(game.Eco != null ? game.Eco.Stage : 0) : 0;
+        public bool FinalCleanup => game != null && game.State != null && game.State.finalTrashTracked;
+        public bool LastTrashOnSurface => FinalCleanup && active.Count == 1;
+        public bool CleanupComplete => FinalCleanup && active.Count == 0 && game.State.finalTrashRemaining == 0;
 
         public void Init(WhiteboxGame g)
         {
@@ -66,44 +61,33 @@ namespace TrashPlanet.Whitebox
             owner.Clear();
             pops.Clear();
             occupied.Clear();
-            timer = 0f;
-            batchIndex = 0;
-            budgetAnnounced = false;
-            SpawnInitial();
+            if (game.State.finished) return;
+            int count = FinalCleanup ? game.State.finalTrashRemaining : SurfaceTarget;
+            FillSurface(count, true);
+            SyncPopulation();
         }
 
         void Update()
         {
             if (game == null || pools == null) return;
-            // 冒出动画不受 UI 阻挡影响，避免打开/关闭面板后垃圾卡在半空
             UpdatePops();
-            if (game.IsUiBlocking) return;
-            WhiteboxConfig cfg = game.Config;
-            if (cfg == null) return;
+            SyncPopulation();
+        }
 
-            // 全星球已净化：地表不再生成任何垃圾（完成态）。
-            PurificationSystem purify = game.Purification;
-            if (purify != null && purify.FullyCovered) return;
+        public void SyncPopulation()
+        {
+            if (pools == null || game.State.finished || FinalCleanup) return;
+            int target = SurfaceTarget;
+            while (active.Count > target) Recycle(active[active.Count - 1]);
 
-            // 全局总量用尽：彻底停止刷新（并发上限之外的第二道上限）
-            if (BudgetSpent)
+            if (game.Purification != null && game.Purification.FullyCovered)
             {
-                if (!budgetAnnounced)
-                {
-                    budgetAnnounced = true;
-                    game.Notice("地表垃圾已达全局总量 " + cfg.TotalTrashBudget + " 件，不再刷新");
-                    Debug.Log("[WhiteboxSpawner] 全局总量已用尽：" + cfg.TotalTrashBudget + " 件，停止刷新");
-                }
+                // 最后一次净化后冻结地表存量，后续仅靠拾取减少。
+                game.State.finalTrashTracked = true;
+                game.State.finalTrashRemaining = active.Count;
                 return;
             }
-
-            timer += Time.deltaTime;
-            int stage = game.Eco != null ? game.Eco.Stage : 0;
-            float interval = cfg.SpawnInterval[Mathf.Clamp(stage, 0, 2)] * cfg.WhiteboxSpawnTimeScale;
-            if (timer < interval) return;
-            timer = 0f;
-            if (active.Count >= cfg.MapTrashCap) return; // 并发满则暂停生成，等玩家捡走再补
-            SpawnBatch(cfg);
+            if (active.Count < target) FillSurface(target, false);
         }
 
         void UpdatePops()
@@ -146,54 +130,24 @@ namespace TrashPlanet.Whitebox
             return 1f + c3 * u * u * u + c1 * u * u;
         }
 
-        void SpawnInitial()
+        void FillSurface(int target, bool initial)
         {
             WhiteboxConfig cfg = game.Config;
             if (cfg == null) return;
-            int n = cfg.InitialTrashCount;
             BuildOccupied();
-            for (int i = 0; i < n; i++)
+            while (active.Count < target)
             {
+                int i = active.Count;
                 int r = i % 45;
-                int cat = r < 15 ? 0 : (r < 27 ? 1 : (r < 39 ? 2 : 3)); // 初始配比 15:12:12:6
-                int index = PickPrefabForCategory((TrashCategory)cat, i % 6 == 5);
-                Vector3 dir;
-                if (!TryScatter(cfg, out dir)) break;
-                Spawn(index, dir);
-                occupied.Add(SphericalSurface.Point(Vector3.zero, dir, cfg.PlanetRadius, 0f));
+                int cat = r < 15 ? 0 : (r < 27 ? 1 : (r < 39 ? 2 : 3));
+                TrashCategory category = initial ? (TrashCategory)cat : PickRandomCategory();
+                int index = PickPrefabForCategory(category, initial && i % 6 == 5);
+                if (!TryScatter(cfg, out Vector3 direction)) break;
+                TrashItem item = initial ? Spawn(index, direction) : SpawnAnimated(index, direction, 0f);
+                if (item == null) break;
+                occupied.Add(SphericalSurface.Point(Vector3.zero, direction, cfg.PlanetRadius, 0f));
             }
-            Debug.Log("[WhiteboxSpawner] 初始垃圾 " + active.Count + " 件，地表上限 " + cfg.MapTrashCap
-                      + "，全局总量 " + cfg.TotalTrashBudget + "，每批 " + cfg.SpawnBatchSize + " 件（随机散落）");
         }
-
-        void SpawnBatch(WhiteboxConfig cfg)
-        {
-            int budgetLeft = cfg.TotalTrashBudget - TotalSpawned;
-            int room = Mathf.Min(cfg.MapTrashCap - active.Count, budgetLeft);
-            int n = Mathf.Min(cfg.SpawnBatchSize, room);
-            if (n <= 0) return;
-
-            BuildOccupied();
-            int spawned = 0;
-            for (int j = 0; j < n; j++)
-            {
-                Vector3 dir;
-                if (!TryScatter(cfg, out dir)) break;
-                // 批内逐件错开 0~0.3 s：同一批不是整齐划一地弹出，而是陆续冒出
-                float delay = j * cfg.SpawnPopStagger + Random.Range(0f, 0.12f);
-                TrashCategory category = PickRandomCategory();
-                int prefabIndex = PickPrefabForCategory(category, false);
-                if (SpawnAnimated(prefabIndex, dir, delay) == null) continue;
-                occupied.Add(SphericalSurface.Point(Vector3.zero, dir, cfg.PlanetRadius, 0f));
-                spawned++;
-            }
-            batchIndex++;
-            Debug.Log("[WhiteboxSpawner] 第 " + batchIndex + " 批 +" + spawned + " 件，地表 "
-                      + active.Count + "/" + cfg.MapTrashCap + "，累计 " + TotalSpawned + "/"
-                      + cfg.TotalTrashBudget);
-        }
-
-        /// <summary>把地表现存垃圾的位置缓存起来，撒点去重时只看这份列表，避免每帧重复读 transform。</summary>
         void BuildOccupied()
         {
             occupied.Clear();
@@ -237,8 +191,7 @@ namespace TrashPlanet.Whitebox
             }
 
             // 地表已经很密 / 净化区很大：退化落点仍要避开净化区，否则会刷进"无垃圾区域"。
-            // 扩到 48 次并放宽间距，优先找净化区外的点；只有当整颗球都被净化时才接受净化区内的点
-            // （那时本来就已完成，spawner 也不再刷新，见 Update 的 FullyCovered 早退）。
+            // 扩到 48 次并放宽间距，优先找净化区外的点；全净化时仍补齐剩余配额。
             for (int attempt = 0; attempt < 48; attempt++)
             {
                 Vector3 d = Random.onUnitSphere;
@@ -419,7 +372,6 @@ namespace TrashPlanet.Whitebox
 
             GroundFit(item.transform, up, item.GroundContactDepth);
             active.Add(item);
-            if (game.State != null) game.State.totalSpawned++;
 
             if (delay >= 0f)
             {
@@ -449,8 +401,14 @@ namespace TrashPlanet.Whitebox
 
         public void Despawn(TrashItem item)
         {
-            if (item == null) return;
-            active.Remove(item);
+            if (!Recycle(item)) return;
+            game.State.clearedTrash++;
+            if (FinalCleanup) game.State.finalTrashRemaining = active.Count;
+        }
+
+        bool Recycle(TrashItem item)
+        {
+            if (item == null || !active.Remove(item)) return false;
             for (int i = pops.Count - 1; i >= 0; i--)
                 if (pops[i].Item == item) pops.RemoveAt(i);
             item.SetHighlight(false);
@@ -459,11 +417,13 @@ namespace TrashPlanet.Whitebox
             int index;
             if (!owner.TryGetValue(item, out index)) index = 0;
             if (pools != null && index >= 0 && index < pools.Length) pools[index].Push(item);
+            return true;
         }
 
         /// <summary>狗用：在半径内找最近的、类型允许的、未被玩家准星锁定的普通垃圾。</summary>
         public TrashItem FindNearest(Vector3 origin, float radius, int allowedMask, TrashItem exclude)
         {
+            if (LastTrashOnSurface) return null;
             TrashItem best = null;
             float bestD = radius * radius;
             for (int i = 0; i < active.Count; i++)

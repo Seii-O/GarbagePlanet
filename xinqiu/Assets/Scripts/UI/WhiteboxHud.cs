@@ -25,7 +25,6 @@ namespace TrashPlanet.Whitebox
         string notice = "";
         float noticeLeft;
         float depositLeft;
-        float hintLeft = 12f;
         int durabilityLeft;
         int durabilityMax;
         bool settlement;
@@ -58,7 +57,6 @@ namespace TrashPlanet.Whitebox
             game = g;
             floats.Clear();
             settlement = g.State.finished;
-            hintLeft = 12f;
             if (canvasView != null) canvasView.Init(g, this);
         }
 
@@ -112,7 +110,6 @@ namespace TrashPlanet.Whitebox
             float dt = Time.deltaTime;
             if (noticeLeft > 0f) noticeLeft -= dt;
             if (depositLeft > 0f) depositLeft -= dt;
-            if (hintLeft > 0f) hintLeft -= dt;
             for (int i = floats.Count - 1; i >= 0; i--)
             {
                 FloatLabel f = floats[i];
@@ -183,7 +180,7 @@ namespace TrashPlanet.Whitebox
             if (depositLeft > 0f)
                 GUI.Label(new Rect(20f, Screen.height - 78f, Screen.width - 40f, 24f), "垃圾入站：漏斗下沉中…");
 
-            if (hintLeft > 0f && !game.IsUiBlocking)
+            if (TitleController.ShowControlHints)
             {
                 GUI.Label(new Rect(20f, 16f, Screen.width - 40f, 22f),
                     "WASD 移动 · 鼠标看视角 · 左键拾取/拆解 · F 抽奖 · M 中转站 · I 工具背包 · B 交易 · Q 切专精 · F5 新局 · F9 存档 · ESC 暂停");
@@ -207,9 +204,9 @@ namespace TrashPlanet.Whitebox
                             + s.materials[2] + "/" + s.materials[3]);
             GUILayout.Label("工具 Lv." + s.toolLevel + " · 拾取 " + cfg.PickRange[s.toolLevel - 1] + " m"
                             + (game.Tool != null ? "｜" + game.Tool.ActiveSpecText() : "")
-                            + " · 地表 " + game.Spawner.Active.Count + "/" + cfg.MapTrashCap
-                            + " · 累计 " + s.totalSpawned + "/" + cfg.TotalTrashBudget
-                            + (s.TrashBudgetSpent(cfg) ? "（已停止）" : ""));
+                            + " · 地表 " + game.Spawner.Active.Count
+                            + (game.Spawner.FinalCleanup ? "（最终清理）" : "/" + game.Spawner.SurfaceTarget)
+                            + " · 已清理 " + s.clearedTrash);
             GUILayout.Label("土地 " + (s.landProgress * 100f).ToString("0") + "% · 水源 "
                             + (s.waterProgress * 100f).ToString("0") + "% · 生态阶段 " + (game.Eco.Stage + 1) + "/3");
             GUILayout.Label("任务 " + (System.Math.Min(s.questStep + 1, 10)) + "/10 ： " + game.Quest.CurrentText);
@@ -255,8 +252,6 @@ namespace TrashPlanet.Whitebox
             }
             if (GUILayout.Button("④ 升级工具（Lv." + s.toolLevel + " → " + (s.toolLevel + 1) + "）"))
                 game.StationLogic.UpgradeTool();
-            if (GUILayout.Button("⑤ " + game.StationLogic.BagUpgradeText().Replace("⑤ ", "")))
-                game.StationLogic.UpgradeBackpack();
 
             if (game.StationLogic.HasJob) DrawBar(game.StationLogic.JobLabel, game.StationLogic.JobProgress, cfg.DurabilityColor);
             GUILayout.EndArea();

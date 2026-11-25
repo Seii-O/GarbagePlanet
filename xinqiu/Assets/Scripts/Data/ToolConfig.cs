@@ -242,10 +242,10 @@ namespace TrashPlanet.Whitebox
             };
             c.books = new[]
             {
-                Book("book_sorting", "快分拣", GachaRarity.Rare, 5, 5, BookEffect.ProcessTime, 0.99f, 0, true, 0, 120),
-                Book("book_handwork", "熟手工", GachaRarity.Rare, 5, 5, BookEffect.CraftTime, 0.99f, 0, true, 0, 120),
-                Book("book_flow", "一气呵成", GachaRarity.Epic, 2, 3, BookEffect.CraftTime, 0.98f, 0, false, 3, 260),
-                Book("book_tireless", "不知疲倦", GachaRarity.Epic, 2, 4, BookEffect.FreeCharge, 1f, 1, false, 2, 260)
+                Book("book_sorting", "快分拣", GachaRarity.Rare, 5, 5, BookEffect.ProcessTime, 0.99f, 0, true, 0, 480),
+                Book("book_handwork", "熟手工", GachaRarity.Rare, 5, 5, BookEffect.CraftTime, 0.99f, 0, true, 0, 480),
+                Book("book_flow", "一气呵成", GachaRarity.Epic, 2, 3, BookEffect.CraftTime, 0.98f, 0, false, 3, 1000),
+                Book("book_tireless", "不知疲倦", GachaRarity.Epic, 2, 4, BookEffect.FreeCharge, 1f, 1, false, 2, 1400)
             };
             c.pools = new[] { new GachaPoolConfig { poolId = "scrap", enabled = true } };
             return c;

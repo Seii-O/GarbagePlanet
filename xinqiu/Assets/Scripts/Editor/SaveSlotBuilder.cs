@@ -223,6 +223,12 @@ namespace TrashPlanet.Whitebox.Editor
         {
             GameObject panel = FindRoot(scene, "ContinueGameUI");
             if (panel == null)
+                foreach (GameObject root in scene.GetRootGameObjects())
+                {
+                    panel = FindChild(root.transform, "ContinueGameUI");
+                    if (panel != null) break;
+                }
+            if (panel == null)
             {
                 Debug.LogError(Tag + "标题场景缺少 ContinueGameUI，请先搭好选槽面板");
                 return;

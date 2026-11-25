@@ -21,24 +21,11 @@ namespace TrashPlanet.Whitebox
         [SerializeField] float stageTwoThreshold = 0.70f;
         [SerializeField] float mvpProgressTarget = 0.30f; // [待拍板 C7] MVP 各修到 30%
 
-        // [待拍板] 策划案 §6.3 / §8 把「地图上限 50 件」列为冻结值；
-        // 本次按用户要求改为「全局总量 2000 件 + 地表并发 1000 件」两道上限：
-        // 累计生成满 2000 件（含已被捡走的）后，地表不再出现任何新垃圾。
-        [Header("垃圾刷新 MECH-011 / 全局总量 [待拍板]")]
-        [SerializeField, Min(1), Tooltip("地表同时存在的垃圾件数上限（满则暂停刷新，等玩家捡走再补）")]
-        int mapTrashCap = 1000;
-        [SerializeField, Min(1), Tooltip("全局垃圾总量：累计生成件数（含玩家已捡走的）达到后，地表不再刷新新垃圾")]
-        int totalTrashBudget = 2000;
-        [SerializeField, Min(0), Tooltip("开局铺在球面上的垃圾件数（同样计入全局总量）")]
-        int initialTrashCount = 500;
-        [SerializeField, Tooltip("各阶段两次刷新之间的间隔（秒）；三档同为 10 s = 与生态阶段无关的固定节奏")]
-        float[] spawnInterval = { 10f, 10f, 10f };
-        [SerializeField, Range(0.05f, 4f), Tooltip("刷新节奏倍率：1 = 按真实间隔（10 s）；白膜演示可调小加速，不影响配置的 10 s 数值")]
-        float whiteboxSpawnTimeScale = 1f;
+        [Header("垃圾刷新 MECH-011")]
+        [SerializeField, Min(1), Tooltip("三个净化阶段分别维持的地表垃圾件数")]
+        int[] surfaceTrashTargets = { 3000, 2500, 2000 };
 
         [Header("随机散落 + 出现动画 [待拍板]")]
-        [SerializeField, Min(1), Tooltip("每次刷新产出的件数（1000 件并发上限下取 15）")]
-        int spawnBatchSize = 15;
         [SerializeField, Min(0.1f), Tooltip("两件垃圾之间的最小间距（米）：随机撒点时的去重阈值，避免叠在一起成一堆")]
         float scatterMinSpacing = 0.4f;
         [SerializeField, Min(0f), Tooltip("不在玩家这个距离（米）以内刷新垃圾；星球半径减半后同步收窄，否则玩家身边半颗球都是净空")]
@@ -49,8 +36,6 @@ namespace TrashPlanet.Whitebox
         float spawnPopSeconds = 0.45f;
         [SerializeField, Min(0f), Tooltip("冒出前藏在地表下的深度；只改位置、不改碰撞体")]
         float spawnSinkDepth = 0.55f;
-        [SerializeField, Min(0f), Tooltip("批内相邻两件冒出的错开间隔，形成陆续出现感")]
-        float spawnPopStagger = 0.06f;
         [SerializeField, Range(0.05f, 1f), Tooltip("出现动画的起始缩放（1 = 只做升起不做缩放）")]
         float spawnStartScale = 0.55f;
 
@@ -60,8 +45,6 @@ namespace TrashPlanet.Whitebox
         int[] backpackCap = { 13, 13, 12, 12 };       // NUM-007，总计 50
         [SerializeField, Tooltip("背包 Lv.2（满级）每类容量；只有 2 级，升级 1 次即到顶")]
         int[] backpackCapMax = { 25, 25, 25, 25 };     // 总计 100
-        [SerializeField, Min(1), Tooltip("背包 Lv.1 → Lv.2 的金属零件消耗")]
-        int backpackUpgradeMetalCost = 15;
         [SerializeField, Tooltip("最远拾取距离（按工具等级）；本次整体 ×2")]
         float[] pickRange = { 4f, 6f, 8f };          // MECH-007
         [SerializeField] int[] dismantleDamage = { 1, 1, 2 };
@@ -94,7 +77,7 @@ namespace TrashPlanet.Whitebox
         [SerializeField, Tooltip("人物等级上限；每级加成见下列数组，数组长度不足时按最后一项取值")]
         int playerLevelMax = 5;
         [SerializeField, Tooltip("各级升级所需历史累计经验（索引=等级-1；到顶级用最后一项）")]
-        int[] playerLevelExp = { 0, 25, 65, 130, 225 };
+        int[] playerLevelExp = { 0, 300, 800, 1600, 2800 };
         [SerializeField, Tooltip("行为转经验的系数：拾取 / 拆解 / 加工 / 制造 / 修复阶段")]
         int expPerCollect = 1;
         [SerializeField] int expPerDismantle = 2;
@@ -177,26 +160,23 @@ namespace TrashPlanet.Whitebox
         public float PlanetRadius => Mathf.Max(1f, planetRadius);
         public float MvpProgressTarget => mvpProgressTarget;
         /// <summary>地表并发上限（不会被全局总量顶掉，两者取小生效）。</summary>
-        public int MapTrashCap => Mathf.Clamp(mapTrashCap, 1, Mathf.Max(1, TotalTrashBudget));
-        /// <summary>全局总量：累计生成 2000 件后地表不再出现新垃圾。</summary>
-        public int TotalTrashBudget => Mathf.Clamp(totalTrashBudget, 1, 100000);
-        public int InitialTrashCount => Mathf.Clamp(initialTrashCount, 0, MapTrashCap);
-        public float[] SpawnInterval => spawnInterval;
-        public float WhiteboxSpawnTimeScale => whiteboxSpawnTimeScale;
-        public int SpawnBatchSize => Mathf.Clamp(spawnBatchSize, 1, 50);
+        public int SurfaceTrashTarget(int stage)
+        {
+            stage = Mathf.Clamp(stage, 0, 2);
+            return surfaceTrashTargets != null && stage < surfaceTrashTargets.Length
+                ? Mathf.Max(1, surfaceTrashTargets[stage]) : 3000 - 500 * stage;
+        }
         public float ScatterMinSpacing => Mathf.Max(0.1f, scatterMinSpacing);
         public float ScatterPlayerClearance => Mathf.Max(0f, scatterPlayerClearance);
         public float ScatterTiltDegrees => Mathf.Clamp(scatterTiltDegrees, 0f, 20f);
         public float SpawnPopSeconds => Mathf.Max(0.05f, spawnPopSeconds);
         public float SpawnSinkDepth => Mathf.Max(0f, spawnSinkDepth);
-        public float SpawnPopStagger => Mathf.Max(0f, spawnPopStagger);
         public float SpawnStartScale => Mathf.Clamp(spawnStartScale, 0.05f, 1f);
         /// <summary>true = 批量加工/制造固定按「一件的时长」结算，数量不叠加时间。</summary>
         public bool BatchFixedDuration => batchFixedDuration;
         public int[] BackpackCap => backpackCap;
         /// <summary>背包等级上限：1 = 初始 50 件，2 = 满级 100 件，一共只有 2 级。</summary>
         public const int BagMaxLevel = 2;
-        public int BackpackUpgradeMetalCost => Mathf.Max(1, backpackUpgradeMetalCost);
         /// <summary>按背包等级取每类容量；越界等级一律钳到 1..2。</summary>
         public int[] BackpackCapAt(int level)
         {
@@ -333,26 +313,19 @@ namespace TrashPlanet.Whitebox
         void OnValidate()
         {
             planetRadius = Mathf.Max(1f, planetRadius);
-            totalTrashBudget = Mathf.Clamp(totalTrashBudget, 1, 100000);
-            mapTrashCap = Mathf.Clamp(mapTrashCap, 1, totalTrashBudget);
-            initialTrashCount = Mathf.Clamp(initialTrashCount, 0, mapTrashCap);
-            spawnBatchSize = Mathf.Clamp(spawnBatchSize, 1, 50);
             scatterMinSpacing = Mathf.Max(0.1f, scatterMinSpacing);
             scatterPlayerClearance = Mathf.Max(0f, scatterPlayerClearance);
             scatterTiltDegrees = Mathf.Clamp(scatterTiltDegrees, 0f, 20f);
             spawnPopSeconds = Mathf.Max(0.05f, spawnPopSeconds);
             spawnSinkDepth = Mathf.Max(0f, spawnSinkDepth);
-            spawnPopStagger = Mathf.Max(0f, spawnPopStagger);
             spawnStartScale = Mathf.Clamp(spawnStartScale, 0.05f, 1f);
             repairPerItem = Mathf.Clamp01(repairPerItem);
             purifyBaseRadius = Mathf.Max(0f, purifyBaseRadius);
-            backpackUpgradeMetalCost = Mathf.Max(1, backpackUpgradeMetalCost);
             highlightRange = Mathf.Max(0.1f, highlightRange);
             mvpProgressTarget = Mathf.Clamp01(mvpProgressTarget);
             stageOneThreshold = Mathf.Clamp(stageOneThreshold, 0.01f, stageTwoThreshold - 0.01f);
             stageTwoThreshold = Mathf.Clamp(stageTwoThreshold, stageOneThreshold + 0.01f, 0.99f);
 
-            Ensure(ref spawnInterval, 3, 10f);
             Ensure(ref backpackCap, 4, 12);
             Ensure(ref backpackCapMax, 4, 25);
             Ensure(ref pickRange, 3, 4f);
@@ -436,7 +409,6 @@ namespace TrashPlanet.Whitebox
             }
             for (int i = 0; i < 3; i++)
             {
-                spawnInterval[i] = Mathf.Max(0.1f, spawnInterval[i]);
                 pickRange[i] = Mathf.Max(0.1f, pickRange[i]);
                 dismantleDamage[i] = Mathf.Max(1, dismantleDamage[i]);
                 largeDurability[i] = Mathf.Max(1, largeDurability[i]);

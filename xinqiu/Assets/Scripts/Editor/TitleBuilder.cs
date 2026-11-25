@@ -16,8 +16,7 @@ namespace TrashPlanet.Whitebox.Editor
     /// 用户手搭的按钮是默认命名（Button (Legacy)），靠按钮子 Text 的文字识别功能：
     ///   "开始新游戏" → StartNewGame；"继续游戏" → ContinueGame；"退出游戏" → QuitGame；
     ///   "设置"等面板显隐按钮保留原 SetActive 不动。
-    /// 两个音量滑块按与"音效音量 / 音乐音量"标签的世界坐标距离就近匹配。
-    /// 可重复执行：绑定前清空目标按钮/滑块的持久事件，保证幂等。
+    /// 可重复执行：绑定前清空目标按钮的持久事件，保证幂等。
     /// </summary>
     public static class TitleBuilder
     {
@@ -58,13 +57,9 @@ namespace TrashPlanet.Whitebox.Editor
 
             // 2) 扫描全部 Button，按子 Text 文字归类
             var allButtons = new List<Button>();
-            var allSliders = new List<Slider>();
-            var allTexts = new List<Text>();
             foreach (GameObject root in scene.GetRootGameObjects())
             {
                 allButtons.AddRange(root.GetComponentsInChildren<Button>(true));
-                allSliders.AddRange(root.GetComponentsInChildren<Slider>(true));
-                allTexts.AddRange(root.GetComponentsInChildren<Text>(true));
             }
 
             var newGames = new List<Button>();
@@ -81,18 +76,6 @@ namespace TrashPlanet.Whitebox.Editor
                 if (!string.IsNullOrEmpty(label)) report.Add(label + "→" + b.name);
             }
 
-            // 3) 音量滑块：与"音效音量 / 音乐音量"标签世界坐标就近匹配
-            Text sfxLabel = FindTextContaining(allTexts, "音效");
-            Text musicLabel = FindTextContaining(allTexts, "音乐");
-            Slider sfxSlider = null, musicSlider = null;
-            foreach (Slider s in allSliders)
-            {
-                float dSfx = sfxLabel != null ? Vector3.Distance(s.transform.position, sfxLabel.transform.position) : float.MaxValue;
-                float dMusic = musicLabel != null ? Vector3.Distance(s.transform.position, musicLabel.transform.position) : float.MaxValue;
-                if (dSfx < dMusic) { if (sfxSlider == null || dSfx < Vector3.Distance(sfxSlider.transform.position, sfxLabel.transform.position)) sfxSlider = s; }
-                else { if (musicSlider == null || dMusic < Vector3.Distance(musicSlider.transform.position, musicLabel.transform.position)) musicSlider = s; }
-            }
-
             // 4) 绑定（先清后有，幂等）
             UnityAction startNew = ctrl.StartNewGame;
             UnityAction contGame = ctrl.ContinueGame;
@@ -101,10 +84,8 @@ namespace TrashPlanet.Whitebox.Editor
             foreach (Button b in newGames) { Bind(b, startNew); bound++; }
             foreach (Button b in continues) { Bind(b, contGame); bound++; }
             foreach (Button b in quits) { Bind(b, quitGame); bound++; }
-            if (sfxSlider != null) BindFloat(sfxSlider.onValueChanged, ctrl.SetSfxVolume);
-            if (musicSlider != null) BindFloat(musicSlider.onValueChanged, ctrl.SetMusicVolume);
 
-            ctrl.Wire(FirstOrNull(newGames), FirstOrNull(continues), FirstOrNull(quits), sfxSlider, musicSlider);
+            ctrl.Wire(FirstOrNull(newGames), FirstOrNull(continues), FirstOrNull(quits));
 
             // 5) 保存
             EditorUtility.SetDirty(ctrl);
@@ -113,8 +94,6 @@ namespace TrashPlanet.Whitebox.Editor
             AssetDatabase.SaveAssets();
 
             Debug.Log(Tag + "完成：按钮[" + string.Join(", ", report) + "]；绑定=" + bound
-                      + "；音效滑块=" + (sfxSlider != null ? sfxSlider.name : "无")
-                      + "；音乐滑块=" + (musicSlider != null ? musicSlider.name : "无")
                       + "（batch=" + batch + "）");
         }
 
@@ -128,26 +107,12 @@ namespace TrashPlanet.Whitebox.Editor
             return (s ?? "").Replace("\n", "").Replace("\r", "").Replace(" ", "").Trim();
         }
 
-        static Text FindTextContaining(List<Text> texts, string key)
-        {
-            foreach (Text t in texts)
-                if (t.text != null && t.text.Contains(key)) return t;
-            return null;
-        }
-
         static void Bind(Button b, UnityAction action)
         {
             int n = b.onClick.GetPersistentEventCount();
             for (int i = n - 1; i >= 0; i--) UnityEventTools.RemovePersistentListener(b.onClick, i);
             UnityEventTools.AddPersistentListener(b.onClick, action);
             EditorUtility.SetDirty(b);
-        }
-
-        static void BindFloat(UnityEvent<float> ev, UnityAction<float> action)
-        {
-            int n = ev.GetPersistentEventCount();
-            for (int i = n - 1; i >= 0; i--) UnityEventTools.RemovePersistentListener(ev, i);
-            UnityEventTools.AddPersistentListener<float>(ev, action);
         }
 
         static GameObject FindByName(Scene scene, string name)

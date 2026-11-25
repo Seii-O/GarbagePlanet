@@ -15,6 +15,7 @@ namespace TrashPlanet.Whitebox
         const int SlotCount = 12;
 
         [SerializeField] ToolIconSet iconSet;   // ⑲ 生成并接线；为空或查不到时自动退回纯文字
+        public Sprite ItemIcon(string id) => iconSet != null ? iconSet.Get(id) : null;
 
         ToolBagSystem system;
         RectTransform panel;

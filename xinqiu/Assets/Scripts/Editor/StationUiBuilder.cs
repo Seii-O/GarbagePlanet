@@ -177,7 +177,6 @@ namespace TrashPlanet.Whitebox.Editor
             missing += Check(v.TxtRaw, "Txt_Raw");
             missing += Check(v.TxtStationMaterials, "Txt_StationMaterials");
             missing += Check(v.TxtUpgrade, "Txt_Upgrade");
-            missing += Check(v.TxtBagUpgrade, "Txt_BagUpgrade");
             missing += Check(v.JobGroup, "JobBar");
             missing += Check(v.JobFill, "JobFill");
             missing += Check(v.TxtJob, "Txt_Job");
@@ -341,20 +340,6 @@ namespace TrashPlanet.Whitebox.Editor
                 if (si != null) si.type = Image.Type.Sliced;
             }
 
-            // Btn_BagUpgrade 必须是 Panel_Station 的直接子物体（WhiteboxValidator 用 transform.Find 检查），
-            // 视觉位置仍落在「④ 工具与背包」区块里，绝对坐标与卡片内部一致。
-            Button bagUp = Btn(panel.transform, "Btn_BagUpgrade",
-                "升级背包（总 50 → 100，需 15 金属零件）", 1130f, CY + 376f, 508f, 48f,
-                Skin("bt_幽灵按钮"), TextSoft, 15, TextAnchor.MiddleLeft, false);
-            if (bagUp != null)
-            {
-                Image bi = bagUp.GetComponent<Image>();
-                if (bi != null) bi.type = Image.Type.Sliced;
-                Img(bagUp.transform, "Img_BagUpIcon", 12f, 12f, 24f, 24f,
-                    Lib("06_UI界面拆件/图标_功能/ic_功能_背包"), TextSoft, false, Image.Type.Simple, true);
-                Text label = bagUp.GetComponentInChildren<Text>(true);
-                if (label != null) label.rectTransform.offsetMin = new Vector2(44f, 2f);
-            }
             Lbl(panel.transform, "Txt_UpHint", "升级后立即生效；材料不足时按钮会给出缺口提示",
                 1130f, CY + 434f, 508f, 20f, 12, TextDim);
 
@@ -586,7 +571,6 @@ namespace TrashPlanet.Whitebox.Editor
             for (int i = 0; i < 3; i++)
                 BindInt(panel, "Btn_Craft_" + i, new UnityAction<int>(a.Craft), i);
             Bind(panel, "Btn_Upgrade", new UnityAction(a.UpgradeTool));
-            Bind(panel, "Btn_BagUpgrade", new UnityAction(a.UpgradeBackpack));
             for (int i = 0; i < 4; i++)
                 BindInt(panel, "Btn_SpecTool_" + i, new UnityAction<int>(a.UpgradeSpecTool), i);
             Bind(panel, "Btn_CloseStation", new UnityAction(a.CloseStation));

@@ -1,0 +1,70 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &910090001
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 910090002}
+  - component: {fileID: 910090003}
+  m_Layer: 0
+  m_Name: '[Game Audio]'
+  m_TagString: Untagged
+  m_IsActive: 1
+--- !u!4 &910090002
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 910090001}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_Children: []
+  m_Father: {fileID: 0}
+--- !u!114 &910090003
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 910090001}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8c54d616331147b395a29c21af620b14, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  music:
+    clip: {fileID: 8300000, guid: 337b817b600798f4eaafb16055302133, type: 3}
+    volume: 0.6
+    pitch: 1
+  loopMusic: 1
+  button:
+    clip: {fileID: 8300000, guid: 33e8bf9ef4b272e40b389a34fe161de2, type: 3}
+    volume: 0.65
+    pitch: 1
+  pickup:
+    clip: {fileID: 8300000, guid: f7149febcdf11c9498d70a4a8931c77b, type: 3}
+    volume: 0.8
+    pitch: 1
+  bagFull:
+    clip: {fileID: 8300000, guid: 464091ce619e2b9418116dcfec612e11, type: 3}
+    volume: 0.8
+    pitch: 1
+  walking:
+    clip: {fileID: 8300000, guid: af44dbc47a3c83a41b90af3fdfce9093, type: 3}
+    volume: 0.45
+    pitch: 1
+  movementSpeed: 0.15
+  dogBark:
+    clip: {fileID: 8300000, guid: 5e569502c1d00eb4e8bc98f2c0eb5fb7, type: 3}
+    volume: 0.75
+    pitch: 1
+  barkDistance: 3
+  barkResetDistance: 4.5
+  barkGap: 0.2

@@ -19,12 +19,12 @@ namespace TrashPlanet.Whitebox
         static readonly string[] Titles =
         {
             "初次探索", "初次回收", "拆解废弃物", "返回中转站", "修复中转站",
-            "完成垃圾加工", "制作环保产品", "修复土地", "净化水源", "恢复星球"
+            "完成垃圾加工", "制作环保产品", "修复土地", "净化水源", "清理剩余垃圾"
         };
         static readonly string[] Descs =
         {
             "移动并接近垃圾", "拾取 5 个垃圾", "完成一次大型垃圾拆解", "与中转站交互", "制作 1 块再生建材板",
-            "加工四种垃圾", "制作生态肥料", "完成土地修复", "完成水源修复", "完成最终目标"
+            "加工四种垃圾", "制作生态肥料", "完成土地修复", "完成水源修复", "全星球净化后清理余下垃圾"
         };
         static readonly int[] MaxProgress = { 1, 5, 1, 1, 1, 4, 1, 1, 1, 1 };
         static readonly string[][] Hints =
@@ -38,7 +38,7 @@ namespace TrashPlanet.Whitebox
             new[] { "① 准备有机原料", "② 打开产品制造页", "③ 制造 1 个生态肥料包" },
             new[] { "① 制造生态肥料包", "② 前往土地修复点", "③ 达到 MVP 进度" },
             new[] { "① 制造水质过滤器", "② 前往水源修复点", "③ 达到 MVP 进度" },
-            new[] { "① 继续净化周边", "② 扩张净化区", "③ 覆盖整颗星球" }
+            new[] { "① 收集散落垃圾", "② 拆解大型废弃物", "③ 亲手收走最后一件" }
         };
 
         WhiteboxGame game;
@@ -189,7 +189,10 @@ namespace TrashPlanet.Whitebox
 
                 SetText(row, "Txt_Title_" + i, Titles[i]);
                 SetText(row, "Txt_Desc_" + i, Descs[i]);
-                SetText(row, "Txt_Count_" + i, Mathf.Min(progress, max) + " / " + max);
+                string count = i == 9
+                    ? (s.finalTrashTracked ? "剩余 " + s.finalTrashRemaining + " 件" : "等待全净化")
+                    : Mathf.Min(progress, max) + " / " + max;
+                SetText(row, "Txt_Count_" + i, count);
                 SetText(row, "Txt_Status_" + i, isDone ? "完成" : (isCurrent ? "进行中" : "未解锁"));
                 SetTextColor(row, "Txt_Status_" + i, isDone ? new Color(0.17f, 0.66f, 0.60f, 1f)
                     : (isCurrent ? new Color(0.85f, 0.55f, 0.18f, 1f) : new Color(0.58f, 0.53f, 0.45f, 1f)));
@@ -231,10 +234,7 @@ namespace TrashPlanet.Whitebox
                 case 6: return s.fertilizer >= 1 ? 1 : 0;
                 case 7: return cfg != null && s.landProgress >= cfg.MvpProgressTarget - 0.0001f ? 1 : 0;
                 case 8: return cfg != null && s.waterProgress >= cfg.MvpProgressTarget - 0.0001f ? 1 : 0;
-                case 9:
-                    if (game != null && game.Purification != null) return game.Purification.FullyCovered ? 1 : 0;
-                    return (cfg != null && s.landProgress >= cfg.MvpProgressTarget - 0.0001f
-                            && s.waterProgress >= cfg.MvpProgressTarget - 0.0001f) ? 1 : 0;
+                case 9: return s.finalTrashTracked && s.finalTrashRemaining == 0 ? 1 : 0;
                 default: return 0;
             }
         }
@@ -252,7 +252,7 @@ namespace TrashPlanet.Whitebox
                 case 6: return StepProgress(6, s, cfg, game);
                 case 7: return StepProgress(7, s, cfg, game);
                 case 8: return StepProgress(8, s, cfg, game);
-                case 9: return StepProgress(9, s, cfg, game);
+                case 9: return game != null && game.Spawner != null && game.Spawner.CleanupComplete ? 1 : 0;
                 default: return 0;
             }
         }

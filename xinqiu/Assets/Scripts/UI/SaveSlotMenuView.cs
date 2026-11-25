@@ -131,7 +131,7 @@ namespace TrashPlanet.Whitebox
                 if (t != null)
                 {
                     if (has) t.text = SaveSlotSystem.SlotTitle(slot);
-                    else t.text = "";
+                    else t.text = "存档 " + slot + " · 空";
                 }
             }
         }

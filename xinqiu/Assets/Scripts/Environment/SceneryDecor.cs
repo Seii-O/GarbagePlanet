@@ -29,6 +29,7 @@ namespace TrashPlanet.Whitebox
     public sealed class SceneryDecor : MonoBehaviour
     {
         [SerializeField] SceneryDecorKind kind;
+        [SerializeField] GameObject treeModel;
         [Tooltip("随恢复由脏到净变色的部件（材质实例，运行时缓存）")]
         [SerializeField] Renderer[] tintParts;
         [SerializeField] Color[] dirtyColors;
@@ -46,8 +47,10 @@ namespace TrashPlanet.Whitebox
         Vector3[] shrinkBase;
         Vector3[] growBase;
         float appliedT = -1f;
+        GameObject treeVisual;
 
         public SceneryDecorKind Kind => kind;
+        public void SetTreeModel(GameObject model) => treeModel = model;
 
         /// <summary>Builder 注入各部件引用（Editor API 写入，不改场景 YAML）。</summary>
         public void Setup(SceneryDecorKind k,
@@ -72,6 +75,8 @@ namespace TrashPlanet.Whitebox
         /// <summary>缓存材质实例与各部件满级缩放；随后由系统推一次当前进度。</summary>
         public void Init()
         {
+            if (kind == SceneryDecorKind.DeadTree && treeModel != null)
+                InstallTreeVisual();
             int n = tintParts != null ? tintParts.Length : 0;
             tintInst = new Material[n];
             for (int i = 0; i < n; i++)
@@ -79,6 +84,44 @@ namespace TrashPlanet.Whitebox
             shrinkBase = CacheScale(shrinkParts);
             growBase = CacheScale(growParts);
             appliedT = -1f; // 强制下一次 ApplyVisual 生效
+        }
+
+        void InstallTreeVisual()
+        {
+            if (treeVisual != null) return;
+            GameObject visual = Instantiate(treeModel, transform, false);
+            visual.name = "Tree Art";
+            visual.transform.localPosition = Vector3.zero;
+            visual.transform.localRotation = Quaternion.identity;
+
+            Bounds bounds = default;
+            bool hasBounds = false;
+            foreach (Renderer renderer in visual.GetComponentsInChildren<Renderer>())
+            {
+                Bounds local = renderer.localBounds;
+                Matrix4x4 toTree = transform.worldToLocalMatrix * renderer.localToWorldMatrix;
+                for (int i = 0; i < 8; i++)
+                {
+                    Vector3 corner = local.center + Vector3.Scale(local.extents,
+                        new Vector3((i & 1) == 0 ? -1 : 1, (i & 2) == 0 ? -1 : 1, (i & 4) == 0 ? -1 : 1));
+                    Vector3 point = toTree.MultiplyPoint3x4(corner);
+                    if (hasBounds) bounds.Encapsulate(point);
+                    else { bounds = new Bounds(point, Vector3.zero); hasBounds = true; }
+                }
+            }
+            if (!hasBounds || bounds.size.y < 0.001f)
+            {
+                Destroy(visual);
+                return;
+            }
+
+            float scale = 2.5f / bounds.size.y;
+            visual.transform.localScale *= scale;
+            visual.transform.localPosition = -new Vector3(bounds.center.x, bounds.min.y, bounds.center.z) * scale;
+            foreach (Collider collider in visual.GetComponentsInChildren<Collider>(true)) collider.enabled = false;
+            foreach (Transform child in transform)
+                if (child != visual.transform) child.gameObject.SetActive(false);
+            treeVisual = visual;
         }
 
         static Vector3[] CacheScale(Transform[] arr)
@@ -96,6 +139,7 @@ namespace TrashPlanet.Whitebox
             t = Mathf.Clamp01(t);
             if (Mathf.Abs(t - appliedT) < 0.0005f) return;
             appliedT = t;
+            if (treeVisual != null) return;
 
             if (tintInst != null)
                 for (int i = 0; i < tintInst.Length; i++)

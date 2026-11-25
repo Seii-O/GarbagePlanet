@@ -54,7 +54,6 @@ namespace TrashPlanet.Whitebox
 
         WhiteboxState state;
         MonoBehaviour playerMovement;
-        PlayerFootsteps footsteps;   // 脚步音效（运行时补建，无需改场景）
         Vector3 lastPlayerPos;
         float saveTimer;
         bool paused;
@@ -76,6 +75,7 @@ namespace TrashPlanet.Whitebox
         public QuestChain Quest => quest;
         public EcoStage Eco => eco;
         public WhiteboxHud Hud => hud;
+        public ScavengerDialogue Dialogue { get; private set; }
         public GachaSystem Gacha => gacha;
         public ToolSystem Tool => tool;
         public PlayerLevelSystem PlayerLevel => playerLevel;
@@ -263,10 +263,11 @@ namespace TrashPlanet.Whitebox
             hud.Init(this);
             spawner.Init(this);
             interaction.Init(this);
+            Dialogue = GetComponent<ScavengerDialogue>();
+            if (Dialogue == null) Dialogue = gameObject.AddComponent<ScavengerDialogue>();
+            Dialogue.Init(this);
             dog.Init(this);
             // 脚步：只读玩家位移，不碰 PlayerController（在 PlanetCleaner 程序集里）
-            if (footsteps == null) footsteps = gameObject.AddComponent<PlayerFootsteps>();
-            footsteps.Init(this);
             stationSystem.Init(this);
             quest.Init(this);
             quest.Evaluate();
@@ -313,11 +314,16 @@ namespace TrashPlanet.Whitebox
             if (config == null || state == null) return;
 
             // 重开优先且独占本帧：命中后不再处理任何面板输入，避免场景卸载前又开/关一次面板。
-            if (Input.GetKeyDown(KeyCode.F5)) { Restart(); return; }
+            if (Input.GetKeyDown(KeyCode.F5))
+            {
+                GameAudio.Current?.PlayButton();
+                Restart();
+                return;
+            }
             // F9：打开局内存档面板（可选任意槽）；没有面板时退回"保存到当前激活槽"。
             if (Input.GetKeyDown(KeyCode.F9))
             {
-                if (inGameSave != null) ToggleInGameSave();
+                if (inGameSave != null) { ToggleInGameSave(); GameAudio.Current?.PlayButton(); }
                 else { WhiteboxState.Save(state); Notice(SaveSlotSystem.ActiveSlot > 0 ? "已存档" : "未选择存档槽"); }
             }
 
@@ -341,23 +347,26 @@ namespace TrashPlanet.Whitebox
             }
             if (bagKey)
             {
-                if (!state.finished && !paused && bag != null) ToggleBag();
+                if (!state.finished && !paused && bag != null) { ToggleBag(); GameAudio.Current?.PlayButton(); }
             }
             else if (tradeKey)
             {
-                if (!state.finished && !paused && coinTrade != null) ToggleCoinTrade();
+                if (!state.finished && !paused && coinTrade != null) { ToggleCoinTrade(); GameAudio.Current?.PlayButton(); }
             }
             else if (questLogKey)
             {
-                if (!paused && questLog != null) ToggleQuestLog();
+                if (!paused && questLog != null) { ToggleQuestLog(); GameAudio.Current?.PlayButton(); }
             }
             else if (stationKey)
             {
+                bool wasOpen = stationOpen;
                 ClosePanelsExcept(null);
                 ToggleStation();
+                if (stationOpen != wasOpen) GameAudio.Current?.PlayButton();
             }
             else if (pauseKey)
             {
+                GameAudio.Current?.PlayButton();
                 // ESC 逐层退出：先关最上层面板，都关完才暂停
                 if (settlementView != null && settlementView.IsOpen) DismissSettlement();
                 else if (bag != null && bag.IsOpen) bag.Close();
@@ -376,7 +385,7 @@ namespace TrashPlanet.Whitebox
             {
                 string toolId = heldTools.ToolIdAt(heldIndex);
                 // 同一个数字按第二次 = 收起（空手），再按 = 重新拿起：只切显示，不影响已装备加成
-                if (!string.IsNullOrEmpty(toolId)) tool.ToggleHeldTool(toolId);
+                if (!string.IsNullOrEmpty(toolId)) { tool.ToggleHeldTool(toolId); GameAudio.Current?.PlayButton(); }
             }
 
             float dt = Time.deltaTime;
@@ -514,13 +523,11 @@ namespace TrashPlanet.Whitebox
                 }
                 state.visitedStation = true; // 任务链第 4 步（QuestChain case 3）依赖，保持不变
                 stationOpen = true;
-                Sfx.Play(SfxId.UiOpen);
                 Notice("中转站已打开；后台加工/制造计时继续走");
             }
             else
             {
                 stationOpen = false; // 再按一次 M / ESC / 关闭按钮只关闭，不会重复打开
-                Sfx.Play(SfxId.UiClose);
                 if (stationSystem != null) stationSystem.ClearPending(); // 关面板即放弃待确认的批量操作
             }
             ApplyUiState();
@@ -553,9 +560,10 @@ namespace TrashPlanet.Whitebox
         {
             // C27：经验复用既有计数，世界事件后重算人物等级（纯计算，仅升级时落盘）
             if (playerLevel != null) playerLevel.Recalculate();
-            if (quest != null) quest.Evaluate();
             if (eco != null) eco.Refresh(true);
-            if (purification != null) purification.Refresh(); // 进度推进后即时回收净化区内垃圾、扩张边界
+            if (purification != null) purification.Refresh();
+            if (spawner != null) spawner.SyncPopulation();
+            if (quest != null) quest.Evaluate();
         }
 
         public void Notice(string text)

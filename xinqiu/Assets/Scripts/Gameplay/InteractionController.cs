@@ -108,6 +108,7 @@ namespace TrashPlanet.Whitebox
                 && Input.GetKeyDown(KeyCode.F))
             {
                 currentMachine.Interact();
+                if (game.Gacha != null && game.Gacha.IsOpen) GameAudio.Current?.PlayButton();
                 return; // 本帧交出控制权，等面板的 ApplyUiState 生效
             }
 
@@ -149,20 +150,21 @@ namespace TrashPlanet.Whitebox
 
             if (!target.Large)
             {
-                if (!state.CanCollect(cfg, cat)) { game.Notice("背包已满"); return; }
+                if (!state.CanCollect(cfg, cat)) { RejectPickup("背包已满"); return; }
                 int n = state.Collect(cfg, cat, 1); // NUM-001
-                if (n <= 0) { game.Notice("背包已满"); return; }
+                if (n <= 0) { RejectPickup("背包已满"); return; }
+                GameAudio.Current?.PlayPickup();
                 WorldPickupPopup.Show(target, game.ViewCamera, game.PlanetCenter, target.Category, n);
-                Sfx.Play(SfxId.Pickup);
                 game.Spawner.Despawn(target);
                 Clear();
                 game.OnWorldEvent();
+                game.Dialogue?.OnPlayerPickup(target.Category, false);
                 if (game.Gacha != null) game.Gacha.OnTrashSearched(target.Category); // 新增玩法：搜索垃圾堆发现隐藏款
                 return;
             }
 
             // 大型垃圾：容量不足时忽略点击，不改耐久（策划案 §6.2）
-            if (!state.CanCollect(cfg, cat)) { game.Notice("背包已满，无法拆解"); return; }
+            if (!state.CanCollect(cfg, cat)) { RejectPickup("背包已满，无法拆解"); return; }
             int left = target.Hit(damage);
             // 不再手动写黄条：Update 末尾的 SyncDurabilityBar 会读 target.Durability 同帧刷新。
             if (left > 0) return;
@@ -170,13 +172,14 @@ namespace TrashPlanet.Whitebox
             int yieldAmount = target.YieldAmount;
             if (tool != null) yieldAmount = tool.EffectiveYield(current.Category);
             int gain = state.Collect(cfg, cat, yieldAmount);
-            if (gain <= 0) { game.Notice("背包已满，无法拆解"); return; }
+            if (gain <= 0) { RejectPickup("背包已满，无法拆解"); return; }
+            GameAudio.Current?.PlayPickup();
             state.dismantled += 1;
             WorldPickupPopup.Show(target, game.ViewCamera, game.PlanetCenter, target.Category, gain);
-            Sfx.Play(SfxId.Pickup);
             game.Spawner.Despawn(target);
             Clear();
             game.OnWorldEvent();
+            game.Dialogue?.OnPlayerPickup(target.Category, true);
             if (game.Gacha != null) game.Gacha.OnTrashSearched(target.Category); // 新增玩法：搜索垃圾堆发现隐藏款
         }
 
@@ -192,6 +195,12 @@ namespace TrashPlanet.Whitebox
             currentMachine = machine;
             machineDistance = machine != null ? distance : 0f;
             if (currentMachine != null) currentMachine.SetHighlight(true);
+        }
+
+        void RejectPickup(string message)
+        {
+            game.Notice(message);
+            GameAudio.Current?.PlayBagFull();
         }
 
         void Clear()

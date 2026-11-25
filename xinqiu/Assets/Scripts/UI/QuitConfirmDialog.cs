@@ -52,6 +52,18 @@ namespace TrashPlanet.Whitebox
                 btnNo.onClick.RemoveAllListeners();
                 btnNo.onClick.AddListener(OnNo);
             }
+            Transform closeIcon = FindDeep(panel.transform, "返回游戏界面");
+            Image closeImage = closeIcon != null ? closeIcon.GetComponent<Image>() : null;
+            if (closeImage != null)
+            {
+                closeImage.raycastTarget = true;
+                Button close = closeIcon.GetComponent<Button>();
+                if (close == null) close = closeIcon.gameObject.AddComponent<Button>();
+                close.targetGraphic = closeImage;
+                close.onClick.RemoveListener(ResumeGame);
+                close.onClick.AddListener(ResumeGame);
+                closeIcon.SetAsLastSibling();
+            }
             panel.SetActive(false);
             bound = true;
             return true;
@@ -67,6 +79,14 @@ namespace TrashPlanet.Whitebox
         public void Close()
         {
             if (panel != null) panel.SetActive(false);
+        }
+
+        void ResumeGame()
+        {
+            Close();
+            if (Game == null) return;
+            if (Game.State != null && Game.State.finished) Game.DismissSettlement();
+            else Game.SetPaused(false);
         }
 
         void OnYes()

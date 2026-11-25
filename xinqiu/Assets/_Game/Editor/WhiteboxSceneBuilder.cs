@@ -171,7 +171,6 @@ namespace PlanetCleaner.EditorTools
             go.transform.position = new Vector3(0f, 0f, -4.4f);
             go.transform.rotation = Quaternion.identity;
 
-            go.AddComponent<AudioListener>();
             return cam;
         }
 

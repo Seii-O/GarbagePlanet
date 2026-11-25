@@ -40,9 +40,11 @@ namespace TrashPlanet.Whitebox
         bool bound;
         bool wasActive;
         int currentTab = -1;
+        readonly Outline[] processingFocus = new Outline[4];
 
         // Editor 构建脚本注入并序列化：美术拆件资源集 + 字体，供运行时兜底重建使用。
         [SerializeField] StationArtSet art;
+        public StationArtSet Art => art;
         [SerializeField] Font font;
 
         public bool IsOpen => panel != null && panel.activeSelf;
@@ -128,7 +130,9 @@ namespace TrashPlanet.Whitebox
             for (int i = 0; i < 3; i++) BindRecipe("Btn_Craft_" + i, i);
             BindClick("Btn_GoRepair", GoRepair);
             // 04 人物升级
-            BindClick("Btn_Upgrade", UpgradeTool);
+            BindPlayerUpgrade();
+            BindMaterialShortcut("Card_CostMat", "Txt_CostMatLabel", "金属零件", OpenMetalProcessing);
+            BindMaterialShortcut("Card_CostElec", "Txt_CostElecLabel", "电子元件", OpenElectronicProcessing);
 
             panel.SetActive(false);
             wasActive = false;
@@ -140,6 +144,8 @@ namespace TrashPlanet.Whitebox
         /// <summary>切页并同步页签选中态（真实 sprite + 文字颜色）。</summary>
         public void SelectTab(int index)
         {
+            foreach (Outline outline in processingFocus)
+                if (outline != null) outline.enabled = false;
             index = Mathf.Clamp(index, 0, TabCount - 1);
             currentTab = index;
             for (int i = 0; i < TabCount; i++)
@@ -171,6 +177,53 @@ namespace TrashPlanet.Whitebox
             }
         }
         const string PlayerLevelTabName = "人物升级";
+
+        void BindMaterialShortcut(string cardName, string labelName, string label,
+            UnityEngine.Events.UnityAction open)
+        {
+            Transform card = FindDeep(pages[3]?.transform, cardName);
+            Image background = card != null ? card.GetComponent<Image>() : null;
+            if (background == null) return;
+
+            background.raycastTarget = true;
+            Button button = card.GetComponent<Button>();
+            if (button == null) button = card.gameObject.AddComponent<Button>();
+            button.targetGraphic = background;
+            button.onClick.RemoveListener(open);
+            button.onClick.AddListener(open);
+            SetText(card, labelName, label + " ›");
+        }
+
+        void OpenMetalProcessing() => OpenMaterialProcessing(1 << 1);
+        void OpenElectronicProcessing() => OpenMaterialProcessing(1 << 3);
+
+        void OpenMaterialProcessing(int categories)
+        {
+            if (pages[1] == null) return;
+            SelectTab(1);
+
+            Button firstProcess = null;
+            for (int category = 0; category < processingFocus.Length; category++)
+            {
+                if ((categories & (1 << category)) == 0) continue;
+                Transform row = FindDeep(pages[1].transform, "Row_Proc_" + category);
+                Image background = row != null ? row.GetComponent<Image>() : null;
+                if (background != null)
+                {
+                    Outline outline = background.GetComponent<Outline>();
+                    if (outline == null) outline = background.gameObject.AddComponent<Outline>();
+                    outline.effectColor = new Color(0.17f, 0.66f, 0.60f, 1f);
+                    outline.effectDistance = new Vector2(3f, -3f);
+                    outline.useGraphicAlpha = false;
+                    outline.enabled = true;
+                    processingFocus[category] = outline;
+                }
+                if (firstProcess == null) firstProcess = FindButton(row, "Btn_Process_" + category);
+            }
+
+            if (firstProcess != null) firstProcess.Select();
+            RefreshValues();
+        }
 
         // ---------------- 动态数值刷新 ----------------
         void RefreshValues()
@@ -218,15 +271,19 @@ namespace TrashPlanet.Whitebox
                         input = st.PlannedInput(i);
                         batches = st.PlannedBatches(i);
                     }
+                    int runningBatches = st != null ? st.AllProcessingBatches(i) : 0;
+                    if (runningBatches > 0) { input = batch * runningBatches; batches = runningBatches; }
                     SetText(row, "Txt_Input_" + i, input.ToString());
-                    int gain = Mathf.Max(1, Mathf.FloorToInt(batch * (i == 2 ? 1f : 0.5f)));
+                    float ratio = cfg != null ? cfg.ConversionRate[i] : (i == 2 ? 1f : 0.5f);
+                    int gain = Mathf.Max(1, Mathf.FloorToInt(batch * ratio));
                     SetText(row, "Txt_ProductGain", "× " + (gain * Mathf.Max(0, batches)));
 
                     Image fill = FindImage(row, "Img_ProgFill");
-                    if (st != null && st.HasJob && st.JobCategory == i)
+                    if (st != null && st.HasJob && (st.JobCategory == i || runningBatches > 0))
                     {
                         if (fill != null) fill.fillAmount = st.JobProgress;
-                        SetText(row, "Txt_Prog", st.JobLabel + " " + st.JobLeft.ToString("0.0") + "s / " + st.JobTotal.ToString("0.0") + "s");
+                        string label = runningBatches > 0 ? "并行加工 " + runningBatches + " 批" : st.JobLabel;
+                        SetText(row, "Txt_Prog", label + " " + st.JobLeft.ToString("0.0") + "s / " + st.JobTotal.ToString("0.0") + "s");
                     }
                     else
                     {
@@ -257,12 +314,15 @@ namespace TrashPlanet.Whitebox
                         SetText(mr, "Txt_Mat", MaterialNames[idx[m]]);
                         SetText(mr, "Txt_Need", s.materials[idx[m]] + " / " + need[m]);
                     }
-                    bool enough = true;
-                    for (int m = 0; m < idx.Length; m++) if (s.materials[idx[m]] < need[m]) enough = false;
-                    if (recipe > 0 && !s.stationRepaired) enough = false;
-                    string label = st != null && st.HasJob ? "制作中" : (enough ? "开始制造" : "材料不足");
-                    SetButtonLabel(panel.transform, "Btn_Craft_" + i, label);
-                    SetButtonSprite("Btn_Craft_" + i, enough ? art?.btnPrimary : art?.btnDisabled);
+                    bool missing = MissingMaterials(s, i) != 0;
+                    bool locked = recipe > 0 && !s.stationRepaired;
+                    bool busy = st != null && st.HasJob;
+                    string label = missing ? "材料不足 · 去加工" : locked ? "需修复中转站" : busy ? "制作中" : "开始制造";
+                    string buttonName = "Btn_Craft_" + i;
+                    SetButtonLabel(panel.transform, buttonName, label);
+                    SetButtonSprite(buttonName, missing || (!locked && !busy) ? art?.btnPrimary : art?.btnDisabled);
+                    Button craftButton = FindButton(panel.transform, buttonName);
+                    if (craftButton != null) craftButton.interactable = missing || (!locked && !busy);
                     if (cfg != null)
                     {
                         Transform productCard = FindDeep(panel.transform, "Card_Product_" + i);
@@ -354,7 +414,9 @@ namespace TrashPlanet.Whitebox
                     SetText(panel.transform, "Txt_CostMat", "需 " + metal + " / 持有 " + s.materials[1]);
                     SetText(panel.transform, "Txt_CostElec", "需 " + elec + " / 持有 " + s.materials[3]);
                     SetText(panel.transform, "Txt_UpState", can ? "可升级" : "条件不足");
-                    SetText(panel.transform, "Txt_UpHint", can ? "点击下方按钮升级人物" : why);
+                    string unlock = lv == 1 && s.bagLevel < WhiteboxConfig.BagMaxLevel
+                        ? " · Lv.2 解锁背包 " + cfg.BackpackTotalCap(WhiteboxConfig.BagMaxLevel) + " 格" : "";
+                    SetText(panel.transform, "Txt_UpHint", (can ? "点击下方按钮升级人物" : why) + unlock);
                     SetText(panel.transform, "Txt_BottomLeft", "等级 Lv." + lv + " / Lv." + maxLv
                             + "　累计经验 " + s.playerExpTotal + " → " + cfg.PlayerLevelExpAt(lv + 1));
                     SetButtonLabel(panel.transform, "Btn_Upgrade", "升级到 Lv." + (lv + 1));
@@ -408,20 +470,49 @@ namespace TrashPlanet.Whitebox
         void ProcessAll()
         {
             if (game == null || game.StationLogic == null) return;
-            for (int i = 0; i < 4; i++) game.StationLogic.StartProcessAll(i);
+            game.StationLogic.StartProcessAllCategories();
         }
+        static int MissingMaterials(WhiteboxState state, int cardIndex)
+        {
+            int missing = 0;
+            int[] categories = CardMatIndex[cardIndex];
+            for (int i = 0; i < categories.Length; i++)
+                if (state.materials[categories[i]] < CardMatCost[cardIndex][i])
+                    missing |= 1 << categories[i];
+            return missing;
+        }
+
         void Craft(int cardIndex)
         {
-            if (game == null || game.StationLogic == null) return;
-            int recipe = CardToRecipe[Mathf.Clamp(cardIndex, 0, 2)];
+            if (game == null || game.State == null || game.StationLogic == null) return;
+            cardIndex = Mathf.Clamp(cardIndex, 0, CardToRecipe.Length - 1);
+            int missing = MissingMaterials(game.State, cardIndex);
+            if (missing != 0)
+            {
+                OpenMaterialProcessing(missing);
+                return;
+            }
+            int recipe = CardToRecipe[cardIndex];
             if (game.HasQuantityDialog) game.StationLogic.BeginCraft(recipe);
             else game.StationLogic.StartCraftAll(recipe);
         }
-        void UpgradeTool()
+        void BindPlayerUpgrade()
         {
-            // C27：升级按钮改为人物升级（经验达标 + 消耗金属/电子）
-            if (game != null && game.PlayerLevel != null) game.PlayerLevel.TryLevelUp();
-            else if (game != null && game.StationLogic != null) game.StationLogic.UpgradeTool();
+            Button button = FindButton(pages[3]?.transform, "Btn_Upgrade");
+            if (button == null) return;
+            // 旧场景保存的工具升级回调属于持久监听，RemoveListener 无法移除。
+            for (int i = 0; i < button.onClick.GetPersistentEventCount(); i++)
+                if (button.onClick.GetPersistentTarget(i) is WhiteboxUiActions
+                    && button.onClick.GetPersistentMethodName(i) == nameof(WhiteboxUiActions.UpgradeTool))
+                    button.onClick.SetPersistentListenerState(i, UnityEngine.Events.UnityEventCallState.Off);
+            button.onClick.RemoveListener(UpgradePlayer);
+            button.onClick.AddListener(UpgradePlayer);
+        }
+
+        void UpgradePlayer()
+        {
+            if (game != null && game.PlayerLevel != null && game.PlayerLevel.TryLevelUp())
+                RefreshValues();
         }
         void GoRepair()
         {
@@ -461,14 +552,14 @@ namespace TrashPlanet.Whitebox
             if (b == null) return;
             int idx = index;
             b.onClick.RemoveAllListeners();
-            b.onClick.AddListener(() => { Sfx.Play(SfxId.UiClick); SelectTab(idx); });
+            b.onClick.AddListener(() => { SelectTab(idx); });
         }
         void BindClick(string name, Action call)
         {
             Button b = FindButton(panel.transform, name);
             if (b == null) return;
             b.onClick.RemoveAllListeners();
-            b.onClick.AddListener(() => { Sfx.Play(SfxId.UiClick); call(); });
+            b.onClick.AddListener(() => { call(); });
         }
 
         /// <summary>
@@ -487,7 +578,7 @@ namespace TrashPlanet.Whitebox
                 Button b = all[i].GetComponent<Button>();
                 if (b == null) continue;
                 b.onClick.RemoveAllListeners();
-                b.onClick.AddListener(() => { Sfx.Play(SfxId.UiClick); call(); });
+                b.onClick.AddListener(() => { call(); });
                 hit++;
             }
             return hit;

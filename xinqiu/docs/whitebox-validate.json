@@ -2,11 +2,11 @@
   "unityVersion": "2022.3.62f3c1",
   "scene": "Assets/Scenes/WhiteboxPrototype.unity",
   "pass": false,
-  "checkCount": 73,
+  "checkCount": 74,
   "errorCount": 3,
   "checks": [
     "PASS 配置资产存在",
-    "PASS 全局垃圾总量 ≥ 地表并发上限（2000 ≥ 1000）",
+    "PASS 地表垃圾目标随净化阶段递减",
     "PASS 星球半径在可玩区间（8 m）",
     "PASS 人物等级经验阈值随等级递增（上限 Lv.5）",
     "PASS 人物等级加成随等级提升（拾取距离/效率）",
@@ -35,6 +35,7 @@
     "PASS ART-012 真模型不再被固定色覆盖（fixedMaterial 已清空）",
     "PASS ART-014 旧白膜图元已移除（避免与骨骼模型双份显示）",
     "PASS ART-011 真模型渲染高度不越红线（0.55 m）",
+    "PASS ART-014 小狗已接骨骼动画（Model 上挂 Animator + DogAnimator 状态机）",
     "PASS 中转站预制体存在",
     "PASS 地标预制体存在",
     "PASS 场景资产存在",
@@ -42,11 +43,11 @@
     "PASS 场景含 WhiteboxGame 装配根",
     "PASS 玩家第一人称双手保留（Hands / HandLeft / HandRight）",
     "PASS 装配引用齐全（配置/玩家/相机/地表/水/光/中转站）",
-    "PASS 刷新器绑定 7 个垃圾预制体",
+    "PASS 刷新器绑定基础垃圾预制体",
     "PASS 垃圾预制体引用无空项",
     "PASS 核心系统组件齐全",
     "PASS IMGUI 代理已绑定 Hierarchy uGUI 视图",
-    "INFO 星球场景半径 8 m，配置 8 m（不一致时运行期自动对齐）",
+    "INFO 星球场景半径 36.21 m，配置 8 m（不一致时运行期自动对齐）",
     "PASS Hierarchy 含可编辑 UI 根 UI_Whitebox",
     "PASS UI Canvas 为 Screen Space Overlay",
     "PASS UI 含 CanvasScaler / GraphicRaycaster",
@@ -80,8 +81,8 @@
     "PASS ART-012 狗固定色号一致（期望 #D8C3A0，实际 #D8C3A0）"
   ],
   "errors": [
-    "FAIL ART-014 小狗已接骨骼动画（Model 上挂 Animator + DogAnimator 状态机）",
     "FAIL 场景无缺失脚本组件（missing=4）",
+    "FAIL 刷新器绑定有机垃圾苹果核",
     "FAIL uGUI 视图引用绑定齐全"
   ]
 }

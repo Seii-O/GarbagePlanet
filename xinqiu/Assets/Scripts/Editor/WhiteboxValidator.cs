@@ -63,8 +63,9 @@ namespace TrashPlanet.Whitebox.Editor
             Check(cfg != null, "配置资产存在", errors, checks);
             if (cfg != null)
             {
-                Check(cfg.TotalTrashBudget >= cfg.MapTrashCap,
-                    "全局垃圾总量 ≥ 地表并发上限（" + cfg.TotalTrashBudget + " ≥ " + cfg.MapTrashCap + "）",
+                Check(cfg.SurfaceTrashTarget(0) >= cfg.SurfaceTrashTarget(1)
+                    && cfg.SurfaceTrashTarget(1) >= cfg.SurfaceTrashTarget(2),
+                    "地表垃圾目标随净化阶段递减",
                     errors, checks);
                 Check(cfg.PlanetRadius > 1f && cfg.PlanetRadius < 60f,
                     "星球半径在可玩区间（" + cfg.PlanetRadius + " m）", errors, checks);
@@ -174,8 +175,15 @@ namespace TrashPlanet.Whitebox.Editor
                           && game.Station != null,
                         "装配引用齐全（配置/玩家/相机/地表/水/光/中转站）", errors, checks);
                     Check(game.Spawner != null && game.Spawner.Prefabs != null
-                          && game.Spawner.Prefabs.Length == 7,
-                        "刷新器绑定 7 个垃圾预制体", errors, checks);
+                          && game.Spawner.Prefabs.Length >= 7,
+                        "刷新器绑定基础垃圾预制体", errors, checks);
+                    GameObject applePrefab = AssetDatabase.LoadAssetAtPath<GameObject>(
+                        "Assets/Prefabs/Whitebox/prop_trash_organic_apple.prefab");
+                    TrashItem apple = applePrefab != null ? applePrefab.GetComponent<TrashItem>() : null;
+                    Check(apple != null && apple.Category == TrashCategory.Organic && !apple.Large
+                          && game.Spawner != null && game.Spawner.Prefabs != null
+                          && System.Array.IndexOf(game.Spawner.Prefabs, apple) >= 0,
+                        "刷新器绑定有机垃圾苹果核", errors, checks);
                     bool allPrefabs = true;
                     if (game.Spawner != null && game.Spawner.Prefabs != null)
                         foreach (TrashItem t in game.Spawner.Prefabs) if (t == null) allPrefabs = false;

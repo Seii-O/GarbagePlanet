@@ -301,7 +301,10 @@ namespace TrashPlanet.Whitebox
             };
         }
 
-        string NameOf(string id)
+        public SkillBookDef FindBook(string id) => ToolConfigRef?.FindBook(id);
+        public int LearnedStacks(string id) => GameState != null ? GameState.UsedBookStacks(id) : 0;
+
+        public string NameOf(string id)
         {
             int matCat;
             if (IsMaterialItem(id, out matCat))

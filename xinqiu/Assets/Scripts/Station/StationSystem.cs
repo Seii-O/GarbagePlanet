@@ -18,7 +18,7 @@ namespace TrashPlanet.Whitebox
     /// 2. 点击加工/制造按钮不再直接执行 1 次，而是进入「待确认」状态（Begin*），
     ///    由数量选择弹窗（StationQuantityDialog）读 Max / 当前值，确认后调 ConfirmPending。
     ///    单次执行的旧入口 StartProcess / StartCraft 保留，IMGUI 回退与外部调用不受影响。
-    /// 3. 新增背包升级（50 → 100，共 2 级，15 金属零件）。
+    /// 3. 全部启动把四类库存合并为一个并行加工任务。
     /// [待拍板 C2/C3/C7] 转化比例、过滤器配方、升级消耗全部是可配置默认值，不是定稿。
     /// </summary>
     public sealed class StationSystem : MonoBehaviour
@@ -29,6 +29,7 @@ namespace TrashPlanet.Whitebox
         int jobCat = -1;      // 当前加工任务对应的垃圾类别（-1 = 制造 / 无类别），供进度条归属判断
         float jobLeft;
         float jobTotal = 1f;
+        int[] allProcessingBatches;
 
         StationAction pending = StationAction.None;
         int pendingIndex;
@@ -42,6 +43,8 @@ namespace TrashPlanet.Whitebox
         public float JobLeft => jobLeft;
         public float JobTotal => jobTotal;
         public float JobProgress => HasJob ? 1f - Mathf.Clamp01(jobLeft / jobTotal) : 0f;
+        public int AllProcessingBatches(int category) => HasJob && allProcessingBatches != null
+            ? allProcessingBatches[category] : 0;
 
         public static readonly string[] CategoryNames = { "塑料", "金属", "有机", "电子" };
         public static readonly string[] MaterialNames = { "再生塑料", "金属零件", "有机原料", "电子元件" };
@@ -78,6 +81,7 @@ namespace TrashPlanet.Whitebox
         {
             game = g;
             onDone = null;
+            allProcessingBatches = null;
             jobLabel = "";
             jobCat = -1;
             plannedInput = new[] { -1, -1, -1, -1 };
@@ -91,6 +95,7 @@ namespace TrashPlanet.Whitebox
             if (jobLeft > 0f) return;
             Action done = onDone;
             onDone = null;
+            allProcessingBatches = null;
             jobLabel = "";
             jobCat = -1;
             done?.Invoke();
@@ -134,7 +139,6 @@ namespace TrashPlanet.Whitebox
                 }
             }
             if (sum <= 0) { game.Notice("背包是空的"); return false; }
-            Sfx.Play(SfxId.Deposit);
             game.Notice("已投放 " + sum + " 件垃圾进中转站");
             game.Hud.ShowDeposit(game.Config.DepositSeconds);
             game.OnWorldEvent();
@@ -160,7 +164,6 @@ namespace TrashPlanet.Whitebox
                 s.bagItems[a] = 0;
                 s.bagItems[a + 1] = 0;
             }
-            Sfx.Play(SfxId.Deposit);
             game.Notice("已投放 " + n + " 件" + CategoryNames[cat] + "垃圾进中转站");
             game.Hud.ShowDeposit(game.Config.DepositSeconds);
             game.OnWorldEvent();
@@ -244,6 +247,42 @@ namespace TrashPlanet.Whitebox
         /// <summary>一键全部：直接把库存全部加工完。</summary>
         public bool StartProcessAll(int cat) => ExecuteProcess(cat, MaxProcessBatches(cat));
 
+        public bool StartProcessAllCategories()
+        {
+            if (game == null || game.Config == null || game.State == null) return false;
+            if (HasJob) { game.Notice("请等待当前加工或制造任务完成"); return false; }
+
+            var batches = new int[CategoryNames.Length];
+            float duration = 0f;
+            int categories = 0;
+            for (int cat = 0; cat < batches.Length; cat++)
+            {
+                batches[cat] = MaxProcessBatches(cat);
+                if (batches[cat] == 0) continue;
+                categories++;
+                duration = Mathf.Max(duration, ProcessDuration(cat, batches[cat]));
+            }
+            if (categories == 0)
+            {
+                game.Notice("没有足够加工一批的垃圾");
+                return false;
+            }
+
+            WhiteboxState state = game.State;
+            for (int cat = 0; cat < batches.Length; cat++)
+                state.raw[cat] -= ProcessInputPerBatch(cat) * batches[cat];
+
+            allProcessingBatches = batches;
+            StartJob("全部加工（" + categories + " 类）", duration, () =>
+            {
+                for (int cat = 0; cat < batches.Length; cat++)
+                    if (batches[cat] > 0) CompleteProcess(state, cat, batches[cat]);
+                if (game.Tool != null) game.Tool.UnlockCheck();
+                game.Notice("全部加工完成，材料已入库");
+            });
+            return true;
+        }
+
         public bool ExecuteProcess(int cat, int batches)
         {
             if (game == null || cat < 0 || cat > 3) return false;
@@ -264,27 +303,36 @@ namespace TrashPlanet.Whitebox
             }
 
             int n = Mathf.Clamp(batches, 1, max);
-            int consumed = batch * n;
-            int output = Mathf.Max(1, Mathf.FloorToInt(batch * cfg.ConversionRate[cat])) * n;
-            // 批量耗时：配置 batchFixedDuration 打开时固定为「一批的时长」，数量只影响消耗与产出
-            float seconds = cfg.BatchFixedDuration ? cfg.ProcessSeconds : cfg.ProcessSeconds * n;
-            if (game.Tool != null) seconds *= game.Tool.ProcessMultiplier(cat);
-
-            s.raw[cat] -= consumed;
-            Sfx.Play(SfxId.ProcessStart);
-            StartJob("加工" + CategoryNames[cat] + (n > 1 ? " ×" + n : ""), seconds, () =>
+            s.raw[cat] -= batch * n;
+            StartJob("加工" + CategoryNames[cat] + (n > 1 ? " ×" + n : ""), ProcessDuration(cat, n), () =>
             {
-                s.materials[cat] += output;
-                s.processed += consumed;
-                s.processedByCat[Mathf.Clamp(cat, 0, 3)] += n; // 专精解锁按本次批次次数累计
-                s.processedMask |= 1 << cat;
-                plannedInput[cat] = -1; // 加工完复位为「未初始化」，下次读取自动回到默认 1 批
+                int output = CompleteProcess(s, cat, n);
                 if (game.Tool != null) game.Tool.UnlockCheck();
-                Sfx.Play(SfxId.ProcessDone);
                 game.Notice("加工完成：+" + output + " " + MaterialNames[cat]
                             + (n > 1 ? "（" + n + " 批）" : ""));
             }, cat);
             return true;
+        }
+
+        int ProcessInputPerBatch(int category) => Mathf.Max(1, game.Config.MinProcessBatch[category]);
+
+        float ProcessDuration(int category, int batches)
+        {
+            WhiteboxConfig config = game.Config;
+            float seconds = config.ProcessSeconds * (config.BatchFixedDuration ? 1 : batches);
+            return game.Tool != null ? seconds * game.Tool.ProcessMultiplier(category) : seconds;
+        }
+
+        int CompleteProcess(WhiteboxState state, int category, int batches)
+        {
+            int batchSize = ProcessInputPerBatch(category);
+            int output = Mathf.Max(1, Mathf.FloorToInt(batchSize * game.Config.ConversionRate[category])) * batches;
+            state.materials[category] += output;
+            state.processed += batchSize * batches;
+            state.processedByCat[category] += batches;
+            state.processedMask |= 1 << category;
+            plannedInput[category] = -1;
+            return output;
         }
 
         // ---------------- ③ 制造：可执行次数 / 待确认 / 执行 ----------------
@@ -365,7 +413,6 @@ namespace TrashPlanet.Whitebox
             // 批量耗时：与数量无关，做多少件都只用一件的时长（batchFixedDuration = false 时才线性叠加）
             float craftSeconds = cfg.BatchFixedDuration ? cfg.CraftSeconds[recipe] : cfg.CraftSeconds[recipe] * n;
             if (game.Tool != null) craftSeconds *= game.Tool.CraftMultiplier(recipe);
-            Sfx.Play(SfxId.CraftStart);
             StartJob("制造" + RecipeNames[recipe] + (n > 1 ? " ×" + n : ""), craftSeconds, () =>
             {
                 s.crafted += n;
@@ -390,7 +437,6 @@ namespace TrashPlanet.Whitebox
                     s.waterProgress = WhiteboxState.AddProgress(cfg, s.waterProgress, n);
                     game.Eco.Refresh(true);
                 }
-                Sfx.Play(SfxId.CraftDone);
                 game.Notice("制造完成：" + RecipeNames[recipe] + (n > 1 ? " ×" + n : ""));
             });
             return true;
@@ -444,7 +490,6 @@ namespace TrashPlanet.Whitebox
             s.materials[1] -= metal;
             s.materials[3] -= elec;
             s.toolLevel += 1;
-            Sfx.Play(SfxId.Upgrade);
             game.Notice("工具升级到 Lv." + s.toolLevel + "，拾取范围 " + cfg.PickRange[s.toolLevel - 1] + " m");
             game.OnWorldEvent();
             return true;
@@ -481,7 +526,6 @@ namespace TrashPlanet.Whitebox
             if (cat != 1) s.materials[cat] -= materialCost;
             s.toolLevels[cat] = 2;
             string name = game.Tool != null ? game.Tool.SpecToolName(cat) : CategoryNames[cat] + "专精";
-            Sfx.Play(SfxId.Upgrade);
             game.Notice(name + " 升级到 Lv.2");
             WhiteboxState.Save(s);
             game.OnWorldEvent();
@@ -504,45 +548,6 @@ namespace TrashPlanet.Whitebox
                 ? (materialCost + metalCost) + " 金属零件"
                 : materialCost + " " + MaterialNames[cat] + " + " + metalCost + " 金属零件";
             return "⑥ 升级" + name + "（需 " + cost + "）";
-        }
-
-        /// <summary>背包升级：Lv.1（总 50）→ Lv.2（总 100），消耗 15 金属零件，满级后不再可升。</summary>
-        public bool UpgradeBackpack()
-        {
-            WhiteboxConfig cfg = game.Config;
-            WhiteboxState s = game.State;
-            if (!s.stationRepaired) { game.Notice("中转站尚未修复"); return false; }
-            if (s.bagLevel >= WhiteboxConfig.BagMaxLevel)
-            {
-                game.Notice("背包已满级 Lv." + s.bagLevel + "（总容量 " + cfg.BackpackTotalCap(s.bagLevel) + "）");
-                return false;
-            }
-            int cost = cfg.BackpackUpgradeMetalCost;
-            if (s.materials[1] < cost)
-            {
-                game.Notice("背包升级需要 " + cost + " 金属零件（现有 " + s.materials[1] + "）");
-                return false;
-            }
-            s.materials[1] -= cost;
-            s.bagLevel = Mathf.Min(WhiteboxConfig.BagMaxLevel, s.bagLevel + 1);
-            s.ClampBagToCap(cfg);
-            Sfx.Play(SfxId.Upgrade);
-            game.Notice("背包升级到 Lv." + s.bagLevel + "，总容量 " + cfg.BackpackTotalCap(s.bagLevel)
-                        + "，每类 " + CapsText(cfg, s.bagLevel));
-            game.OnWorldEvent();
-            return true;
-        }
-
-        /// <summary>中转站「⑤ 升级背包」按钮文案。</summary>
-        public string BagUpgradeText()
-        {
-            WhiteboxConfig cfg = game.Config;
-            WhiteboxState s = game.State;
-            if (s.bagLevel >= WhiteboxConfig.BagMaxLevel)
-                return "⑤ 背包已满级 Lv." + s.bagLevel + "（总容量 " + cfg.BackpackTotalCap(s.bagLevel) + "）";
-            return "⑤ 升级背包（总 " + cfg.BackpackTotalCap(s.bagLevel) + " → "
-                   + cfg.BackpackTotalCap(s.bagLevel + 1) + "，需 " + cfg.BackpackUpgradeMetalCost
-                   + " 金属零件 / 现有 " + s.materials[1] + "）";
         }
 
         // ---------------- 文案工具 ----------------

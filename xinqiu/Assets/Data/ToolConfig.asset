@@ -275,7 +275,7 @@ MonoBehaviour:
     gachaOnly: 0
     activeInPhaseA: 1
     overflowMaterialCat: 0
-    price: 120
+    price: 480
   - rewardId: book_handwork
     displayName: "\u719F\u624B\u5DE5"
     rarity: 1
@@ -287,7 +287,7 @@ MonoBehaviour:
     gachaOnly: 0
     activeInPhaseA: 1
     overflowMaterialCat: 0
-    price: 120
+    price: 480
   - rewardId: book_flow
     displayName: "\u4E00\u6C14\u54E6\u6210"
     rarity: 2
@@ -299,7 +299,7 @@ MonoBehaviour:
     gachaOnly: 0
     activeInPhaseA: 0
     overflowMaterialCat: 3
-    price: 260
+    price: 1000
   - rewardId: book_tireless
     displayName: "\u4E0D\u77E5\u75B2\u5026"
     rarity: 2
@@ -311,7 +311,7 @@ MonoBehaviour:
     gachaOnly: 0
     activeInPhaseA: 0
     overflowMaterialCat: 2
-    price: 260
+    price: 1400
   pools:
   - poolId: scrap
     enabled: 1

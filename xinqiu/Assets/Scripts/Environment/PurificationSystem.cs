@@ -16,8 +16,7 @@ namespace TrashPlanet.Whitebox
     ///
     /// 职责边界：
     /// - 只读 State 的进度，不写任何 land/water/gacha/任务字段；
-    /// - 通过 game.Purification 被 TrashSpawner（撒点排除 + 已存在垃圾回收）与
-    ///   QuestChain（最终步完成条件）读取，不改这两个系统的既有数值；
+    /// - TrashSpawner 优先在净化区外撒点，现有垃圾由拾取和拆解流程清理；
     /// - 边界标记（fx_purify_boundary）是纯视觉、运行时生成、无碰撞体、无 TrashItem。
     /// </summary>
     public sealed class PurificationSystem : MonoBehaviour
@@ -100,23 +99,21 @@ namespace TrashPlanet.Whitebox
             BuildRing();
             lastProgress = Progress;
             UpdateRing();
-            CullPurifiedTrash();
             if (FullyCovered) fullyNotified = true; // 读档已全净化：不重复弹通知
         }
 
-        /// <summary>进度或中转站位置变化后调用：回收已净化区内的旧垃圾、刷新边界环。</summary>
+        /// <summary>进度或中转站位置变化后刷新净化边界环。</summary>
         public void Refresh()
         {
             if (game == null) return;
             float p = Progress;
             if (Mathf.Abs(p - lastProgress) < 0.0005f) return;
             lastProgress = p;
-            CullPurifiedTrash();
             UpdateRing();
             if (FullyCovered && !fullyNotified)
             {
                 fullyNotified = true;
-                if (game.Hud != null) game.Notice("全星球已被净化土地覆盖！地表不再生成垃圾");
+                if (game.Hud != null) game.Notice("净化区已覆盖全星球，继续清理剩余垃圾");
             }
         }
 
@@ -154,20 +151,6 @@ namespace TrashPlanet.Whitebox
                 if (Vector3.Dot(cd.normalized, d) >= cosMax) return true;
             }
             return false;
-        }
-
-        /// <summary>净化区扩张时，把落在新净化区内的现存垃圾回收进池（无垃圾区域真正增大）。</summary>
-        void CullPurifiedTrash()
-        {
-            TrashSpawner sp = game != null ? game.Spawner : null;
-            if (sp == null) return;
-            var list = sp.Active;
-            for (int i = list.Count - 1; i >= 0; i--)
-            {
-                TrashItem t = list[i];
-                if (t == null || !t.gameObject.activeSelf) continue;
-                if (IsPurified(t.transform.position)) sp.Despawn(t);
-            }
         }
 
         // ------------------------------------------------------------------

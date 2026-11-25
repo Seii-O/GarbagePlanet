@@ -194,6 +194,7 @@ namespace TrashPlanet.Whitebox.Editor
             deco.Setup(SceneryDecorKind.DeadTree,
                 tintList.ToArray(), Fill(tintList.Count, TreeBarkDirty), Fill(tintList.Count, TreeBarkClean),
                 new Transform[0], crowns.ToArray(), new Transform[0], new Quaternion[0], new Quaternion[0]);
+            deco.SetTreeModel(AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Art/tree (2)/tree/tree.fbx"));
             return deco;
         }
 

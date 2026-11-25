@@ -16,25 +16,15 @@ MonoBehaviour:
   stageOneThreshold: 0.3
   stageTwoThreshold: 0.7
   mvpProgressTarget: 0.3
-  mapTrashCap: 1000
-  totalTrashBudget: 2000
-  initialTrashCount: 500
-  spawnInterval:
-  - 10
-  - 10
-  - 10
-  whiteboxSpawnTimeScale: 1
-  spawnBatchSize: 15
+  surfaceTrashTargets: b80b0000c4090000d0070000
   scatterMinSpacing: 0.4
   scatterPlayerClearance: 3.5
   scatterTiltDegrees: 5
   spawnPopSeconds: 0.45
   spawnSinkDepth: 0.55
-  spawnPopStagger: 0.06
   spawnStartScale: 0.55
   backpackCap: 0d0000000d0000000c0000000c000000
   backpackCapMax: 19000000190000001900000019000000
-  backpackUpgradeMetalCost: 15
   pickRange:
   - 4
   - 6
@@ -58,7 +48,7 @@ MonoBehaviour:
   magnetFirstHitBonus: 1
   purifierChargesMax: 2
   playerLevelMax: 5
-  playerLevelExp: 00000000190000004100000082000000e1000000
+  playerLevelExp: 000000002c0100002003000040060000f00a0000
   expPerCollect: 1
   expPerDismantle: 2
   expPerProcess: 2
