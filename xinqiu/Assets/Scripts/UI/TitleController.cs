@@ -57,6 +57,7 @@ namespace TrashPlanet.Whitebox
 
         void Start()
         {
+            ResolveVolumeSliders();
             if (sfxSlider != null)
                 sfxSlider.SetValueWithoutNotify(Mathf.Clamp01(PlayerPrefs.GetFloat(GameAudio.EffectsKey, 1f)));
             if (musicSlider != null)
@@ -70,35 +71,71 @@ namespace TrashPlanet.Whitebox
             Time.timeScale = 1f;
         }
 
+        /// <summary>
+        /// 把场景里"打开/关闭设置面板"的按钮统一接到本控制器。
+        /// 除了目标指向 GameSettingUI 的按钮，还要兜住编辑器里引用被误清空的
+        /// SetActive 按钮（持久化 target 为 null / fileID: 0）：否则按钮点了完全没反应。
+        /// </summary>
         void BindSettingsButtons()
         {
             GameObject settings = FindInScene("GameSettingUI");
             if (settings == null) return;
             foreach (GameObject root in gameObject.scene.GetRootGameObjects())
                 foreach (Button button in root.GetComponentsInChildren<Button>(true))
+                {
+                    bool settingsToggle = false;
                     for (int i = 0; i < button.onClick.GetPersistentEventCount(); i++)
                     {
-                        if (button.onClick.GetPersistentTarget(i) != settings
-                            || button.onClick.GetPersistentMethodName(i) != nameof(GameObject.SetActive)) continue;
+                        if (button.onClick.GetPersistentMethodName(i) != nameof(GameObject.SetActive)) continue;
+                        UnityEngine.Object target = button.onClick.GetPersistentTarget(i);
+                        // target 为 null = 场景引用丢失，也要接管，避免"点击无反应"
+                        if (target != null && target != settings) continue;
                         button.onClick.SetPersistentListenerState(i, UnityEngine.Events.UnityEventCallState.Off);
-                        if (button.transform.IsChildOf(settings.transform))
-                            button.onClick.AddListener(CloseSettings);
-                        else
-                            button.onClick.AddListener(OpenSettings);
+                        settingsToggle = true;
                         break;
+                    }
+                    if (!settingsToggle) continue;
+                    if (button.transform.IsChildOf(settings.transform))
+                        button.onClick.AddListener(CloseSettings);
+                    else
+                        button.onClick.AddListener(OpenSettings);
+                }
+        }
+
+        /// <summary>
+        /// TitleController 组件上的滑块引用可能被编辑器误清空（sfxSlider/musicSlider = None）。
+        /// 按 Slider.onValueChanged 上已接好的持久化回调把引用找回来，
+        /// 保证设置面板音量页签和音量恢复逻辑不失效。
+        /// </summary>
+        void ResolveVolumeSliders()
+        {
+            if (sfxSlider != null && musicSlider != null) return;
+            foreach (GameObject root in gameObject.scene.GetRootGameObjects())
+                foreach (Slider slider in root.GetComponentsInChildren<Slider>(true))
+                    for (int i = 0; i < slider.onValueChanged.GetPersistentEventCount(); i++)
+                    {
+                        string method = slider.onValueChanged.GetPersistentMethodName(i);
+                        if (method == nameof(SetSfxVolume)) sfxSlider = slider;
+                        else if (method == nameof(SetMusicVolume)) musicSlider = slider;
                     }
         }
 
         public void OpenSettings()
         {
             GameObject settings = FindInScene("GameSettingUI");
-            if (settings == null || !(settings.transform is RectTransform rect)) return;
+            if (settings == null)
+            {
+                Debug.LogWarning("[TitleController] 未找到 GameSettingUI，设置面板无法打开");
+                return;
+            }
+            if (!(settings.transform is RectTransform rect)) return;
             ConfigureTitleOverlay(rect, 110);
             // 旧标题场景里，外层与实际装饰、按钮所在的内容层可以分别失活。
             Transform content = rect.Find("GameObject");
             if (content != null) content.gameObject.SetActive(true);
             settings.SetActive(true);
             SetMainMenuInput(false);
+            Debug.Log("[TitleController] 已打开设置面板");
         }
 
         public void CloseSettings()

@@ -3351,7 +3351,7 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 0}
+      - m_Target: {fileID: 792132042}
         m_TargetAssemblyTypeName: UnityEngine.GameObject, UnityEngine
         m_MethodName: SetActive
         m_Mode: 6
@@ -5207,8 +5207,8 @@ MonoBehaviour:
   btnNewGame: {fileID: 217848671}
   btnContinue: {fileID: 1575209060}
   btnQuit: {fileID: 1104678658}
-  sfxSlider: {fileID: 0}
-  musicSlider: {fileID: 0}
+  sfxSlider: {fileID: 612447465}
+  musicSlider: {fileID: 66159240}
 --- !u!4 &2125799056
 Transform:
   m_ObjectHideFlags: 0
