@@ -322,7 +322,7 @@ namespace TrashPlanet.Whitebox.Editor
 
             // ⑨ 常驻提示文字
             Txt(r, "Txt_Hint",
-                "WASD 移动 · 鼠标看视角 · 左键拾取/拆解 · F 抽奖 · M 中转站 · G 垃圾背包 · I 工具背包 · B 交易 · J 任务日志 · Q 切专精 · F5 新局 · F9 存档 · ESC 暂停",
+                "WASD 移动 · 鼠标看视角 · 左键拾取/拆解 · F 抽奖 · M 中转站 · I 工具背包 · B 交易 · J 任务日志 · Q 切专精 · F5 新局 · F9 存档 · ESC 暂停",
                 new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(1500f, 30f),
                 new Vector2(0f, -14f), 15, TextColor, TextAnchor.MiddleCenter, font);
             Txt(r, "Txt_Notice", "", BottomLeft, BottomLeft, new Vector2(1000f, 30f),

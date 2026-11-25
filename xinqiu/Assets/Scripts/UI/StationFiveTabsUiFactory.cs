@@ -280,9 +280,9 @@ namespace TrashPlanet.Whitebox
                 Div(card, "Img_Div2", 20f, 442f, 415f, 2f, art);
                 Lbl(card, "Txt_OutLabel", "产出", 20f, 450f, 100f, 30f, 14, InkDim, TextAnchor.MiddleLeft, false, font);
                 Lbl(card, "Txt_Out", ProductNames[i] + " ×1 → 成品库存", 110f, 450f, 325f, 30f, 14, InkSoft, TextAnchor.MiddleRight, false, font);
-                Lbl(card, "Txt_Desc", i == 0 ? "埋入土壤后恢复肥力，提升 10% 土地修复速度"
+                Lbl(card, "Txt_Desc", i == 0 ? "埋入土壤后恢复肥力，提升土地修复进度"
                     : (i == 1 ? "中转站外壳的加固构件，用于修复中转站"
-                    : "滤除水体杂质与污染物，单次提升 10% 水质修复进度"),
+                    : "滤除水体杂质与污染物，提升水质修复进度"),
                     20f, 494f, 415f, 70f, 13, InkDim, TextAnchor.UpperLeft, false, font);
                 Btn(card, "Btn_Craft_" + i, i == 0 ? "材料不足" : "开始制造", 20f, 604f, 415f, 56f,
                     i == 0 ? art?.btnDisabled : art?.btnPrimary,

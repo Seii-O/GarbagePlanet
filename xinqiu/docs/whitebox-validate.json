@@ -1,9 +1,9 @@
 {
   "unityVersion": "2022.3.62f3c1",
   "scene": "Assets/Scenes/WhiteboxPrototype.unity",
-  "pass": true,
-  "checkCount": 79,
-  "errorCount": 0,
+  "pass": false,
+  "checkCount": 73,
+  "errorCount": 1,
   "checks": [
     "PASS 配置资产存在",
     "PASS 全局垃圾总量 ≥ 地表并发上限（2000 ≥ 1000）",
@@ -37,7 +37,6 @@
     "PASS 地标预制体存在",
     "PASS 场景资产存在",
     "PASS 场景已启用并写入构建列表",
-    "PASS 场景无缺失脚本组件（missing=0）",
     "PASS 场景含 WhiteboxGame 装配根",
     "PASS 玩家第一人称双手保留（Hands / HandLeft / HandRight）",
     "PASS 装配引用齐全（配置/玩家/相机/地表/水/光/中转站）",
@@ -60,12 +59,7 @@
     "PASS 弹窗含数量滑块 Slider",
     "PASS 弹窗含数字输入框 InputField",
     "PASS 中转站含 ⑤ 升级背包按钮",
-    "PASS 独立垃圾背包面板 Panel_GarbageBag 存在",
-    "PASS 垃圾背包含分类/单品卡片结构",
-    "PASS 垃圾背包视图 GarbageBagPanelView 已挂载",
-    "PASS 垃圾背包系统 GarbageBagSystem 已挂载",
-    "PASS 垃圾背包含单品卡与丢弃按钮",
-    "PASS 中转站含打开垃圾背包入口（G）",
+    "PASS 独立垃圾背包界面已移除",
     "PASS 五页签中转站面板 Panel_StationFiveTabs 存在",
     "PASS 五页签控制器 StationFiveTabsView 已挂载",
     "PASS 五页签含 5 个内容 Page（5/5）",
@@ -86,5 +80,6 @@
     "PASS ART-012 狗固定色号一致（期望 #D8C3A0，实际 #D8C3A0）"
   ],
   "errors": [
+    "FAIL 场景无缺失脚本组件（missing=4）"
   ]
 }

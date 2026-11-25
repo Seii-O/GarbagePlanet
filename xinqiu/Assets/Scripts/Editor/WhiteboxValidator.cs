@@ -238,20 +238,7 @@ namespace TrashPlanet.Whitebox.Editor
                 Check(stationPanel != null && stationPanel.transform.Find("Btn_BagUpgrade") != null,
                     "中转站含 ⑤ 升级背包按钮", errors, checks);
 
-                // BAG-003 / UI-006：独立垃圾背包面板、视图/系统接线、交互按钮与中转站入口
-                GameObject garbageBagPanel = uiRoot.transform.Find("Panel_GarbageBag")?.gameObject;
-                Check(garbageBagPanel != null, "独立垃圾背包面板 Panel_GarbageBag 存在", errors, checks);
-                Check(garbageBagPanel != null && garbageBagPanel.GetComponentsInChildren<Image>(true).Length >= 20,
-                    "垃圾背包含分类/单品卡片结构", errors, checks);
-                Check(uiRoot.GetComponent<GarbageBagPanelView>() != null,
-                    "垃圾背包视图 GarbageBagPanelView 已挂载", errors, checks);
-                Check(UnityEngine.Object.FindObjectOfType<GarbageBagSystem>() != null,
-                    "垃圾背包系统 GarbageBagSystem 已挂载", errors, checks);
-                Check(garbageBagPanel != null && garbageBagPanel.transform.Find("Card_GB_0") != null
-                      && garbageBagPanel.transform.Find("Card_GB_0/Card_GBItem_0/Btn_GBDiscard_0") != null,
-                    "垃圾背包含单品卡与丢弃按钮", errors, checks);
-                Check(stationPanel != null && stationPanel.transform.Find("Card_Bag/Btn_OpenGarbageBag") != null,
-                    "中转站含打开垃圾背包入口（G）", errors, checks);
+                Check(uiRoot.transform.Find("Panel_GarbageBag") == null, "独立垃圾背包界面已移除", errors, checks);
 
                 // UI-007：五页签中转站（真实 uGUI 控件：5 个内容 Page + 5 个具名页签按钮 + 控制器）
                 GameObject fiveTabPanel = FindDeep(uiRoot.transform, StationFiveTabsView.PanelName)?.gameObject;

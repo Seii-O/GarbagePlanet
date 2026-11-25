@@ -509,7 +509,7 @@ namespace TrashPlanet.Whitebox
             NormalizeGarbageBagItems();
         }
 
-        /// <summary>NUM-004：progress = min(1.0, p + items × 0.10)，负值钳到 0，溢出钳到 1。</summary>
+        /// <summary>NUM-004：按配置累加每件成品的修复进度，并将结果限制在 0–1。</summary>
         public static float AddProgress(WhiteboxConfig cfg, float current, int items)
         {
             return Mathf.Clamp01(Mathf.Max(0f, current) + Mathf.Max(0, items) * cfg.RepairPerItem);

@@ -94,7 +94,7 @@ namespace TrashPlanet.Whitebox
         [SerializeField, Tooltip("人物等级上限；每级加成见下列数组，数组长度不足时按最后一项取值")]
         int playerLevelMax = 5;
         [SerializeField, Tooltip("各级升级所需历史累计经验（索引=等级-1；到顶级用最后一项）")]
-        int[] playerLevelExp = { 0, 20, 55, 110, 190 };
+        int[] playerLevelExp = { 0, 25, 65, 130, 225 };
         [SerializeField, Tooltip("行为转经验的系数：拾取 / 拆解 / 加工 / 制造 / 修复阶段")]
         int expPerCollect = 1;
         [SerializeField] int expPerDismantle = 2;
@@ -120,7 +120,7 @@ namespace TrashPlanet.Whitebox
         [SerializeField] int[] minProcessBatch = { 2, 2, 1, 2 };
         [SerializeField] float processSeconds = 2.5f;     // 加工耗时减半：原 5f
         [SerializeField] float[] craftSeconds = { 2f, 1.25f, 3f };    // 建材板 / 肥料包 / 过滤器（两次减半：原 8/5/12 → 4/2.5/6 → 2/1.25/3）
-        [SerializeField] float repairPerItem = 0.10f;                  // NUM-004
+        [SerializeField] float repairPerItem = 0.08f;                  // NUM-004
         [SerializeField, Tooltip("批量加工/制造时耗时是否固定为「一件的时长」：勾上 = 数量只影响消耗与产出，不叠加时间")]
         bool batchFixedDuration = true;
         [SerializeField] int[] upgradeMetalCost = { 5, 10 };           // [待拍板 C7] 原值 ÷10

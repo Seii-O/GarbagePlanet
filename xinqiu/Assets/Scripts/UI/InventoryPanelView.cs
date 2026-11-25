@@ -236,7 +236,7 @@ namespace TrashPlanet.Whitebox
         {
             if (!Bind() || system == null) return;
             if (txtTitle != null) txtTitle.text = "技能书背包";
-            if (txtCapacity != null) txtCapacity.text = "格子 " + system.UsedSlots + " / " + system.Capacity + "　（装技能书 · 金币按 B 买书 · 垃圾按 G · I 关闭）";
+            if (txtCapacity != null) txtCapacity.text = "格子 " + system.UsedSlots + " / " + system.Capacity + "　（装技能书 · 金币按 B 买书 · I 关闭）";
             WhiteboxGame game = GetGame();
             for (int i = 0; i < SlotCount; i++)
             {

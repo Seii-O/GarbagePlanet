@@ -231,22 +231,9 @@ namespace TrashPlanet.Whitebox.Editor
             Lbl(status, "Txt_Repaired", "已修复: 否（先造 1 块再生建材板）  ·  背包 Lv.1/2（总 0/50）",
                 42f, 7f, PW - 48f - 54f, 28f, 15, TextSoft);
 
-            // ---------------- 卡片：垃圾背包入口（BAG-003 / UI-006：详情已搬去 G 独立面板） ----------------
-            // 这里只保留「总量 + 打开入口 + 投放按钮」，不再放 4 行明细；
-            // Txt_BagSum / Txt_Raw / Btn_Deposit 名字不变，StationBoardView 与 WhiteboxUiActions 照旧工作。
             RectTransform bag = Card(panel.transform, "Card_Bag", "Bag", 24f, CY, 496f, CH, "垃圾背包", "GARBAGE BAG");
             Lbl(bag, "Txt_BagScope", "只存垃圾/废弃物 · 工具背包 I · 金币交易 B", 18f, 68f, 460f, 24f, 13, TextDim);
             Lbl(bag, "Txt_BagSum", "0 / 50", 18f, 100f, 240f, 48f, 30, Amber, TextAnchor.MiddleLeft, true);
-            Lbl(bag, "Txt_BagEntryHint", "查看名称 / 图标 / 数量、整理、丢弃：按 G 打开独立面板",
-                18f, 152f, 460f, 42f, 13, TextSoft);
-
-            Button openBag = Btn(bag, "Btn_OpenGarbageBag", "打开垃圾背包 (G)", 18f, 198f, 460f, 48f,
-                Skin("bt_次按钮"), OnAccent, 16, TextAnchor.MiddleCenter, true);
-            if (openBag != null)
-            {
-                Image oi = openBag.GetComponent<Image>();
-                if (oi != null) oi.type = Image.Type.Sliced;
-            }
 
             Div(bag, "Img_RawLine", 18f, 268f, 460f, 1f);
             Lbl(bag, "Txt_Raw", "待加工垃圾  塑/金/有/电: 0/0/0/0", 18f, 280f, 460f, 24f, 14, TextDim);
@@ -594,7 +581,6 @@ namespace TrashPlanet.Whitebox.Editor
                 return;
             }
             Bind(panel, "Btn_Deposit", new UnityAction(a.DepositAll));
-            Bind(panel, "Btn_OpenGarbageBag", new UnityAction(a.OpenGarbageBag));
             for (int i = 0; i < 4; i++)
                 BindInt(panel, "Btn_Process_" + i, new UnityAction<int>(a.Process), i);
             for (int i = 0; i < 3; i++)

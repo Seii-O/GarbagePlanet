@@ -58,7 +58,7 @@ MonoBehaviour:
   magnetFirstHitBonus: 1
   purifierChargesMax: 2
   playerLevelMax: 5
-  playerLevelExp: 0000000014000000370000006e000000be000000
+  playerLevelExp: 00000000190000004100000082000000e1000000
   expPerCollect: 1
   expPerDismantle: 2
   expPerProcess: 2
@@ -98,7 +98,7 @@ MonoBehaviour:
   - 2
   - 1.25
   - 3
-  repairPerItem: 0.1
+  repairPerItem: 0.08
   batchFixedDuration: 1
   upgradeMetalCost: 050000000a000000
   upgradeElectronicCost: 060000000c000000
