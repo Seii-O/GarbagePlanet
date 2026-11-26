@@ -27,9 +27,10 @@ namespace TrashPlanet.Whitebox.Editor
             public Vector3 Euler;
             public float NaturalTilt;
             public float GroundContactDepth;
+            public bool PreserveSourceRootTransform;
 
             public Replacement(string prefab, string model, float size, Vector3 euler, float naturalTilt,
-                float groundContactDepth)
+                float groundContactDepth, bool preserveSourceRootTransform = false)
             {
                 Prefab = prefab;
                 Model = model;
@@ -37,6 +38,7 @@ namespace TrashPlanet.Whitebox.Editor
                 Euler = euler;
                 NaturalTilt = naturalTilt;
                 GroundContactDepth = groundContactDepth;
+                PreserveSourceRootTransform = preserveSourceRootTransform;
             }
         }
 
@@ -55,7 +57,7 @@ namespace TrashPlanet.Whitebox.Editor
             // Battery -> Electronic category.
             new Replacement("prop_trash_electronic_whitebox.prefab",
                 "Assets/Art/Garbage/电池/dc/dd.fbx", 0.16f,
-                new Vector3(0f, 0f, 90f), 2f, 0.04f),
+                new Vector3(0f, 0f, 90f), 2f, 0.04f, true),
 
             // A trash bag is predominantly plastic; this prefab is the large Plastic slot.
             new Replacement("prop_trash_large_tire_whitebox.prefab",
@@ -91,6 +93,26 @@ namespace TrashPlanet.Whitebox.Editor
             ReplaceTrashWhiteboxes();
         }
 
+        [MenuItem("Trash Planet/Art/Replace Battery Art Only")]
+        public static void ReplaceBatteryOnly()
+        {
+            Material outlineMaterial = AssetDatabase.LoadAssetAtPath<Material>(OutlineMaterial);
+            if (outlineMaterial == null)
+                throw new InvalidOperationException("Missing outline material: " + OutlineMaterial);
+
+            for (int i = 0; i < Replacements.Length; i++)
+            {
+                if (Replacements[i].Prefab != "prop_trash_electronic_whitebox.prefab") continue;
+                Replace(Replacements[i], outlineMaterial);
+                AssetDatabase.SaveAssets();
+                AssetDatabase.Refresh();
+                Debug.Log("[TrashArtReplacer] Restored the battery FBX source proportions.");
+                return;
+            }
+
+            throw new InvalidOperationException("Battery replacement entry is missing.");
+        }
+
         static void Replace(Replacement replacement, Material outlineMaterial)
         {
             string prefabPath = PrefabRoot + replacement.Prefab;
@@ -107,12 +129,21 @@ namespace TrashPlanet.Whitebox.Editor
                 if (oldOutline != null) UnityEngine.Object.DestroyImmediate(oldOutline.gameObject);
 
                 GameObject body = InstantiateVisual(modelAsset, root.transform, "Body", replacement);
-                Bounds bodyBounds = CalculateBounds(body);
+                Bounds bodyBounds = CalculateLocalBounds(body.transform);
                 BoxCollider collider = body.AddComponent<BoxCollider>();
-                collider.center = body.transform.InverseTransformPoint(bodyBounds.center);
-                collider.size = WorldSizeToLocal(body.transform, bodyBounds.size);
+                collider.center = bodyBounds.center;
+                collider.size = bodyBounds.size;
 
-                GameObject outline = TrashOutlineBuilder.BuildOutline(root.transform, body.transform, outlineMaterial, replacement.Prefab);
+                string outlineKey = Path.GetFileNameWithoutExtension(replacement.Prefab);
+                GameObject outline = TrashOutlineBuilder.BuildOutline(root.transform, body.transform, outlineMaterial, outlineKey);
+
+                // These art replacements are authored with uniform scale only. Keep the prefab root,
+                // visible mesh and its outline proportion-locked in the Inspector so an accidental
+                // single-axis edit cannot stretch the model. Runtime pop-in animation still works:
+                // it writes Vector3.one * scale and therefore remains a uniform resize.
+                SetConstrainProportions(root.transform);
+                SetConstrainProportions(body.transform);
+                SetConstrainProportions(outline.transform);
 
                 TrashItem item = root.GetComponent<TrashItem>();
                 SerializedObject serializedItem = new SerializedObject(item);
@@ -132,8 +163,28 @@ namespace TrashPlanet.Whitebox.Editor
 
         static GameObject InstantiateVisual(GameObject asset, Transform parent, string name, Replacement replacement)
         {
-            GameObject visual = UnityEngine.Object.Instantiate(asset, parent);
-            visual.name = name;
+            GameObject visual;
+            if (replacement.PreserveSourceRootTransform)
+            {
+                // The battery FBX stores its authored silhouette in the model root transform
+                // (Y is about 2.04 times X/Z). The old replacement discarded that transform and
+                // made the battery short and squat. Keep the imported transform on a child and use
+                // this outer container exclusively for uniform gameplay sizing.
+                visual = new GameObject(name);
+                visual.transform.SetParent(parent, false);
+
+                GameObject sourceModel = UnityEngine.Object.Instantiate(asset, visual.transform);
+                sourceModel.name = "Model";
+                sourceModel.transform.localPosition = asset.transform.localPosition;
+                sourceModel.transform.localRotation = asset.transform.localRotation;
+                sourceModel.transform.localScale = asset.transform.localScale;
+            }
+            else
+            {
+                visual = UnityEngine.Object.Instantiate(asset, parent);
+                visual.name = name;
+            }
+
             visual.transform.localPosition = Vector3.zero;
             visual.transform.localRotation = Quaternion.Euler(replacement.Euler);
             visual.transform.localScale = Vector3.one;
@@ -149,6 +200,16 @@ namespace TrashPlanet.Whitebox.Editor
             float localBottom = parent.InverseTransformPoint(new Vector3(bounds.center.x, bounds.min.y, bounds.center.z)).y;
             visual.transform.localPosition += new Vector3(-localCenter.x, -localBottom, -localCenter.z);
             return visual;
+        }
+
+        static void SetConstrainProportions(Transform target)
+        {
+            if (target == null) return;
+            SerializedObject serializedTransform = new SerializedObject(target);
+            SerializedProperty constrain = serializedTransform.FindProperty("m_ConstrainProportionsScale");
+            if (constrain == null) return;
+            constrain.boolValue = true;
+            serializedTransform.ApplyModifiedPropertiesWithoutUndo();
         }
 
         static void ReplaceLargeMetal(Material outlineMaterial)
@@ -480,6 +541,37 @@ namespace TrashPlanet.Whitebox.Editor
             Bounds bounds = renderers[0].bounds;
             for (int i = 1; i < renderers.Length; i++) bounds.Encapsulate(renderers[i].bounds);
             return bounds;
+        }
+
+        static Bounds CalculateLocalBounds(Transform root)
+        {
+            Renderer[] renderers = root.GetComponentsInChildren<Renderer>(true);
+            if (renderers.Length == 0) return new Bounds(Vector3.zero, Vector3.zero);
+
+            bool initialized = false;
+            Bounds result = default;
+            for (int i = 0; i < renderers.Length; i++)
+            {
+                Renderer renderer = renderers[i];
+                Bounds local = renderer.localBounds;
+                Vector3 min = local.min;
+                Vector3 max = local.max;
+                for (int x = 0; x < 2; x++)
+                for (int y = 0; y < 2; y++)
+                for (int z = 0; z < 2; z++)
+                {
+                    Vector3 corner = new Vector3(x == 0 ? min.x : max.x,
+                        y == 0 ? min.y : max.y, z == 0 ? min.z : max.z);
+                    Vector3 point = root.InverseTransformPoint(renderer.transform.TransformPoint(corner));
+                    if (!initialized)
+                    {
+                        result = new Bounds(point, Vector3.zero);
+                        initialized = true;
+                    }
+                    else result.Encapsulate(point);
+                }
+            }
+            return result;
         }
 
         static Vector3 WorldSizeToLocal(Transform transform, Vector3 worldSize)
