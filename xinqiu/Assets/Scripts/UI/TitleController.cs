@@ -34,6 +34,8 @@ namespace TrashPlanet.Whitebox
         [SerializeField] Button btnNewGame;
         [SerializeField] Button btnContinue;
         [SerializeField] Button btnQuit;
+        [SerializeField] Button btnSettings;
+        [SerializeField] GameObject settingsPanel;
         [SerializeField] Slider sfxSlider;
         [SerializeField] Slider musicSlider;
 
@@ -48,11 +50,13 @@ namespace TrashPlanet.Whitebox
         }
 
         /// <summary>供 Builder 注入按钮引用，不改场景 YAML。</summary>
-        public void Wire(Button newGame, Button cont, Button quit)
+        public void Wire(Button newGame, Button cont, Button quit, Button settings, GameObject panel)
         {
             btnNewGame = newGame;
             btnContinue = cont;
             btnQuit = quit;
+            btnSettings = settings;
+            settingsPanel = panel;
         }
 
         void Start()
@@ -78,11 +82,22 @@ namespace TrashPlanet.Whitebox
         /// </summary>
         void BindSettingsButtons()
         {
-            GameObject settings = FindInScene("GameSettingUI");
+            GameObject settings = ResolveSettingsPanel();
             if (settings == null) return;
+
+            // 正式接线后的齿轮按钮直接引用控制器；运行时监听仍作为旧场景/引用丢失兜底。
+            if (btnSettings != null)
+            {
+                DisableSetActiveListeners(btnSettings, settings);
+                btnSettings.onClick.RemoveListener(OpenSettings);
+                if (!HasPersistentOpenSettingsListener(btnSettings))
+                    btnSettings.onClick.AddListener(OpenSettings);
+            }
+
             foreach (GameObject root in gameObject.scene.GetRootGameObjects())
                 foreach (Button button in root.GetComponentsInChildren<Button>(true))
                 {
+                    if (button == btnSettings) continue;
                     bool settingsToggle = false;
                     for (int i = 0; i < button.onClick.GetPersistentEventCount(); i++)
                     {
@@ -100,6 +115,33 @@ namespace TrashPlanet.Whitebox
                     else
                         button.onClick.AddListener(OpenSettings);
                 }
+        }
+
+        static void DisableSetActiveListeners(Button button, GameObject settings)
+        {
+            for (int i = 0; i < button.onClick.GetPersistentEventCount(); i++)
+            {
+                if (button.onClick.GetPersistentMethodName(i) != nameof(GameObject.SetActive)) continue;
+                UnityEngine.Object target = button.onClick.GetPersistentTarget(i);
+                if (target == null || target == settings)
+                    button.onClick.SetPersistentListenerState(i, UnityEngine.Events.UnityEventCallState.Off);
+            }
+        }
+
+        bool HasPersistentOpenSettingsListener(Button button)
+        {
+            for (int i = 0; i < button.onClick.GetPersistentEventCount(); i++)
+                if (button.onClick.GetPersistentTarget(i) == this
+                    && button.onClick.GetPersistentMethodName(i) == nameof(OpenSettings))
+                    return true;
+            return false;
+        }
+
+        GameObject ResolveSettingsPanel()
+        {
+            if (settingsPanel != null && settingsPanel.scene == gameObject.scene) return settingsPanel;
+            settingsPanel = FindInScene("GameSettingUI");
+            return settingsPanel;
         }
 
         /// <summary>
@@ -122,7 +164,7 @@ namespace TrashPlanet.Whitebox
 
         public void OpenSettings()
         {
-            GameObject settings = FindInScene("GameSettingUI");
+            GameObject settings = ResolveSettingsPanel();
             if (settings == null)
             {
                 Debug.LogWarning("[TitleController] 未找到 GameSettingUI，设置面板无法打开");
@@ -140,14 +182,14 @@ namespace TrashPlanet.Whitebox
 
         public void CloseSettings()
         {
-            GameObject settings = FindInScene("GameSettingUI");
+            GameObject settings = ResolveSettingsPanel();
             if (settings != null) settings.SetActive(false);
             SetMainMenuInput(true);
         }
 
         void BuildSettingsTabs()
         {
-            GameObject settings = FindInScene("GameSettingUI");
+            GameObject settings = ResolveSettingsPanel();
             if (settings == null) return;
             RectTransform host = settings.transform.Find("GameObject") as RectTransform;
             if (host == null) host = (RectTransform)settings.transform;

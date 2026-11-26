@@ -192,6 +192,7 @@ namespace TrashPlanet.Whitebox
             scoutTimer = cfg.DogScoutHold;
             idleTimer = 0f;
             idleTriggered = true;              // 一次静止只触发一次，回位后不立刻重来
+            game.Dialogue?.OnDogScout();
         }
 
         /// <summary>按当前状态算根物体目标点；Follow/Return 在身后，Scout 在侧前方可见区。</summary>
@@ -300,9 +301,11 @@ namespace TrashPlanet.Whitebox
             }
             if (game.Spawner.LastTrashOnSurface || game.State.Collect(cfg, cat, 1) <= 0) return;
 
+            TrashCategory fetchedCategory = t.Category;
             game.Spawner.Despawn(t);
             game.Hud.FloatText("狗 +1");
             game.OnWorldEvent();
+            game.Dialogue?.OnDogFetch(fetchedCategory);
             cooldown = cfg.DogFetchCooldown[stage];
             pulseTimer = PulseDuration;
             wagBoost = 0.6f;

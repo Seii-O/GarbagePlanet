@@ -15,7 +15,7 @@ namespace TrashPlanet.Whitebox.Editor
     /// 红线：与 WhiteboxBuilder / InventoryBuilder 一致——全部用 Editor API 接线，不手写 .unity YAML。
     /// 用户手搭的按钮是默认命名（Button (Legacy)），靠按钮子 Text 的文字识别功能：
     ///   "开始新游戏" → StartNewGame；"继续游戏" → ContinueGame；"退出游戏" → QuitGame；
-    ///   "设置"等面板显隐按钮保留原 SetActive 不动。
+    ///   设置齿轮 → TitleController.OpenSettings（同时注入按钮与唯一 GameSettingUI 引用）。
     /// 可重复执行：绑定前清空目标按钮的持久事件，保证幂等。
     /// </summary>
     public static class TitleBuilder
@@ -65,6 +65,8 @@ namespace TrashPlanet.Whitebox.Editor
             var newGames = new List<Button>();
             var continues = new List<Button>();
             var quits = new List<Button>();
+            GameObject settingsPanel = FindByName(scene, "GameSettingUI");
+            Button settingsButton = null;
             var report = new List<string>();
             foreach (Button b in allButtons)
             {
@@ -72,7 +74,10 @@ namespace TrashPlanet.Whitebox.Editor
                 if (label.Contains("开始新游戏") || label == "开始游戏") newGames.Add(b);
                 else if (label.Contains("继续游戏")) continues.Add(b);
                 else if (label.Contains("退出游戏") || label == "退出") quits.Add(b);
-                // "设置" 等面板显隐按钮不动，保留用户原有的 SetActive 绑定
+                if (settingsButton == null && settingsPanel != null
+                    && !b.transform.IsChildOf(settingsPanel.transform)
+                    && HasSetActiveTarget(b, settingsPanel))
+                    settingsButton = b;
                 if (!string.IsNullOrEmpty(label)) report.Add(label + "→" + b.name);
             }
 
@@ -84,8 +89,10 @@ namespace TrashPlanet.Whitebox.Editor
             foreach (Button b in newGames) { Bind(b, startNew); bound++; }
             foreach (Button b in continues) { Bind(b, contGame); bound++; }
             foreach (Button b in quits) { Bind(b, quitGame); bound++; }
+            if (settingsButton != null) { Bind(settingsButton, ctrl.OpenSettings); bound++; }
 
-            ctrl.Wire(FirstOrNull(newGames), FirstOrNull(continues), FirstOrNull(quits));
+            ctrl.Wire(FirstOrNull(newGames), FirstOrNull(continues), FirstOrNull(quits),
+                settingsButton, settingsPanel);
 
             // 5) 保存
             EditorUtility.SetDirty(ctrl);
@@ -98,6 +105,15 @@ namespace TrashPlanet.Whitebox.Editor
         }
 
         static Button FirstOrNull(List<Button> list) => list.Count > 0 ? list[0] : null;
+
+        static bool HasSetActiveTarget(Button button, GameObject target)
+        {
+            for (int i = 0; i < button.onClick.GetPersistentEventCount(); i++)
+                if (button.onClick.GetPersistentMethodName(i) == nameof(GameObject.SetActive)
+                    && button.onClick.GetPersistentTarget(i) == target)
+                    return true;
+            return false;
+        }
 
         static string LabelOf(Button b)
         {

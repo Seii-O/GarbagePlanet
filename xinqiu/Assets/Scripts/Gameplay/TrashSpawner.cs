@@ -134,6 +134,10 @@ namespace TrashPlanet.Whitebox
         {
             WhiteboxConfig cfg = game.Config;
             if (cfg == null) return;
+            // 首次铺场按“使用次数最少的同类外观”随机挑选：既保留随机顺序，
+            // 又保证苹果、枯枝等同类美术在数量足够时都会出现在场景里。
+            // 后续补刷不传此表，仍为完全随机。
+            Dictionary<int, int> initialPrefabUses = initial ? new Dictionary<int, int>() : null;
             BuildOccupied();
             while (active.Count < target)
             {
@@ -141,7 +145,7 @@ namespace TrashPlanet.Whitebox
                 int r = i % 45;
                 int cat = r < 15 ? 0 : (r < 27 ? 1 : (r < 39 ? 2 : 3));
                 TrashCategory category = initial ? (TrashCategory)cat : PickRandomCategory();
-                int index = PickPrefabForCategory(category, initial && i % 6 == 5);
+                int index = PickPrefabForCategory(category, initial && i % 6 == 5, initialPrefabUses);
                 if (!TryScatter(cfg, out Vector3 direction)) break;
                 TrashItem item = initial ? Spawn(index, direction) : SpawnAnimated(index, direction, 0f);
                 if (item == null) break;
@@ -232,7 +236,8 @@ namespace TrashPlanet.Whitebox
         /// 这样 Garbage 目录新增的瓶子、苹果、轮胎等外观可以进入刷新池，
         /// 又不会因为预制体数组下标变化而被结算到错误类别。
         /// </summary>
-        int PickPrefabForCategory(TrashCategory category, bool preferLarge)
+        int PickPrefabForCategory(TrashCategory category, bool preferLarge,
+            Dictionary<int, int> initialUseCounts = null)
         {
             if (prefabs == null || prefabs.Length == 0) return -1;
             var matches = new List<int>();
@@ -252,7 +257,28 @@ namespace TrashPlanet.Whitebox
                     if (candidate != null && candidate.Category == category) matches.Add(i);
                 }
             }
-            return matches.Count > 0 ? matches[Random.Range(0, matches.Count)] : -1;
+            if (matches.Count == 0) return -1;
+            if (initialUseCounts == null) return matches[Random.Range(0, matches.Count)];
+
+            int minimumUses = int.MaxValue;
+            for (int i = 0; i < matches.Count; i++)
+            {
+                int uses = initialUseCounts.TryGetValue(matches[i], out int value) ? value : 0;
+                if (uses < minimumUses) minimumUses = uses;
+            }
+
+            // 在当前使用次数最少的候选中随机，避免固定的 ABAB 顺序。
+            int selected = matches[0];
+            int tied = 0;
+            for (int i = 0; i < matches.Count; i++)
+            {
+                int uses = initialUseCounts.TryGetValue(matches[i], out int value) ? value : 0;
+                if (uses != minimumUses) continue;
+                tied++;
+                if (Random.Range(0, tied) == 0) selected = matches[i];
+            }
+            initialUseCounts[selected] = minimumUses + 1;
+            return selected;
         }
 
         /// <summary>

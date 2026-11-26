@@ -42,8 +42,8 @@
     "PASS 场景已启用并写入构建列表",
     "PASS 场景含 WhiteboxGame 装配根",
     "PASS 玩家第一人称双手保留（Hands / HandLeft / HandRight）",
-    "PASS 装配引用齐全（配置/玩家/相机/地表/水/光/中转站）",
     "PASS 刷新器绑定基础垃圾预制体",
+    "PASS 刷新器绑定有机垃圾苹果核",
     "PASS 垃圾预制体引用无空项",
     "PASS 核心系统组件齐全",
     "PASS IMGUI 代理已绑定 Hierarchy uGUI 视图",
@@ -82,7 +82,7 @@
   ],
   "errors": [
     "FAIL 场景无缺失脚本组件（missing=4）",
-    "FAIL 刷新器绑定有机垃圾苹果核",
+    "FAIL 装配引用齐全（配置/玩家/相机/地表/水/光/中转站）",
     "FAIL uGUI 视图引用绑定齐全"
   ]
 }

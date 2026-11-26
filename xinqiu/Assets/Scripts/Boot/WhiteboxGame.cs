@@ -89,7 +89,9 @@ namespace TrashPlanet.Whitebox
         public ToolViewModel HeldTools => heldTools;
         public bool IsPaused => paused;
         public bool StationOpen => stationOpen;
-        public bool IsUiBlocking => paused || stationOpen || (gacha != null && gacha.IsOpen)
+        public bool IsUiBlocking => paused || stationOpen
+                                    || (Dialogue != null && Dialogue.IsIntroPlaying)
+                                    || (gacha != null && gacha.IsOpen)
                                     || (bag != null && bag.IsOpen)
                                     || (coinTrade != null && coinTrade.IsOpen)
                                     || (inGameSave != null && inGameSave.IsOpen)

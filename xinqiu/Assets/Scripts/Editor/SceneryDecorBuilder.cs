@@ -26,6 +26,11 @@ namespace TrashPlanet.Whitebox.Editor
         const string WorldRoot = "WorldRoot";
         const string Tag = "[SceneryDecorBuilder] ";
         const string MaterialFolder = "Assets/Art/Materials";
+        // 树源 FBX 内含 a/b/c 三棵；正式场景只使用 a，并保存为单独预制体。
+        const string ArtTreeSource = "Assets/Art/tree (2)/tree/tree.fbx";
+        const string ArtTreeChild = "fir_sapling_medium_a_LOD0";
+        const string ArtTreePrefab = "Assets/Art/Generated/PF_DecorTree_Single.prefab";
+        const string ArtTrashMountain = "Assets/Art/lajishan/lajishan.fbx";
 
         // 生成方向：避开 中转站(forward)/水塘(left)/四象限地标(right,back,left,forward)/玩家(up)/狗(up 邻域)。
         // 全部归一化后交给 SphericalSurface.Place，半径由配置决定，不写死。
@@ -60,6 +65,13 @@ namespace TrashPlanet.Whitebox.Editor
         const float PoolVisualScale = 1.6f;
         const float MoundVisualScale = 1.6f;
 
+        // 美术归一化目标（root 本地单位，root 自己再乘 MoundVisualScale）：高度上限 / 水平最大边。
+        // 垃圾山取「贴着绿丘」的一坨：宽度跟绿丘（1.7）相当，高度略高于绿丘（0.85）留出堆尖。
+        const float TreeArtWidth = 3.5f;
+        const float TreeArtHeight = 2.5f;
+        const float MoundArtWidth = 1.9f;
+        const float MoundArtHeight = 1.35f;
+
         static readonly Color TreeBarkDirty = new Color(0.28f, 0.24f, 0.19f);
         static readonly Color TreeBarkClean = new Color(0.42f, 0.38f, 0.26f);
         static readonly Color BoardDirty = new Color(0.46f, 0.42f, 0.33f);
@@ -81,6 +93,99 @@ namespace TrashPlanet.Whitebox.Editor
                 return;
             }
             BuildInScene(scene);
+        }
+
+        /// <summary>
+        /// 只给「场景里已有的装饰」补挂美术模型，不删除、不重建、不动位置。
+        /// 给已经在白膜场景里调过位置的情况用：⑯ 会整批重建装饰，本菜单只写模型引用。
+        /// 枯树 → tree.fbx，垃圾山 → lajishan.fbx；美术在 Play 时由 SceneryDecor.Init 实例化。
+        /// </summary>
+        [MenuItem("Tools/垃圾星球白膜/⑯b 装饰补挂美术（垃圾山→lajishan，不重建）", false, 22)]
+        public static void AttachArt()
+        {
+            Scene scene = SceneManager.GetActiveScene();
+            if (!scene.IsValid() || scene.path != WhiteboxBuilder.ScenePath)
+            {
+                Debug.LogWarning(Tag + "请打开 WhiteboxPrototype.unity 再执行本菜单");
+                return;
+            }
+
+            GameObject tree = EnsureSingleTreePrefab();
+            GameObject mountain = AssetDatabase.LoadAssetAtPath<GameObject>(ArtTrashMountain);
+            if (tree == null) Debug.LogWarning(Tag + "无法生成单棵树预制体 " + ArtTreePrefab);
+            if (mountain == null) Debug.LogError(Tag + "找不到 " + ArtTrashMountain + "，垃圾山无法换美术");
+
+            int trees = 0, mounds = 0, skipped = 0;
+            SceneryDecor[] decors = Object.FindObjectsByType<SceneryDecor>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            foreach (SceneryDecor deco in decors)
+            {
+                GameObject model = null;
+                float width = 0f, height = 0f;
+                if (deco.Kind == SceneryDecorKind.DeadTree && tree != null)
+                {
+                    model = tree; width = TreeArtWidth; height = TreeArtHeight;
+                }
+                else if (deco.Kind == SceneryDecorKind.TrashMountain && mountain != null)
+                {
+                    model = mountain; width = MoundArtWidth; height = MoundArtHeight;
+                }
+                else
+                {
+                    skipped++;
+                    continue;
+                }
+
+                var so = new SerializedObject(deco);
+                so.FindProperty("artModel").objectReferenceValue = model;
+                so.FindProperty("artFitWidth").floatValue = width;
+                so.FindProperty("artFitHeight").floatValue = height;
+                so.ApplyModifiedPropertiesWithoutUndo();
+                EditorUtility.SetDirty(deco);
+
+                if (deco.Kind == SceneryDecorKind.DeadTree) trees++;
+                else mounds++;
+
+                Debug.Log(Tag + deco.name + " ← " + AssetDatabase.GetAssetPath(model));
+            }
+
+            EditorSceneManager.MarkSceneDirty(scene);
+            EditorSceneManager.SaveScene(scene);
+            AssetDatabase.SaveAssets();
+            Debug.Log(Tag + "补挂美术完成：枯树 " + trees + " 处，垃圾山 " + mounds + " 处，跳过 "
+                      + skipped + " 处（广告牌 / 水塘暂不用美术模型），场景已保存。按 Play 看效果。");
+        }
+
+        /// <summary>从三棵一组的 FBX 中抽出 a 树，生成独立预制体并替换场景中全部枯树。</summary>
+        [MenuItem("Tools/垃圾星球白膜/⑯c 用单棵美术树替换全部树", false, 23)]
+        public static void ReplaceTreesWithSingleArt()
+        {
+            Scene scene = SceneManager.GetActiveScene();
+            if (!scene.IsValid() || scene.path != WhiteboxBuilder.ScenePath)
+            {
+                Debug.LogWarning(Tag + "请打开 WhiteboxPrototype.unity 再执行本菜单");
+                return;
+            }
+
+            GameObject tree = EnsureSingleTreePrefab();
+            if (tree == null) return;
+
+            int replaced = 0;
+            SceneryDecor[] decors = Object.FindObjectsByType<SceneryDecor>(
+                FindObjectsInactive.Include, FindObjectsSortMode.None);
+            foreach (SceneryDecor deco in decors)
+            {
+                if (deco == null || deco.Kind != SceneryDecorKind.DeadTree) continue;
+                deco.SetArtModel(tree, TreeArtWidth, TreeArtHeight);
+                InstallEditorArt(deco, tree);
+                EditorUtility.SetDirty(deco);
+                replaced++;
+            }
+
+            EditorSceneManager.MarkSceneDirty(scene);
+            EditorSceneManager.SaveScene(scene);
+            AssetDatabase.SaveAssets();
+            Debug.Log(Tag + "单棵树替换完成：预制体=" + ArtTreePrefab + "，场景树=" + replaced
+                      + "；编辑态已预摆，Play 时由 SceneryDecor 接管，不会重复实例化。");
         }
 
         /// <summary>批处理入口：打开白膜场景生成并保存，供命令行验证。</summary>
@@ -194,7 +299,7 @@ namespace TrashPlanet.Whitebox.Editor
             deco.Setup(SceneryDecorKind.DeadTree,
                 tintList.ToArray(), Fill(tintList.Count, TreeBarkDirty), Fill(tintList.Count, TreeBarkClean),
                 new Transform[0], crowns.ToArray(), new Transform[0], new Quaternion[0], new Quaternion[0]);
-            deco.SetTreeModel(AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Art/tree (2)/tree/tree.fbx"));
+            deco.SetArtModel(EnsureSingleTreePrefab(), TreeArtWidth, TreeArtHeight);
             return deco;
         }
 
@@ -309,6 +414,8 @@ namespace TrashPlanet.Whitebox.Editor
             deco.Setup(SceneryDecorKind.TrashMountain,
                 junkRenderers.ToArray(), Fill(junkRenderers.Count, JunkDirty), Fill(junkRenderers.Count, JunkClean),
                 junkBlocks.ToArray(), grows.ToArray(), new Transform[0], new Quaternion[0], new Quaternion[0]);
+            // 垃圾山美术：lajishan.fbx 当「垃圾堆」用，替换上面的白膜方块堆（缺失则继续用方块堆）
+            deco.SetArtModel(AssetDatabase.LoadAssetAtPath<GameObject>(ArtTrashMountain), MoundArtWidth, MoundArtHeight);
             return deco;
         }
 
@@ -361,6 +468,52 @@ namespace TrashPlanet.Whitebox.Editor
             var a = new Color[n];
             for (int i = 0; i < n; i++) a[i] = c;
             return a;
+        }
+
+        static GameObject EnsureSingleTreePrefab()
+        {
+            GameObject source = AssetDatabase.LoadAssetAtPath<GameObject>(ArtTreeSource);
+            if (source == null)
+            {
+                Debug.LogError(Tag + "树源模型不存在：" + ArtTreeSource);
+                return null;
+            }
+            Transform chosen = source.transform.Find(ArtTreeChild);
+            if (chosen == null)
+            {
+                Debug.LogError(Tag + "树源模型缺少子节点 " + ArtTreeChild);
+                return null;
+            }
+
+            const string folder = "Assets/Art/Generated";
+            if (!AssetDatabase.IsValidFolder(folder)) AssetDatabase.CreateFolder("Assets/Art", "Generated");
+
+            GameObject root = new GameObject("PF_DecorTree_Single");
+            GameObject single = Object.Instantiate(chosen.gameObject, root.transform, false);
+            single.name = "Tree";
+            single.transform.localPosition = Vector3.zero;
+            foreach (Collider collider in root.GetComponentsInChildren<Collider>(true))
+                Object.DestroyImmediate(collider);
+
+            PrefabUtility.SaveAsPrefabAsset(root, ArtTreePrefab);
+            Object.DestroyImmediate(root);
+            AssetDatabase.SaveAssets();
+            return AssetDatabase.LoadAssetAtPath<GameObject>(ArtTreePrefab);
+        }
+
+        static void InstallEditorArt(SceneryDecor deco, GameObject prefab)
+        {
+            Transform old = deco.transform.Find(SceneryDecor.ArtVisualName);
+            if (old != null) Object.DestroyImmediate(old.gameObject);
+
+            GameObject visual = PrefabUtility.InstantiatePrefab(prefab, deco.transform) as GameObject;
+            if (visual == null) return;
+            visual.name = SceneryDecor.ArtVisualName;
+            SceneryDecor.FitArt(visual, deco.transform, TreeArtWidth, TreeArtHeight);
+            foreach (Collider collider in visual.GetComponentsInChildren<Collider>(true))
+                collider.enabled = false;
+            foreach (Transform child in deco.transform)
+                if (child != visual.transform) child.gameObject.SetActive(false);
         }
     }
 }

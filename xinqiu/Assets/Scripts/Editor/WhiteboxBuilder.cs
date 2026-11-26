@@ -29,6 +29,7 @@ namespace TrashPlanet.Whitebox.Editor
         public const string ConfigPath = "Assets/Data/WhiteboxConfig.asset";
         const string MaterialFolder = "Assets/Art/Materials";
         const string PrefabFolder = "Assets/Prefabs/Whitebox";
+        const string OrganicApplePrefabPath = PrefabFolder + "/prop_trash_organic_apple.prefab";
         const string SessionKey = "TrashPlanet.Whitebox.AutoBuilt.v2";
         const string LogTag = "[WhiteboxBuilder] ";
 
@@ -111,6 +112,53 @@ namespace TrashPlanet.Whitebox.Editor
                 return;
             }
             EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
+        }
+
+        [MenuItem("Tools/垃圾星球白膜/②b 同步垃圾随机美术库（当前场景）", false, 11)]
+        public static void SyncTrashArtLibraryInCurrentScene()
+        {
+            if (EditorApplication.isPlayingOrWillChangePlaymode)
+            {
+                Debug.LogWarning(LogTag + "请退出 Play 模式后再同步垃圾随机美术库");
+                return;
+            }
+
+            TrashItem apple = AssetDatabase.LoadAssetAtPath<GameObject>(OrganicApplePrefabPath)
+                ?.GetComponent<TrashItem>();
+            if (apple == null)
+            {
+                Debug.LogError(LogTag + "缺少有机垃圾苹果预制体：" + OrganicApplePrefabPath);
+                return;
+            }
+
+            Scene scene = SceneManager.GetActiveScene();
+            int changed = 0;
+            GameObject[] roots = scene.GetRootGameObjects();
+            for (int r = 0; r < roots.Length; r++)
+            {
+                TrashSpawner[] spawners = roots[r].GetComponentsInChildren<TrashSpawner>(true);
+                for (int s = 0; s < spawners.Length; s++)
+                {
+                    TrashSpawner spawner = spawners[s];
+                    TrashItem[] current = spawner.Prefabs ?? Array.Empty<TrashItem>();
+                    if (Array.IndexOf(current, apple) >= 0) continue;
+
+                    Undo.RecordObject(spawner, "Add apple to organic trash art library");
+                    Array.Resize(ref current, current.Length + 1);
+                    current[current.Length - 1] = apple;
+                    spawner.Prefabs = current;
+                    EditorUtility.SetDirty(spawner);
+                    changed++;
+                }
+            }
+
+            if (changed > 0)
+            {
+                EditorSceneManager.MarkSceneDirty(scene);
+                EditorSceneManager.SaveScene(scene);
+            }
+            Debug.Log(LogTag + "垃圾随机美术库同步完成：场景=" + scene.path
+                + "，新增苹果引用的刷新器=" + changed);
         }
 
         /// <summary>批处理入口：显式设置退出码，供 CI / 命令行复现。</summary>
@@ -317,8 +365,8 @@ namespace TrashPlanet.Whitebox.Editor
                 result[i] = prefab != null ? prefab.GetComponent<TrashItem>() : null;
                 if (result[i] == null) Debug.LogWarning(LogTag + "垃圾预制体缺少 TrashItem：" + name);
             }
-            TrashItem apple = AssetDatabase.LoadAssetAtPath<GameObject>(
-                PrefabFolder + "/prop_trash_organic_apple.prefab")?.GetComponent<TrashItem>();
+            TrashItem apple = AssetDatabase.LoadAssetAtPath<GameObject>(OrganicApplePrefabPath)
+                ?.GetComponent<TrashItem>();
             if (apple != null)
             {
                 Array.Resize(ref result, result.Length + 1);

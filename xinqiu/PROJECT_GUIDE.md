@@ -96,7 +96,7 @@
 | `QuestChain` | Station | 十步任务链判定与结算触发。 |
 | `PurificationSystem` | Environment | **星球净化区**：以中转站为中心，初始 5m、随进度沿球面扩到 `πR`；`IsPurified` 供撒点排除，`FullyCovered` 供结算；净化区扩张时回收区内旧垃圾；边界点纯视觉、无碰撞。进度与 EcoStage 同源。 |
 | `EcoStage` | Environment | 三阶段环境表现：地表/水/天空/雾/主光角度平滑插值 + 阶段白光；**只碰地表和水两个 Renderer，绝不碰狗**。净化进度上升时它同步改善地表/天空/雾（与净化同源）。 |
-| `SceneryDecorSystem` | Environment | 场景装饰（树/广告牌/水塘/土堆）随生态阶段变化的视觉联动，只读阶段、不写玩法数值；净化推进时植被同步复绿。 |
+| `SceneryDecorSystem` | Environment | 场景装饰（树/广告牌/水塘/土堆）随生态阶段变化的视觉联动，只读阶段、不写玩法数值；净化推进时植被同步复绿。单体的 `SceneryDecor.artModel` 可挂 fbx 美术：枯树=整替静态，垃圾山=当垃圾堆随复绿收缩；留空回退白膜图元。 |
 | `GachaSystem` / `GachaConfig` | Loot | 老虎机抽奖：拾取有概率发现"隐藏款"得券 → 走近场景老虎机、准星对准按 F → 弹出小型三转轮面板 → 权重+软/硬保底抽奖 → 奖励入库。 |
 | `SlotMachine` / `GachaPanelView` | Loot / UI | `SlotMachine` 挂在场景老虎机实体上（交互半径 4m、准星高亮、F 入口）；`GachaPanelView` 是弹出的三转轮面板（滚动→依次停止→结算），关闭走 `Hide()` 彻底复位。 |
 | `ToolSystem` / `ToolConfig` | Gameplay / Data | 工具单一服务：查询持有、加成钳制、专精解锁/轮换(Q)、统一发放入口 `Grant`。 |
@@ -221,6 +221,7 @@ Tools/             check_project.py 等离线脚本（零第三方依赖）
 | ⑨ 生成老虎机配置、实体与面板 / ⑩ 重建老虎机面板与实体 / ⑫ 生成工具配置 | 抽卡（老虎机）与工具相关。⑨ 幂等：旧圆形转盘自动替换为场景老虎机实体 + 三转轮面板；脚本重编译后也会自动补齐一次。 |
 | ⑬ 生成背包与交易界面 / ⑭ 接线标题场景 / ⑮ 生成多存档界面 / ⑯ 生成场景装饰 | 后续迭代新增的系统。 |
 | ⑰ 生成星球净化系统并接线 | 幂等：在 `sys_whitebox` 挂 `PurificationSystem`，收集所有 `env_station_*` 作为净化中心并 Wire；不新建场景实体。脚本重编译后自动补齐一次。 |
+| ⑯b 装饰补挂美术（垃圾山→lajishan，不重建） | 不删不建，只把 `SceneryDecor.artModel` 写到已有装饰上并保存场景：枯树 ← `Assets/Art/tree (2)/tree/tree.fbx`，垃圾山 ← `Assets/Art/lajishan/lajishan.fbx`。美术在 Play 时由 `SceneryDecor.Init` 实例化并按 `artFitWidth/artFitHeight` 归一化，缺模型自动回退白膜图元。 |
 
 > 序号有重复（多个脚本用了 ⑥⑦），以菜单文字为准。所有 Builder 都是 **Editor API 生成、不手写 YAML**，且尽量幂等。
 
