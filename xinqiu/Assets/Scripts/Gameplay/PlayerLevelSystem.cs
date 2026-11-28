@@ -108,13 +108,13 @@ namespace TrashPlanet.Whitebox
             s.materials[1] -= UpgradeMetalCost;
             s.materials[3] -= UpgradeElectronicCost;
             s.playerLevel = Mathf.Clamp(s.playerLevel + 1, 1, cfg.PlayerLevelMax);
-            bool expanded = s.playerLevel == 2 && s.bagLevel < WhiteboxConfig.BagMaxLevel;
-            if (expanded) s.bagLevel = WhiteboxConfig.BagMaxLevel;
+            // 背包容量已与人物等级绑定：升级后立即镜像等级，容量上限与 HUD/中转站显示同帧生效
+            s.bagLevel = s.playerLevel;
             s.playerExp = Mathf.Max(0, s.playerExpTotal - cfg.PlayerLevelExpAt(s.playerLevel));
             WhiteboxState.Save(s);
             if (game != null && game.Hud != null)
                 game.Hud.Notice("人物升级到 Lv." + s.playerLevel
-                    + (expanded ? "！背包扩容至 " + s.BagCapTotal(cfg) + " 格" : "！拾取与效率提升"));
+                    + "！背包扩至 " + s.BagCapTotal(cfg) + " 格，拾取与效率提升");
             Debug.Log("[PlayerLevel] 升级到 Lv." + s.playerLevel);
             return true;
         }

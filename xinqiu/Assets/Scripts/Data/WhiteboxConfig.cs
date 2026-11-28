@@ -40,16 +40,33 @@ namespace TrashPlanet.Whitebox
         float spawnStartScale = 0.55f;
 
         [Header("拾取 / 拆解 [待拍板 C1 C4 C5]")]
-        // 背包为两级总量制：Lv.1 合计 50，Lv.2 合计 100（满级）。
-        [SerializeField, Tooltip("背包 Lv.1 每类容量（塑/金/有/电）")]
+        // 背包容量与人物等级绑定：Lv.1 合计 50（初始不变），人物每升 1 级在 4 类上共 +10。
+        [SerializeField, Tooltip("背包 Lv.1（初始）每类容量（塑/金/有/电）")]
         int[] backpackCap = { 13, 13, 12, 12 };       // NUM-007，总计 50
-        [SerializeField, Tooltip("背包 Lv.2（满级）每类容量；只有 2 级，升级 1 次即到顶")]
-        int[] backpackCapMax = { 25, 25, 25, 25 };     // 总计 100
+        [SerializeField, Tooltip("人物每升 1 级，背包每类新增容量（塑/金/有/电）；四项之和即每级扩容格数（默认 3+3+2+2=10）")]
+        int[] backpackCapPerLevel = { 3, 3, 2, 2 };   // 每级 +10，Lv.5 合计 90
+        [SerializeField, Tooltip("旧版两级制满级容量，仅用于旧资产序列化兼容；容量计算已改走 backpackCapPerLevel")]
+        int[] backpackCapMax = { 25, 25, 25, 25 };
         [SerializeField, Tooltip("最远拾取距离（按工具等级）；本次整体 ×2")]
         float[] pickRange = { 4f, 6f, 8f };          // MECH-007
         [SerializeField] int[] dismantleDamage = { 1, 1, 2 };
         [SerializeField] int[] largeDurability = { 5, 8, 10 };        // [待拍板 C1]
         [SerializeField] int largeYield = 2;
+        // 「先小后大」节奏：大件占比按人物等级递增（下标 0 = Lv.1）。
+        // 电子类没有大型外观，抽中名额会回落成小件；生成侧按「缺口」判定，会自动补回，不是按抽签扣掉。
+        [SerializeField, Tooltip("大型垃圾生成占比（按人物等级 1→5）：等级越高越常见，0 = 不生成大件")]
+        float[] largeSpawnRatio = { 0.03f, 0.06f, 0.10f, 0.16f, 0.22f };
+        // 旧 .asset 里没有 largeSpawnRatio 这个键（新增字段不会自动写进已存在的资产），
+        // 读出来是空数组；只靠一个标量兜底会让所有等级都变成同一个值。
+        // 用这个版本号做一次性迁移：0 = 资产还是旧的，启动时按下面的曲线补齐。
+        [SerializeField, HideInInspector] int spawnRatioVersion;
+        // 升级后「补齐比例」的做法：只把玩家背半球的小件换成同类大件。
+        // 玩家站在半径 8 m 的球面上，地平线只有约 34°，60° 之外一定在地平线以下，
+        // 所以这次替换不可能被看见，走过去时世界已经是新比例了。
+        [SerializeField, Tooltip("静默补齐大件的最小角距（度）：只替换与玩家相差超过该角度的小件。默认 60（已在地平线之外）")]
+        float largeCatchUpMinAngle = 60f;
+        [SerializeField, Tooltip("静默补齐的速率（件/秒）：越大追得越快，也越容易在低端机掉帧")]
+        float largeCatchUpPerSecond = 6f;
         [SerializeField, Tooltip("描边亮起（含大型垃圾耐久条）的距离判定，随拾取距离一起 ×2")]
         float highlightRange = 6f;                    // [待拍板 C5]
 
@@ -112,7 +129,16 @@ namespace TrashPlanet.Whitebox
         [Header("伙伴狗 MECH-014/015 NUM-010")]
         [SerializeField] float[] dogFetchRadius = { 1.5f, 2.5f, 3.5f };
         [SerializeField] float[] dogFetchCooldown = { 4f, 3f, 2f };
-        [SerializeField] float dogFollowDistance = 1.8f;
+        [SerializeField] float dogFollowDistance = 1.8f;                // 仅用于建场景时的出生点，不再驱动跟随
+
+        // 自主拾荒：狗以玩家当前位置为中心、在活动半径内自己找垃圾，超出就被引导回来。
+        // 半径必须 ≥ 最大嗅探半径，否则会出现「闻得到、够不着」的贴边死循环；OnValidate 会钳。
+        // 取 5 m 而不是贴着嗅探上限的 4 m：阶段三嗅探 3.5 m 只占 0.7R，狗不会总在边界上直线冲刺。
+        [SerializeField, Tooltip("狗的活动半径（球面弧长·米）：以玩家当前位置为中心，默认 5 m")]
+        float dogRoamRadius = 5f;
+        [SerializeField, Tooltip("漫游步速（米/秒）")] float dogRoamSpeed = 2.6f;
+        [SerializeField, Tooltip("追击垃圾 / 越界回位的跑速（米/秒）")] float dogRunSpeed = 6.2f;
+        [SerializeField, Tooltip("叼取判定距离（球面弧长·米）：追到这么近才真正拾取")] float dogPickDistance = 0.6f;
         [SerializeField] float dogHeight = 0.55f;                      // ART-011 体高 ≤ 0.6
         [SerializeField] string dogColorHex = "#D8C3A0";               // ART-012 全程唯一固有色
 
@@ -175,15 +201,59 @@ namespace TrashPlanet.Whitebox
         /// <summary>true = 批量加工/制造固定按「一件的时长」结算，数量不叠加时间。</summary>
         public bool BatchFixedDuration => batchFixedDuration;
         public int[] BackpackCap => backpackCap;
-        /// <summary>背包等级上限：1 = 初始 50 件，2 = 满级 100 件，一共只有 2 级。</summary>
-        public const int BagMaxLevel = 2;
-        /// <summary>按背包等级取每类容量；越界等级一律钳到 1..2。</summary>
+        /// <summary>背包等级上限 = 人物等级上限（容量已与人物等级绑定，不再有独立的背包等级）。</summary>
+        public int BagMaxLevel => PlayerLevelMax;
+
+        // 背包固定 4 类：塑 / 金 / 有 / 电。所有容量数组都以此长度为准。
+        const int CapSlots = 4;
+
+        // 容量按等级实时计算；UI 每帧都会读，因此按「等级」分行缓存，避免每帧 new 数组。
+        // 分行而不是复用一个数组：不同等级各自独立，调用方持有某一级的引用后不会被下一次计算改写。
+        int[][] capRows;
+
+        // 每级增量的兜底值：旧资产可能没有该字段（运行时 OnValidate 不执行），按 3/3/2/2 保证升级确实扩容。
+        static readonly int[] CapPerLevelDefault = { 3, 3, 2, 2 };
+
+        /// <summary>按下标安全取元素：数组为 null、下标越界时返回兜底值，绝不抛 IndexOutOfRange。</summary>
+        static int AtSlot(int[] a, int slot, int fallback)
+            => a != null && slot >= 0 && slot < a.Length ? a[slot] : fallback;
+
+        /// <summary>按等级取每类容量：初始容量 + 每级增量 ×(等级-1)；越界等级钳到 1..人物上限。返回长度恒为 4 的数组。</summary>
         public int[] BackpackCapAt(int level)
         {
-            int[] src = Mathf.Clamp(level, 1, BagMaxLevel) >= BagMaxLevel && backpackCapMax != null
-                ? backpackCapMax
-                : backpackCap;
-            return src;
+            int maxLv = Mathf.Max(1, BagMaxLevel);
+            int lv = Mathf.Clamp(level, 1, maxLv);
+
+            if (capRows == null || capRows.Length != maxLv)
+            {
+                var rows = new int[maxLv][];
+                if (capRows != null) Array.Copy(capRows, rows, Mathf.Min(capRows.Length, maxLv));
+                capRows = rows;
+            }
+
+            int idx = lv - 1;
+            if (idx < 0) idx = 0;                                  // 极端配置下 lv 兜底为 1，这里再保险一次
+            if (idx >= capRows.Length) idx = capRows.Length - 1;
+
+            int[] row = idx >= 0 ? capRows[idx] : null;
+            if (row != null && row.Length == CapSlots) return row;
+
+            row = new int[CapSlots];
+            for (int i = 0; i < CapSlots; i++)
+            {
+                int baseCap = AtSlot(backpackCap, i, 10);
+                int per = AtSlot(backpackCapPerLevel, i, AtSlot(CapPerLevelDefault, i, 0));
+                row[i] = Mathf.Max(1, baseCap + Mathf.Max(0, per) * (lv - 1));
+            }
+            if (idx >= 0) capRows[idx] = row;
+
+#if UNITY_EDITOR
+            // 配置数组长度不对时只提示一次性质的问题，方便在 Inspector 里发现，不影响运行。
+            if (backpackCap == null || backpackCap.Length != CapSlots)
+                Debug.LogWarning("[WhiteboxConfig] backpackCap 长度应为 " + CapSlots + "，实际为 "
+                    + (backpackCap == null ? "null" : backpackCap.Length.ToString()) + "，已按兜底值计算背包容量。", this);
+#endif
+            return row;
         }
         /// <summary>某一等级的背包总容量（4 类相加）。</summary>
         public int BackpackTotalCap(int level)
@@ -197,6 +267,62 @@ namespace TrashPlanet.Whitebox
         public int[] DismantleDamage => dismantleDamage;
         public int[] LargeDurability => largeDurability;
         public int LargeYield => Mathf.Max(1, largeYield);
+        /// <summary>
+        /// 大件占比的默认曲线（下标 0 = Lv.1）。既是 Inspector 的初始值，
+        /// 也是「旧资产没写这个字段」时按等级逐个兜底的来源。
+        /// </summary>
+        static readonly float[] LargeSpawnRatioCurve = { 0.03f, 0.06f, 0.10f, 0.16f, 0.22f };
+
+        /// <summary>
+        /// 按人物等级取大型垃圾生成占比。等级越界时钳到 1..上限（超出取末项）。
+        /// 数组缺失或长度不够时，按 <see cref="LargeSpawnRatioCurve"/> 逐级兜底，
+        /// 而不是所有等级都退化成同一个值（那会让 Lv.4 看起来和 Lv.1 一样冷清）。
+        /// </summary>
+        public float LargeSpawnRatioAt(int level)
+        {
+            int idx = Mathf.Clamp(level, 1, Mathf.Max(1, PlayerLevelMax)) - 1;
+            float v = largeSpawnRatio != null && idx < largeSpawnRatio.Length
+                ? largeSpawnRatio[idx]
+                : LargeSpawnRatioCurve[Mathf.Clamp(idx, 0, LargeSpawnRatioCurve.Length - 1)];
+            return Mathf.Clamp(v, 0f, 0.5f);
+        }
+
+        /// <summary>
+        /// 静默补齐大件的最小角距（度）。只替换与玩家角距超过该值的小件。
+        /// 旧资产缺该字段时读出来是 0，按 60° 兜底；下限 35° 是地平线（R=8、眼高 1.6 时约 34°），
+        /// 再小就会在视野里看见垃圾变形。
+        /// </summary>
+        public float LargeCatchUpMinAngle
+            => Mathf.Clamp(largeCatchUpMinAngle > 0.01f ? largeCatchUpMinAngle : 60f, 35f, 160f);
+
+        /// <summary>静默补齐速率（件/秒）。旧资产缺该字段时为 0，按 6 兜底。</summary>
+        public float LargeCatchUpPerSecond
+            => Mathf.Clamp(largeCatchUpPerSecond > 0.01f ? largeCatchUpPerSecond : 6f, 0.5f, 30f);
+
+        /// <summary>
+        /// 启动时调用一次：把旧 .asset 里缺失的新字段迁移成当前默认值。
+        /// 新增 SerializeField 不会自动写进已存在的资产，资产里查不到这个键时读出来是空数组；
+        /// 只靠访问器兜底虽然不会崩，但 Inspector 里看到的仍是空表，容易误判成「配了没生效」。
+        /// 迁移后会把版本号置 1，编进包里的运行时也不会再走这段。
+        /// </summary>
+        public void MigrateDefaults()
+        {
+            if (spawnRatioVersion >= 1 && largeSpawnRatio != null && largeSpawnRatio.Length == PlayerLevelMax) return;
+
+            var curve = new float[Mathf.Max(1, PlayerLevelMax)];
+            for (int i = 0; i < curve.Length; i++)
+            {
+                float kept = largeSpawnRatio != null && i < largeSpawnRatio.Length ? largeSpawnRatio[i] : 0f;
+                curve[i] = kept > 0.0001f
+                    ? kept
+                    : LargeSpawnRatioCurve[Mathf.Clamp(i, 0, LargeSpawnRatioCurve.Length - 1)];
+            }
+            largeSpawnRatio = curve;
+            spawnRatioVersion = 1;
+#if UNITY_EDITOR
+            UnityEditor.EditorUtility.SetDirty(this);
+#endif
+        }
         public float HighlightRange => highlightRange;
 
         public int[] SpecUnlockProcessCount => specUnlockProcessCount;
@@ -223,6 +349,50 @@ namespace TrashPlanet.Whitebox
         public float[] DogFetchRadius => dogFetchRadius;
         public float[] DogFetchCooldown => dogFetchCooldown;
         public float DogFollowDistance => dogFollowDistance;
+
+        /// <summary>最大嗅探半径（各阶段取最大）：活动半径不得小于它。</summary>
+        public float DogFetchRadiusMax
+        {
+            get
+            {
+                float m = 0f;
+                if (dogFetchRadius != null)
+                    for (int i = 0; i < dogFetchRadius.Length; i++) m = Mathf.Max(m, dogFetchRadius[i]);
+                return m > 0.01f ? m : 3.5f;
+            }
+        }
+
+        /// <summary>
+        /// 活动半径（球面弧长·米）。旧 .asset 没有该字段（反序列化为 0），这里兜底 5 m，
+        /// 并保证不小于最大嗅探半径，避免「界外有目标、走不到又被拽回」的来回打转。
+        /// </summary>
+        public float DogRoamRadius
+        {
+            get
+            {
+                float v = dogRoamRadius > 0.01f ? dogRoamRadius : 5f;
+                return Mathf.Max(DogFetchRadiusMax, v);
+            }
+        }
+        public float DogRoamSpeed => dogRoamSpeed > 0.01f ? dogRoamSpeed : 2.6f;
+        public float DogRunSpeed => dogRunSpeed > 0.01f ? Mathf.Max(dogRunSpeed, DogRoamSpeed) : 6.2f;
+        public float DogPickDistance => dogPickDistance > 0.01f ? Mathf.Clamp(dogPickDistance, 0.2f, 2f) : 0.6f;
+
+        /// <summary>按阶段取嗅探半径；数组意外变短时兜底 2 m，绝不抛越界。</summary>
+        public float DogFetchRadiusAt(int stage)
+        {
+            stage = Mathf.Clamp(stage, 0, 2);
+            if (dogFetchRadius == null || dogFetchRadius.Length == 0) return 2f;
+            return dogFetchRadius[Mathf.Min(stage, dogFetchRadius.Length - 1)];
+        }
+
+        /// <summary>按阶段取叼取冷却；数组意外变短时兜底 3 s。</summary>
+        public float DogFetchCooldownAt(int stage)
+        {
+            stage = Mathf.Clamp(stage, 0, 2);
+            if (dogFetchCooldown == null || dogFetchCooldown.Length == 0) return 3f;
+            return dogFetchCooldown[Mathf.Min(stage, dogFetchCooldown.Length - 1)];
+        }
         public float DogHeight => dogHeight;
         public Color DogColor => Hex(dogColorHex);
         public float DogScoutInterval => dogScoutInterval;
@@ -312,6 +482,7 @@ namespace TrashPlanet.Whitebox
 
         void OnValidate()
         {
+            capRows = null;       // 配置在 Inspector 改动后让容量缓存失效，下一帧按新值重算
             planetRadius = Mathf.Max(1f, planetRadius);
             scatterMinSpacing = Mathf.Max(0.1f, scatterMinSpacing);
             scatterPlayerClearance = Mathf.Max(0f, scatterPlayerClearance);
@@ -327,6 +498,16 @@ namespace TrashPlanet.Whitebox
             stageTwoThreshold = Mathf.Clamp(stageTwoThreshold, stageOneThreshold + 0.01f, 0.99f);
 
             Ensure(ref backpackCap, 4, 12);
+            // 每级增量：旧资产无此字段（null/长度不足）时补 3/3/2/2（合计 +10），保证升级后容量确实变大
+            if (backpackCapPerLevel == null || backpackCapPerLevel.Length != 4)
+            {
+                var per = new int[4];
+                int[] def = { 3, 3, 2, 2 };
+                for (int i = 0; i < 4; i++)
+                    per[i] = backpackCapPerLevel != null && i < backpackCapPerLevel.Length && backpackCapPerLevel[i] > 0
+                        ? backpackCapPerLevel[i] : def[i];
+                backpackCapPerLevel = per;
+            }
             Ensure(ref backpackCapMax, 4, 25);
             Ensure(ref pickRange, 3, 4f);
             Ensure(ref dismantleDamage, 3, 1);
@@ -402,7 +583,10 @@ namespace TrashPlanet.Whitebox
             for (int i = 0; i < 4; i++)
             {
                 backpackCap[i] = Mathf.Max(1, backpackCap[i]);
-                // 满级容量不得低于初始容量，否则「升级」反而变小
+                // 每级增量不得为负，否则升级反而变小
+                if (backpackCapPerLevel != null && i < backpackCapPerLevel.Length)
+                    backpackCapPerLevel[i] = Mathf.Max(0, backpackCapPerLevel[i]);
+                // 旧版两级制字段：仅兼容旧资产，保证不低于初始即可
                 backpackCapMax[i] = Mathf.Max(backpackCap[i], backpackCapMax[i]);
                 minProcessBatch[i] = Mathf.Max(1, minProcessBatch[i]);
                 conversionRate[i] = Mathf.Clamp01(conversionRate[i]);
@@ -416,6 +600,34 @@ namespace TrashPlanet.Whitebox
                 dogFetchRadius[i] = Mathf.Max(0.1f, dogFetchRadius[i]);
                 fogDistance[i] = Mathf.Max(1f, fogDistance[i]);
             }
+
+            // 大件占比：补齐到人物等级上限，缺的项按默认曲线补（不是统一填同一个值），再钳到 0~0.5
+            int lvCount = Mathf.Max(1, PlayerLevelMax);
+            if (largeSpawnRatio == null || largeSpawnRatio.Length != lvCount)
+            {
+                var fixedRatio = new float[lvCount];
+                for (int i = 0; i < lvCount; i++)
+                {
+                    float kept = largeSpawnRatio != null && i < largeSpawnRatio.Length ? largeSpawnRatio[i] : 0f;
+                    fixedRatio[i] = kept > 0.0001f
+                        ? kept
+                        : LargeSpawnRatioCurve[Mathf.Clamp(i, 0, LargeSpawnRatioCurve.Length - 1)];
+                }
+                largeSpawnRatio = fixedRatio;
+            }
+            for (int i = 0; i < largeSpawnRatio.Length; i++)
+                largeSpawnRatio[i] = Mathf.Clamp(largeSpawnRatio[i], 0f, 0.5f);
+            // 静默补齐：角距不得小于地平线（R=8、眼高 1.6 时约 34°），否则会在视野里看见垃圾变形
+            largeCatchUpMinAngle = Mathf.Clamp(largeCatchUpMinAngle > 0.01f ? largeCatchUpMinAngle : 60f, 35f, 160f);
+            largeCatchUpPerSecond = Mathf.Clamp(largeCatchUpPerSecond > 0.01f ? largeCatchUpPerSecond : 6f, 0.5f, 30f);
+
+            // 狗的活动半径：不得小于最大嗅探半径（否则界外目标反复锁死），上限给到 3 倍星球半径防手滑
+            float roamMin = DogFetchRadiusMax;
+            float roamMax = Mathf.Max(roamMin, planetRadius * 3f);
+            dogRoamRadius = Mathf.Clamp(dogRoamRadius > 0.01f ? dogRoamRadius : 5f, roamMin, roamMax);
+            dogRoamSpeed = Mathf.Max(0.2f, dogRoamSpeed);
+            dogRunSpeed = Mathf.Max(dogRoamSpeed, dogRunSpeed);
+            dogPickDistance = Mathf.Clamp(dogPickDistance, 0.2f, 2f);
         }
 
         static void Ensure<T>(ref T[] a, int n, T fallback)

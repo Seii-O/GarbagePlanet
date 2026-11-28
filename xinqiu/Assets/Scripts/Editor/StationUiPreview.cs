@@ -73,7 +73,7 @@ namespace TrashPlanet.Whitebox.Editor
         /// <summary>填一套有代表性的运行期文案（长度接近真实值，才能看出会不会压字）。</summary>
         static void SampleTexts(Transform root)
         {
-            SetText(root, "Txt_Repaired", "已修复: 否（先造 1 块再生建材板）  ·  背包 Lv.1/2（总 6/50）");
+            SetText(root, "Txt_Repaired", "已修复: 否（先造 1 块再生建材板）  ·  背包 Lv.1（总 6/50）");
             SetText(root, "Txt_Raw", "待加工垃圾  塑/金/有/电: 12/8/3/0");
             SetText(root, "Txt_StationMaterials", "材料  塑板/金件/有机/芯: 12/15/2/6");
             string[] cats = { "塑料", "金属", "有机", "电子" };
@@ -88,7 +88,7 @@ namespace TrashPlanet.Whitebox.Editor
             for (int i = 0; i < 3; i++)
                 SetText(root, "Btn_Craft_" + i, "③ " + recipes[i] + "（" + costs[i] + "）可" + (i == 0 ? 1 : 0) + "次");
             SetText(root, "Btn_Upgrade", "④ 升级工具（Lv.1 → 2）");
-            SetText(root, "Btn_BagUpgrade", "⑤ 升级背包（总 50 → 100，需 15 金属零件）");
+            SetText(root, "Btn_BagUpgrade", "⑤ 升级背包（随人物等级每级 +10，需 15 金属零件）");
             SetText(root, "Txt_Job", "加工塑料 ×3  45%");
             SetText(root, "JobBar", null);
             SetText(root, "Txt_QtyTitle", "加工塑料 · 选择数量");

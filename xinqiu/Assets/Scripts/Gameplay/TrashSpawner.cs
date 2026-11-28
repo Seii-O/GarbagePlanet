@@ -35,6 +35,11 @@ namespace TrashPlanet.Whitebox
         Stack<TrashItem>[] pools;
         WhiteboxGame game;
         int trashLayer = -1; // Trash 层：PlayerController 会忽略与该层的碰撞（玩家可直接穿过垃圾）
+        // 「先小后大」：直接统计场上已有多少大件，补刷时按「缺口」决定这一件的大小。
+        // 不按「抽签」决定，是因为补刷是 1:1 即时补位、每批只有 1 件，抽签会退化成纯随机；
+        // 而且按缺口补能自动追平——升级后比例变高，新补的每一件都会先补成大件，直到比例对上。
+        int largeOnSurface;
+        float catchUpTimer;   // 静默补齐的节流计时（每秒结算一次配额）
 
         public TrashItem[] Prefabs { get => prefabs; set => prefabs = value; }
         public Transform TrashRoot { get => trashRoot; set => trashRoot = value; }
@@ -61,10 +66,24 @@ namespace TrashPlanet.Whitebox
             owner.Clear();
             pops.Clear();
             occupied.Clear();
+            largeOnSurface = 0;
+            catchUpTimer = 0f;
             if (game.State.finished) return;
             int count = FinalCleanup ? game.State.finalTrashRemaining : SurfaceTarget;
             FillSurface(count, true);
             SyncPopulation();
+
+            // 一行诊断：大件比例到底读到了多少、铺场实际出了多少。
+            // 「Lv.4 怎么没大件」这类问题看这一行就能定性（配置没读到 / 比例没生效 / 类别回落吃掉名额）。
+            WhiteboxConfig logCfg = game.Config;
+            if (logCfg != null)
+            {
+                int lv = game.State != null ? game.State.playerLevel : 1;
+                Debug.Log("[WhiteboxTrash] 人物 Lv." + lv
+                          + " · 大件目标占比 " + (logCfg.LargeSpawnRatioAt(lv) * 100f).ToString("0.#") + "%"
+                          + " · 目标件数 " + LargeTarget(logCfg)
+                          + " · 实际铺场大件 " + largeOnSurface + "/" + active.Count);
+            }
         }
 
         void Update()
@@ -72,6 +91,7 @@ namespace TrashPlanet.Whitebox
             if (game == null || pools == null) return;
             UpdatePops();
             SyncPopulation();
+            TickLargeCatchUp(Time.deltaTime);
         }
 
         public void SyncPopulation()
@@ -145,13 +165,94 @@ namespace TrashPlanet.Whitebox
                 int r = i % 45;
                 int cat = r < 15 ? 0 : (r < 27 ? 1 : (r < 39 ? 2 : 3));
                 TrashCategory category = initial ? (TrashCategory)cat : PickRandomCategory();
-                int index = PickPrefabForCategory(category, initial && i % 6 == 5, initialPrefabUses);
+                int index = PickPrefabForCategory(category, RollLarge(cfg), initialPrefabUses);
                 if (!TryScatter(cfg, out Vector3 direction)) break;
                 TrashItem item = initial ? Spawn(index, direction) : SpawnAnimated(index, direction, 0f);
                 if (item == null) break;
                 occupied.Add(SphericalSurface.Point(Vector3.zero, direction, cfg.PlanetRadius, 0f));
             }
         }
+
+        /// <summary>
+        /// 决定「这一件」是大件还是小件：拿场上现有的量去和「按当前人物等级该有的大件数」比，
+        /// 不足就补大件、够了就出小件。
+        /// 好处一：比例天然收敛，不需要累加器也不会短期扎堆。
+        /// 好处二：电子类没有大型外观，抽中名额会回落成小件 —— 用缺口判定时这件算「没补成」，
+        ///         下一件会自动再补一次，实际比例不会像抽签那样被吃掉一截。
+        /// 好处三：玩家升级后比例变高，地表存量不变、缺口立刻出现，新补的每一件都先补大件，
+        ///         于是「慢慢变大件为主」是自动发生的，不需要额外写换血逻辑。
+        /// </summary>
+        bool RollLarge(WhiteboxConfig cfg)
+        {
+            int level = game.State != null ? game.State.playerLevel : 1;
+            float ratio = cfg.LargeSpawnRatioAt(level);
+            if (ratio <= 0.0001f) return false;
+
+            int total = active.Count + 1;                        // 把这一件算进去之后的地表总量
+            int want = Mathf.RoundToInt(total * ratio);          // 该有的大件数
+            return largeOnSurface < want;
+        }
+
+        /// <summary>地表大件目标数（按当前人物等级与地表总量算），用于日志与调试。</summary>
+        int LargeTarget(WhiteboxConfig cfg)
+        {
+            int level = game.State != null ? game.State.playerLevel : 1;
+            return Mathf.RoundToInt(active.Count * cfg.LargeSpawnRatioAt(level));
+        }
+
+        /// <summary>
+        /// 升级后静默补齐大件比例：不重排全图，也不等玩家一件件捡，
+        /// 只把玩家**背半球**（角距 &gt; largeCatchUpMinAngle）的小件换成同类大件。
+        /// 玩家站在半径 8 m 的球面上，地平线只有约 34°，60° 之外必然在地平线以下、看不见，
+        /// 所以替换不会产生跳变；等玩家走过去时，那片区域已经是新比例了。
+        /// 每秒最多换 largeCatchUpPerSecond 件，避免一次性 Instantiate 造成卡顿。
+        /// </summary>
+        void TickLargeCatchUp(float dt)
+        {
+            if (game == null || game.State == null || game.Player == null) return;
+            if (game.State.finished || FinalCleanup) return;   // 结算/收尾阶段地表要冻结，不再改动
+            WhiteboxConfig cfg = game.Config;
+            if (cfg == null) return;
+
+            int deficit = LargeTarget(cfg) - largeOnSurface;
+            if (deficit <= 0) { catchUpTimer = 0f; return; }
+
+            catchUpTimer -= dt;
+            if (catchUpTimer > 0f) return;
+            catchUpTimer = 1f;                                  // 每秒结一次配额
+
+            ConvertFarSmall(deficit, Mathf.Max(1, Mathf.RoundToInt(cfg.LargeCatchUpPerSecond)), cfg);
+        }
+
+        /// <summary>把背半球的小件换成同类大件，最多换 budget 件。不动类别分布、不计入已清理数。</summary>
+        void ConvertFarSmall(int deficit, int budget, WhiteboxConfig cfg)
+        {
+            Vector3 playerUp = game.Player.position.normalized;
+            if (playerUp.sqrMagnitude < 0.0001f) return;   // 玩家坐标异常时不猜方向，宁可这一拍不换
+            float minAngle = cfg.LargeCatchUpMinAngle;
+            TrashItem aim = game.Interaction != null ? game.Interaction.CurrentTarget : null;
+
+            int done = 0;
+            // 倒序遍历：Recycle 会从 active 里摘掉元素，正序遍历会跳项
+            for (int i = active.Count - 1; i >= 0 && done < budget && done < deficit; i--)
+            {
+                TrashItem t = active[i];
+                if (t == null || t.Large || t == aim) continue;
+                if (t.Category == TrashCategory.Electronic) continue;   // 电子类没有大型外观，换了只能回落成小件
+                Vector3 dir = t.transform.position.normalized;
+                if (Vector3.Angle(playerUp, dir) < minAngle) continue;  // 在可见半球，不动它
+
+                int index = PickPrefabForCategory(t.Category, true, null);
+                if (prefabs == null || index < 0 || index >= prefabs.Length) continue;
+                if (prefabs[index] == null || !prefabs[index].Large) continue;
+
+                // 先回收旧件再原地生成同类大件：active 数量不变，位置不变，只是换了体型。
+                // 走 Recycle 而不是 Despawn，避免 clearedTrash 被算进去。
+                if (!Recycle(t)) continue;
+                if (Spawn(index, dir) != null) done++;
+            }
+        }
+
         void BuildOccupied()
         {
             occupied.Clear();
@@ -398,6 +499,7 @@ namespace TrashPlanet.Whitebox
 
             GroundFit(item.transform, up, item.GroundContactDepth);
             active.Add(item);
+            if (item.Large) largeOnSurface++;
 
             if (delay >= 0f)
             {
@@ -435,6 +537,7 @@ namespace TrashPlanet.Whitebox
         bool Recycle(TrashItem item)
         {
             if (item == null || !active.Remove(item)) return false;
+            if (item.Large) largeOnSurface = Mathf.Max(0, largeOnSurface - 1);
             for (int i = pops.Count - 1; i >= 0; i--)
                 if (pops[i].Item == item) pops.RemoveAt(i);
             item.SetHighlight(false);

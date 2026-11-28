@@ -40,6 +40,11 @@ namespace TrashPlanet.Whitebox
         public Text TxtDeposit;
         public Text TxtHint;
 
+        [Header("背包满提示条（留空则运行时自动补一个；场景里有同名节点会直接用场景的）")]
+        public CanvasGroup BagToastGroup;
+        public RectTransform BagToastRoot;
+        public Text BagToastText;
+
         [Header("调试 HUD（F1）")]
         public GameObject DebugPanel;
         public Text TxtBag;
@@ -88,6 +93,11 @@ namespace TrashPlanet.Whitebox
         string notice = "";
         float noticeLeft;
         float depositLeft;
+        // 背包满提示条：固定文案、2 秒自动关闭，与 Txt_Notice 各自独立计时（互不顶掉）。
+        const float BagToastSeconds = 2f;
+        const float BagToastFadeIn = 0.12f;
+        const float BagToastFadeOut = 0.35f;
+        float bagToastLeft;
         int durabilityLeft;
         int durabilityMax;
         bool settlement;
@@ -179,6 +189,8 @@ namespace TrashPlanet.Whitebox
             notice = "";
             noticeLeft = 0f;
             depositLeft = 0f;
+            bagToastLeft = 0f;
+            if (BagToastRoot != null) BagToastRoot.gameObject.SetActive(false);
             settlement = g != null && g.State != null && g.State.finished;
             // 注意：这里不能立刻 Refresh()。WhiteboxGame.Start() 里 hud.Init 早于
             // quest.Init / stationSystem.Init，此时读 Game.Quest.CurrentText 会 NRE 并中断整个 Start。
@@ -211,6 +223,12 @@ namespace TrashPlanet.Whitebox
             TxtNotice = Fill(TxtNotice, Find<Text>(root, "Txt_Notice"));
             TxtDeposit = Fill(TxtDeposit, Find<Text>(root, "Txt_Deposit"));
             TxtHint = Fill(TxtHint, Find<Text>(root, "Txt_Hint"));
+            BagToastRoot = Fill(BagToastRoot, Find<RectTransform>(root, "Hud_BagToast"));
+            if (BagToastRoot != null)
+            {
+                BagToastGroup = Fill(BagToastGroup, BagToastRoot.GetComponent<CanvasGroup>());
+                BagToastText = Fill(BagToastText, BagToastRoot.GetComponentInChildren<Text>(true));
+            }
             DebugPanel = Fill(DebugPanel, FindGo(root, "Hud_Debug"));
             TxtBag = Fill(TxtBag, Find<Text>(root, "Txt_Bag"));
             TxtMaterials = Fill(TxtMaterials, Find<Text>(root, "Txt_Materials"));
@@ -324,6 +342,158 @@ namespace TrashPlanet.Whitebox
         }
 
         public void Notice(string text) { notice = text; noticeLeft = 2.4f; }
+
+        /// <summary>容量不足专用提示文案（固定，不随场景改）。</summary>
+        public const string BagFullTip = "背包数量不足，请投放中转站或人物升级扩充";
+
+        /// <summary>
+        /// 容量不足提示条：固定文案、2 秒自动关闭、不拦截任何点击。
+        /// 样式取「中转站面板」同一色系（深色半透明底 + 左侧强调色条 + 浅色文字）。
+        /// 场景里若已有 Hud_BagToast 节点就用场景的（可在 Inspector 里改样式）；没有则运行时补一个，
+        /// 只存在于内存，不写场景资产，因此不需要重跑 UI 构建器。
+        /// </summary>
+        public void NoticeBagFull()
+        {
+            if (!EnsureBagToast())
+            {
+                // 兜底：父节点不是 uGUI 或取不到中文字体时，退回底部单行提示，至少不丢反馈
+                notice = BagFullTip;
+                noticeLeft = BagToastSeconds;
+                return;
+            }
+            if (BagToastText != null) BagToastText.text = BagFullTip;
+            bagToastLeft = BagToastSeconds;
+            ApplyBagToast();
+        }
+
+        /// <summary>确保提示条存在；返回 false 表示无法创建（调用方需走兜底路径）。</summary>
+        bool EnsureBagToast()
+        {
+            if (BagToastRoot == null)
+            {
+                RectTransform parent = transform as RectTransform;
+                if (parent == null) return false;
+                Font font = ResolveUiFont();
+                if (font == null) return false;
+
+                var go = new GameObject("Hud_BagToast", typeof(RectTransform), typeof(CanvasGroup));
+                go.transform.SetParent(parent, false);
+                go.layer = gameObject.layer;
+                RectTransform rt = (RectTransform)go.transform;
+                rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0f);
+                rt.pivot = new Vector2(0.5f, 0f);
+                rt.sizeDelta = new Vector2(680f, 58f);
+                rt.anchoredPosition = new Vector2(0f, 150f);
+                BagToastRoot = rt;
+                BagToastGroup = go.GetComponent<CanvasGroup>();
+                if (BagToastGroup != null)
+                {
+                    BagToastGroup.blocksRaycasts = false;
+                    BagToastGroup.interactable = false;
+                    BagToastGroup.alpha = 0f;
+                }
+
+                // 底板
+                Image bg = AddRect<Image>("Bg", rt);
+                bg.color = new Color(0.09f, 0.11f, 0.12f, 0.94f);
+                bg.raycastTarget = false;
+                StretchRect(bg.rectTransform, 0f);
+
+                // 左侧强调条：跟随配置里的背包警告色
+                Color warn = Game != null && Game.Config != null
+                    ? Game.Config.BagWarningColor
+                    : new Color(0.886f, 0.376f, 0.235f, 1f);
+                warn.a = 1f;
+                Image accent = AddRect<Image>("Accent", rt);
+                accent.color = warn;
+                accent.raycastTarget = false;
+                RectTransform ac = accent.rectTransform;
+                ac.anchorMin = new Vector2(0f, 0f);
+                ac.anchorMax = new Vector2(0f, 1f);
+                ac.pivot = new Vector2(0f, 0.5f);
+                ac.sizeDelta = new Vector2(6f, 0f);
+                ac.anchoredPosition = Vector2.zero;
+
+                // 文案
+                BagToastText = AddRect<Text>("Txt_BagToast", rt);
+                BagToastText.font = font;
+                BagToastText.fontSize = 19;
+                BagToastText.fontStyle = FontStyle.Bold;
+                BagToastText.color = new Color(0.96f, 0.97f, 0.94f, 1f);
+                BagToastText.alignment = TextAnchor.MiddleCenter;
+                BagToastText.horizontalOverflow = HorizontalWrapMode.Overflow;
+                BagToastText.verticalOverflow = VerticalWrapMode.Truncate;
+                BagToastText.raycastTarget = false;
+                BagToastText.text = BagFullTip;
+                StretchRect(BagToastText.rectTransform, 14f);
+            }
+
+            if (BagToastGroup == null && BagToastRoot != null)
+                BagToastGroup = BagToastRoot.GetComponent<CanvasGroup>();
+            if (BagToastText == null && BagToastRoot != null)
+                BagToastText = BagToastRoot.GetComponentInChildren<Text>(true);
+            return BagToastRoot != null;
+        }
+
+        /// <summary>提示条显隐与淡入淡出。放在 Update 里跑，不依赖 Refresh（Refresh 在缺 Game 时会提前返回）。</summary>
+        void ApplyBagToast()
+        {
+            if (BagToastRoot == null) return;
+            bool show = bagToastLeft > 0f;
+            GameObject go = BagToastRoot.gameObject;
+            if (go.activeSelf != show) go.SetActive(show);
+            if (!show || BagToastGroup == null) return;
+
+            float elapsed = BagToastSeconds - bagToastLeft;
+            float a = 1f;
+            if (elapsed < BagToastFadeIn) a = Mathf.Clamp01(elapsed / BagToastFadeIn);
+            else if (bagToastLeft < BagToastFadeOut) a = Mathf.Clamp01(bagToastLeft / BagToastFadeOut);
+            BagToastGroup.alpha = a;
+        }
+
+        /// <summary>取一个能显示中文的字体：优先复用场景里已有 UI 文字，其次按系统字体列表创建。</summary>
+        Font ResolveUiFont()
+        {
+            if (TxtNotice != null && TxtNotice.font != null && TxtNotice.font.HasCharacter('中'))
+                return TxtNotice.font;
+            foreach (Text t in GetComponentsInChildren<Text>(true))
+                if (t.font != null && t.font.HasCharacter('中')) return t.font;
+            if (!AutoFixCjkFont) return TxtNotice != null ? TxtNotice.font : null;
+            try
+            {
+                return Font.CreateDynamicFontFromOSFont(new[]
+                {
+                    "Microsoft YaHei UI", "Microsoft YaHei", "SimHei", "SimSun",
+                    "PingFang SC", "Noto Sans CJK SC", "WenQuanYi Micro Hei", "Arial"
+                }, 18);
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogWarning("[WhiteboxCanvasHud] 背包满提示条取中文字体失败：" + e.Message);
+                return TxtNotice != null ? TxtNotice.font : null;
+            }
+        }
+
+        static T AddRect<T>(string name, RectTransform parent) where T : Component
+        {
+            // 显式带 CanvasRenderer：Image / Text 这类 Graphic 需要它才能出图
+            var go = new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer));
+            go.layer = parent.gameObject.layer;
+            go.transform.SetParent(parent, false);
+            return go.AddComponent<T>();
+        }
+
+        /// <summary>撑满父节点并留出四边 padding（不动父节点，只改自己）。</summary>
+        static void StretchRect(RectTransform rt, float padding)
+        {
+            if (rt == null) return;
+            rt.anchorMin = Vector2.zero;
+            rt.anchorMax = Vector2.one;
+            rt.pivot = new Vector2(0.5f, 0.5f);
+            rt.offsetMin = new Vector2(padding, padding);
+            rt.offsetMax = new Vector2(-padding, -padding);
+        }
+
         public void ShowDeposit(float seconds) { depositLeft = seconds; }
         public void SetDurability(int left, int max)
         {
@@ -356,6 +526,11 @@ namespace TrashPlanet.Whitebox
             float dt = Time.deltaTime;
             if (noticeLeft > 0f) noticeLeft -= dt;
             if (depositLeft > 0f) depositLeft -= dt;
+            if (bagToastLeft > 0f)
+            {
+                bagToastLeft = Mathf.Max(0f, bagToastLeft - dt);
+                ApplyBagToast();
+            }
 
             float duration = Game != null && Game.Config != null
                 ? Mathf.Max(0.05f, Game.Config.PickupFloatSeconds) : 0.8f;
@@ -412,9 +587,13 @@ namespace TrashPlanet.Whitebox
             if (TxtDeposit != null) TxtDeposit.text = "垃圾入站：漏斗下沉中…";
 
             // 背包 >80% 呼吸边框（容量按当前背包等级算）
+            // 下标同时受两侧数组长度约束：任一数组长度不足时只算能算的部分，不抛异常。
             int[] bagCaps = cfg.BackpackCapAt(s.bagLevel);
             int bagSum = 0, bagCap = 0;
-            for (int i = 0; i < 4; i++) { bagSum += s.bag[i]; bagCap += bagCaps[i]; }
+            int slots = bagCaps == null ? 0 : bagCaps.Length;
+            if (s.bag == null) slots = 0;
+            else if (slots > s.bag.Length) slots = s.bag.Length;
+            for (int i = 0; i < slots; i++) { bagSum += s.bag[i]; bagCap += bagCaps[i]; }
             bool warn = bagCap > 0 && bagSum / (float)bagCap > 0.8f;
             SetActive(BagWarning == null ? null : BagWarning.gameObject, warn && !block);
             if (BagWarning != null && warn)
@@ -460,7 +639,7 @@ namespace TrashPlanet.Whitebox
         void RefreshStation(WhiteboxState s, WhiteboxConfig cfg)
         {
             SetText(TxtRepaired, "已修复: " + (s.stationRepaired ? "是" : "否（先造 1 块再生建材板）")
-                                 + "  ·  背包 Lv." + s.bagLevel + "/" + WhiteboxConfig.BagMaxLevel
+                                 + "  ·  背包 Lv." + s.bagLevel + "/" + cfg.BagMaxLevel
                                  + "（总 " + s.BagTotal() + "/" + s.BagCapTotal(cfg) + "）");
             SetText(TxtRaw, "待加工垃圾  塑/金/有/电: " + s.raw[0] + "/" + s.raw[1] + "/"
                             + s.raw[2] + "/" + s.raw[3]);

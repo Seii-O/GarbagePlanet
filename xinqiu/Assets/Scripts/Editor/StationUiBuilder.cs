@@ -227,7 +227,7 @@ namespace TrashPlanet.Whitebox.Editor
                 Skin("pn_列表行"), null, false, Image.Type.Sliced).rectTransform;
             Img(status, "Img_StatusIcon", 12f, 11f, 20f, 20f, Lib("03_界面拆件/ic_警示"), Amber, false,
                 Image.Type.Simple, true);
-            Lbl(status, "Txt_Repaired", "已修复: 否（先造 1 块再生建材板）  ·  背包 Lv.1/2（总 0/50）",
+            Lbl(status, "Txt_Repaired", "已修复: 否（先造 1 块再生建材板）  ·  背包 Lv.1（总 0/50）",
                 42f, 7f, PW - 48f - 54f, 28f, 15, TextSoft);
 
             RectTransform bag = Card(panel.transform, "Card_Bag", "Bag", 24f, CY, 496f, CH, "垃圾背包", "GARBAGE BAG");

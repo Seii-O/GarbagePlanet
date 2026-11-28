@@ -414,8 +414,9 @@ namespace TrashPlanet.Whitebox
                     SetText(panel.transform, "Txt_CostMat", "需 " + metal + " / 持有 " + s.materials[1]);
                     SetText(panel.transform, "Txt_CostElec", "需 " + elec + " / 持有 " + s.materials[3]);
                     SetText(panel.transform, "Txt_UpState", can ? "可升级" : "条件不足");
-                    string unlock = lv == 1 && s.bagLevel < WhiteboxConfig.BagMaxLevel
-                        ? " · Lv.2 解锁背包 " + cfg.BackpackTotalCap(WhiteboxConfig.BagMaxLevel) + " 格" : "";
+                    string unlock = lv < maxLv
+                        ? " · 背包 " + cfg.BackpackTotalCap(lv) + " → " + cfg.BackpackTotalCap(lv + 1) + " 格"
+                        : "";
                     SetText(panel.transform, "Txt_UpHint", (can ? "点击下方按钮升级人物" : why) + unlock);
                     SetText(panel.transform, "Txt_BottomLeft", "等级 Lv." + lv + " / Lv." + maxLv
                             + "　累计经验 " + s.playerExpTotal + " → " + cfg.PlayerLevelExpAt(lv + 1));

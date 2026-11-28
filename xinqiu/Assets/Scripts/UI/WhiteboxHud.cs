@@ -79,6 +79,14 @@ namespace TrashPlanet.Whitebox
             if (canvasView != null) canvasView.Notice(text);
         }
 
+        /// <summary>容量不足专用提示：固定文案、2 秒自动消失；绑定 uGUI 视图时走提示条，纯 IMGUI 时走单行提示。</summary>
+        public void NoticeBagFull()
+        {
+            notice = WhiteboxCanvasHud.BagFullTip;
+            noticeLeft = 2f;
+            if (canvasView != null) canvasView.NoticeBagFull();
+        }
+
         public void ShowDeposit(float seconds)
         {
             depositLeft = seconds;
@@ -139,10 +147,13 @@ namespace TrashPlanet.Whitebox
                 DrawRect(new Rect(0f, 0f, Screen.width, Screen.height),
                     new Color(1f, 1f, 1f, FlashAlpha));
 
-            // 背包 >80% 的边框呼吸（#E2603C）
+            // 背包 >80% 的边框呼吸（#E2603C）；下标同时受两侧数组长度约束
             int[] bagCaps = cfg.BackpackCapAt(s.bagLevel);
             int bagSum = 0, bagCap = 0;
-            for (int i = 0; i < 4; i++) { bagSum += s.bag[i]; bagCap += bagCaps[i]; }
+            int slots = bagCaps == null ? 0 : bagCaps.Length;
+            if (s.bag == null) slots = 0;
+            else if (slots > s.bag.Length) slots = s.bag.Length;
+            for (int i = 0; i < slots; i++) { bagSum += s.bag[i]; bagCap += bagCaps[i]; }
             if (bagCap > 0 && bagSum / (float)bagCap > 0.8f)
             {
                 float a = 0.35f + 0.25f * Mathf.Sin(Time.time * 6f);

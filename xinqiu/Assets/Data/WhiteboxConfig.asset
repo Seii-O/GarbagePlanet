@@ -24,6 +24,7 @@ MonoBehaviour:
   spawnSinkDepth: 0.55
   spawnStartScale: 0.55
   backpackCap: 0d0000000d0000000c0000000c000000
+  backpackCapPerLevel: 03000000030000000200000002000000
   backpackCapMax: 19000000190000001900000019000000
   pickRange:
   - 4
@@ -32,6 +33,15 @@ MonoBehaviour:
   dismantleDamage: 010000000100000002000000
   largeDurability: 05000000080000000a000000
   largeYield: 2
+  largeSpawnRatio:
+  - 0.03
+  - 0.06
+  - 0.1
+  - 0.16
+  - 0.22
+  spawnRatioVersion: 1
+  largeCatchUpMinAngle: 60
+  largeCatchUpPerSecond: 6
   highlightRange: 6
   specUnlockProcessCount: 06000000060000000400000006000000
   specUpgradeMaterialCost: 6
@@ -101,8 +111,25 @@ MonoBehaviour:
   - 3
   - 2
   dogFollowDistance: 1.8
+  dogRoamRadius: 5
+  dogRoamSpeed: 2.6
+  dogRunSpeed: 6.2
+  dogPickDistance: 0.6
   dogHeight: 0.55
   dogColorHex: '#D8C3A0'
+  dogScoutInterval: 18
+  dogScoutHold: 2.5
+  dogScoutForward: 2.2
+  dogScoutSide: 0.9
+  dogScoutIdleTrigger: 1.2
+  dogBobMeters: 0.01
+  dogFetchLunge: 0.12
+  dogTailWagHz: 2.2
+  dogTailWagDeg: 14
+  dogTailBoostDeg: 26
+  dogLegGaitHz: 4.5
+  dogLegGaitDeg: 12
+  dogHeadLookDeg: 12
   highlightHex: '#FFFFFF'
   bagWarningHex: '#E2603C'
   durabilityHex: '#F2C14E'

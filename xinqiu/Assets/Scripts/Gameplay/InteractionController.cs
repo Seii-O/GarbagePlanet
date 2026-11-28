@@ -150,9 +150,9 @@ namespace TrashPlanet.Whitebox
 
             if (!target.Large)
             {
-                if (!state.CanCollect(cfg, cat)) { RejectPickup("背包已满"); return; }
+                if (!state.CanCollect(cfg, cat)) { RejectBagFull(); return; }
                 int n = state.Collect(cfg, cat, 1); // NUM-001
-                if (n <= 0) { RejectPickup("背包已满"); return; }
+                if (n <= 0) { RejectBagFull(); return; }
                 GameAudio.Current?.PlayPickup();
                 WorldPickupPopup.Show(target, game.ViewCamera, game.PlanetCenter, target.Category, n);
                 game.Spawner.Despawn(target);
@@ -164,7 +164,7 @@ namespace TrashPlanet.Whitebox
             }
 
             // 大型垃圾：容量不足时忽略点击，不改耐久（策划案 §6.2）
-            if (!state.CanCollect(cfg, cat)) { RejectPickup("背包已满，无法拆解"); return; }
+            if (!state.CanCollect(cfg, cat)) { RejectBagFull(); return; }
             int left = target.Hit(damage);
             // 不再手动写黄条：Update 末尾的 SyncDurabilityBar 会读 target.Durability 同帧刷新。
             if (left > 0) return;
@@ -172,7 +172,7 @@ namespace TrashPlanet.Whitebox
             int yieldAmount = target.YieldAmount;
             if (tool != null) yieldAmount = tool.EffectiveYield(current.Category);
             int gain = state.Collect(cfg, cat, yieldAmount);
-            if (gain <= 0) { RejectPickup("背包已满，无法拆解"); return; }
+            if (gain <= 0) { RejectBagFull(); return; }
             GameAudio.Current?.PlayPickup();
             state.dismantled += 1;
             WorldPickupPopup.Show(target, game.ViewCamera, game.PlanetCenter, target.Category, gain);
@@ -197,9 +197,10 @@ namespace TrashPlanet.Whitebox
             if (currentMachine != null) currentMachine.SetHighlight(true);
         }
 
-        void RejectPickup(string message)
+        /// <summary>容量不足：固定文案提示 2 秒，不阻塞操作（背包已满 / 拆解产出放不下都走这里）。</summary>
+        void RejectBagFull()
         {
-            game.Notice(message);
+            game.NoticeBagFull();
             GameAudio.Current?.PlayBagFull();
         }
 

@@ -19,7 +19,7 @@ namespace TrashPlanet.Whitebox
         public int version = 1;
         public int[] bag = new int[4];        // 垃圾背包：按类别的汇总数；容量/投放/任务仍以它为准
         public int[] bagItems = new int[GarbageBagCatalog.ItemCount]; // BAG-003：8 种单品的展示数量，每类两项之和恒等于 bag[cat]
-        public int bagLevel = 1;              // 保留旧存档字段；人物 Lv.2 自动解锁扩容
+        public int bagLevel = 1;              // 保留旧存档字段；现已直接镜像 playerLevel（容量随人物等级）
         public int[] raw = new int[4];        // 中转站：已存入待加工的垃圾
         public int[] materials = new int[4];  // 再生塑料 / 金属零件 / 有机原料 / 电子元件
         public int toolLevel = 1;
@@ -523,8 +523,9 @@ namespace TrashPlanet.Whitebox
             s.NormalizeGarbageBagItems(); // BAG-003：旧档缺 bagItems 时按 bag[4] 重建单品明细，version 不变
             s.raw = Fix(s.raw);
             s.materials = Fix(s.materials);
-            // 旧存档没有 bagLevel 字段（JsonUtility 反序列化为 0），统一归一到 1..2
-            s.bagLevel = Mathf.Clamp(s.bagLevel <= 0 ? 1 : s.bagLevel, 1, WhiteboxConfig.BagMaxLevel);
+            // 旧存档没有 bagLevel 字段（JsonUtility 反序列化为 0），先给安全初值；
+            // 真正的等级在下面 playerLevel 归一后统一镜像，保证「背包等级 = 人物等级」。
+            s.bagLevel = Mathf.Clamp(s.bagLevel <= 0 ? 1 : s.bagLevel, 1, WhiteboxConfig.PlayerLevelHardCap);
             s.clearedTrash = Mathf.Max(0, s.clearedTrash);
             s.finalTrashRemaining = Mathf.Max(0, s.finalTrashRemaining);
             // 新增玩法字段：旧档反序列化为 0/null，这里归一到安全默认值
@@ -540,7 +541,8 @@ namespace TrashPlanet.Whitebox
                 s.ownedRewardCounts[i] = Mathf.Max(0, s.ownedRewardCounts[i]);
             // 人物等级字段：旧档反序列化为 0，归一到 Lv.1 / 经验 0；version 仍为 1
             s.playerLevel = Mathf.Clamp(s.playerLevel <= 0 ? 1 : s.playerLevel, 1, WhiteboxConfig.PlayerLevelHardCap);
-            if (s.playerLevel >= 2) s.bagLevel = WhiteboxConfig.BagMaxLevel;
+            // 背包容量已与人物等级绑定：背包等级直接镜像人物等级，读档即同步，无需再单独解锁
+            s.bagLevel = s.playerLevel;
             s.playerExp = Mathf.Max(0, s.playerExp);
             s.playerExpTotal = Mathf.Max(0, s.playerExpTotal);
             s.NormalizeTools();     // 工具系统字段：旧档缺失时补位/钳制，version 仍为 1

@@ -152,6 +152,9 @@ namespace TrashPlanet.Whitebox
 
         void Awake()
         {
+            // 旧 .asset 里没有后来新增的字段（Unity 不会把新键写回已有资产），
+            // 这里按默认曲线做一次迁移，避免「配置看着是 16% 实际跑的是兜底值」。
+            if (config != null) config.MigrateDefaults();
             state = WhiteboxState.Load();
             if (state.finished) state = new WhiteboxState(); // 已结算的存档不自动续上，避免验证时一进 Play 就是结算面板
             ApplyPlanetSize();
@@ -571,6 +574,12 @@ namespace TrashPlanet.Whitebox
         public void Notice(string text)
         {
             if (hud != null) hud.Notice(text);
+        }
+
+        /// <summary>背包容量不足：固定文案 + 2 秒自动关闭，仅提示不阻塞操作。</summary>
+        public void NoticeBagFull()
+        {
+            if (hud != null) hud.NoticeBagFull();
         }
 
         public void Restart()
